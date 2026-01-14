@@ -79,6 +79,11 @@ public:
 	UPROPERTY(VisibleAnywhere, Category="Hex Grid")
 	TMap<FIntPoint, TObjectPtr<AMycelandTile>> TilesByAxial;
 
+	// Scale appliqué aux tuiles spawnées
+	UPROPERTY(EditAnywhere, Category="Hex Grid|Tile", meta=(ClampMin="0.01"))
+	FVector TileScale = FVector(1.f, 1.f, 1.f);
+
+
 
 private:
 	UPROPERTY(Transient)

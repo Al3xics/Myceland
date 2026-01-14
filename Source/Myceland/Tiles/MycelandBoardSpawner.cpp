@@ -1,6 +1,9 @@
 ﻿#include "MycelandBoardSpawner.h"
 #include "MycelandTile.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Components/StaticMeshComponent.h"
+#include "GenericPlatform/GenericPlatformChunkInstall.h"
 
 
 AMycelandBoardSpawner::AMycelandBoardSpawner()
@@ -38,16 +41,29 @@ void AMycelandBoardSpawner::OnConstruction(const FTransform& Transform)
 
 void AMycelandBoardSpawner::ClearTiles()
 {
-	for (AActor* Tile : SpawnedTiles)
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// 1) Détruit toutes les tuiles dont Owner == this (robuste même si SpawnedTiles est vide)
+	TArray<AActor*> OwnedActors;
+	GetAttachedActors(OwnedActors); // utile mais pas suffisant si certaines ne sont pas attachées
+
+	// Détruit aussi celles non attachées mais owner=this
+	for (TActorIterator<AMycelandTile> It(World); It; ++It)
 	{
-		if (IsValid(Tile))
+		AMycelandTile* Tile = *It;
+		if (!IsValid(Tile)) continue;
+
+		if (Tile->GetOwner() == this)
 		{
 			Tile->Destroy();
 		}
 	}
+
 	SpawnedTiles.Empty();
 	TilesByAxial.Empty();
 }
+
 
 FVector AMycelandBoardSpawner::AxialToWorld(int32 Q, int32 R) const
 {
@@ -97,12 +113,13 @@ void AMycelandBoardSpawner::SpawnHexagonRadius()
 		for (int32 R = RMin; R <= RMax; ++R)
 		{
 			const FVector Location = AxialToWorld(Q, R);
-			const FTransform TileTransform(TileRotation, Location);
+			const FTransform TileTransform(TileRotation, Location, TileScale);
 
 			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(CaseClass, TileTransform, Params);
 			if (!Tile) continue;
 
 			SpawnedTiles.Add(Tile);
+			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 			TilesByAxial.Add(FIntPoint(Q, R), Tile);
 		}
 	}
@@ -112,26 +129,28 @@ float AMycelandBoardSpawner::DetectSizeFromMesh() const
 {
 	if (!CaseClass) return HexSize;
 
-	// On récupère le CDO pour accéder au mesh sans spawn réel
-	const AMycelandTile* DefaultCase = CaseClass->GetDefaultObject<AMycelandTile>();
-	if (!DefaultCase) return HexSize;
+	const AMycelandTile* DefaultTile = CaseClass->GetDefaultObject<AMycelandTile>();
+	if (!DefaultTile) return HexSize;
 
-	const UStaticMeshComponent* MeshComp = DefaultCase->FindComponentByClass<UStaticMeshComponent>();
+	const UStaticMeshComponent* MeshComp = DefaultTile->FindComponentByClass<UStaticMeshComponent>();
 	if (!MeshComp || !MeshComp->GetStaticMesh()) return HexSize;
 
 	const FBoxSphereBounds Bounds = MeshComp->GetStaticMesh()->GetBounds();
 	const FVector Extent = Bounds.BoxExtent;
 
-	// UE units : BoxExtent = demi-taille
+	// Scale “effective” : scale du mesh component dans le BP * scale de l’actor CDO * scale demandé par le spawner
+	const FVector EffectiveScale =
+		MeshComp->GetRelativeScale3D()
+		* DefaultTile->GetActorScale3D()
+		* TileScale;
+
 	if (Orientation == EHexOrientation::FlatTop)
 	{
-		// largeur sommet → sommet = 2 * Extent.X
-		return Extent.X * CaseClass.GetDefaultObject()->GetActorScale().X;
+		return Extent.X * EffectiveScale.X;
 	}
-	else // PointyTop
+	else
 	{
-		// hauteur sommet → sommet = 2 * Extent.Y
-		return Extent.Y * CaseClass.GetDefaultObject()->GetActorScale().Y;
+		return Extent.Y * EffectiveScale.Y;
 	}
 }
 
@@ -187,12 +206,13 @@ void AMycelandBoardSpawner::SpawnRectangleWH()
 			const int32 R = Axial.Y;
 
 			const FVector Location = AxialToWorld(Q, R);
-			const FTransform TileTransform(TileRotation, Location);
+			const FTransform TileTransform(TileRotation, Location, TileScale);
 
 			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(CaseClass, TileTransform, Params);
 			if (!Tile) continue;
 
 			SpawnedTiles.Add(Tile);
+			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 			TilesByAxial.Add(FIntPoint(Q, R), Tile);
 		}
 	}
