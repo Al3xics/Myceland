@@ -2,15 +2,15 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "MyceliumCase.generated.h"
+#include "MycelandTile.generated.h"
 
 UCLASS(Blueprintable)
-class MYCELIUM_API AMyceliumCase : public AActor
+class MYCELIUM_API AMycelandTile : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	AMyceliumCase();
+	AMycelandTile();
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Case")

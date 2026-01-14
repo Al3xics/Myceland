@@ -2,9 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "MyceliumBoardSpawner.generated.h"
+#include "MycelandBoardSpawner.generated.h"
 
-class AMyceliumCase;
+class AMycelandTile;
 
 UENUM(BlueprintType)
 enum class EHexGridLayout : uint8
@@ -30,19 +30,19 @@ enum class EHexOrientation : uint8
 };
 
 UCLASS()
-class MYCELIUM_API AMyceliumBoardSpawner : public AActor
+class MYCELIUM_API AMycelandBoardSpawner : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	AMyceliumBoardSpawner();
+	AMycelandBoardSpawner();
 
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 public:
 	UPROPERTY(EditAnywhere, Category="Hex Grid")
-	TSubclassOf<class AMyceliumCase> CaseClass;
+	TSubclassOf<class AMycelandTile> CaseClass;
 
 	// Choix du mode de génération
 	UPROPERTY(EditAnywhere, Category="Hex Grid")
@@ -77,7 +77,7 @@ public:
 	FRotator TileRotation = FRotator::ZeroRotator;
 
 	UPROPERTY(VisibleAnywhere, Category="Hex Grid")
-	TMap<FIntPoint, TObjectPtr<AMyceliumCase>> TilesByAxial;
+	TMap<FIntPoint, TObjectPtr<AMycelandTile>> TilesByAxial;
 
 
 private:

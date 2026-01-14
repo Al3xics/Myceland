@@ -1,15 +1,14 @@
-﻿#include "Public/MyceliumBoardSpawner.h"
-#include "MyceliumCase.h"
+﻿#include "MycelandBoardSpawner.h"
+#include "MycelandTile.h"
 #include "Engine/World.h"
 
-#include <cmath>
 
-AMyceliumBoardSpawner::AMyceliumBoardSpawner()
+AMycelandBoardSpawner::AMycelandBoardSpawner()
 {
 	PrimaryActorTick.bCanEverTick = false;
 }
 
-void AMyceliumBoardSpawner::OnConstruction(const FTransform& Transform)
+void AMycelandBoardSpawner::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
@@ -37,7 +36,7 @@ void AMyceliumBoardSpawner::OnConstruction(const FTransform& Transform)
 }
 
 
-void AMyceliumBoardSpawner::ClearTiles()
+void AMycelandBoardSpawner::ClearTiles()
 {
 	for (AActor* Tile : SpawnedTiles)
 	{
@@ -50,7 +49,7 @@ void AMyceliumBoardSpawner::ClearTiles()
 	TilesByAxial.Empty();
 }
 
-FVector AMyceliumBoardSpawner::AxialToWorld(int32 Q, int32 R) const
+FVector AMycelandBoardSpawner::AxialToWorld(int32 Q, int32 R) const
 {
 	// Axial -> 2D (x,y), puis -> UE (X,Y)
 	const float Sqrt3 = 1.73205080757f;
@@ -77,7 +76,7 @@ FVector AMyceliumBoardSpawner::AxialToWorld(int32 Q, int32 R) const
 	return GetActorLocation() + FVector(X2D, Y2D, 0.f);
 }
 
-void AMyceliumBoardSpawner::SpawnHexagonRadius()
+void AMycelandBoardSpawner::SpawnHexagonRadius()
 {
 	if (!CaseClass) return;
 	UWorld* World = GetWorld();
@@ -100,7 +99,7 @@ void AMyceliumBoardSpawner::SpawnHexagonRadius()
 			const FVector Location = AxialToWorld(Q, R);
 			const FTransform TileTransform(TileRotation, Location);
 
-			AMyceliumCase* Tile = World->SpawnActor<AMyceliumCase>(CaseClass, TileTransform, Params);
+			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(CaseClass, TileTransform, Params);
 			if (!Tile) continue;
 
 			SpawnedTiles.Add(Tile);
@@ -109,12 +108,12 @@ void AMyceliumBoardSpawner::SpawnHexagonRadius()
 	}
 }
 
-float AMyceliumBoardSpawner::DetectSizeFromMesh() const
+float AMycelandBoardSpawner::DetectSizeFromMesh() const
 {
 	if (!CaseClass) return HexSize;
 
 	// On récupère le CDO pour accéder au mesh sans spawn réel
-	const AMyceliumCase* DefaultCase = CaseClass->GetDefaultObject<AMyceliumCase>();
+	const AMycelandTile* DefaultCase = CaseClass->GetDefaultObject<AMycelandTile>();
 	if (!DefaultCase) return HexSize;
 
 	const UStaticMeshComponent* MeshComp = DefaultCase->FindComponentByClass<UStaticMeshComponent>();
@@ -136,7 +135,7 @@ float AMyceliumBoardSpawner::DetectSizeFromMesh() const
 	}
 }
 
-FIntPoint AMyceliumBoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
+FIntPoint AMycelandBoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
 {
 	// Retourne (q,r) dans FIntPoint(q,r)
 	switch (OffsetLayout)
@@ -169,7 +168,7 @@ FIntPoint AMyceliumBoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
 	}
 }
 
-void AMyceliumBoardSpawner::SpawnRectangleWH()
+void AMycelandBoardSpawner::SpawnRectangleWH()
 {
 	if (!CaseClass) return;
 	UWorld* World = GetWorld();
@@ -190,7 +189,7 @@ void AMyceliumBoardSpawner::SpawnRectangleWH()
 			const FVector Location = AxialToWorld(Q, R);
 			const FTransform TileTransform(TileRotation, Location);
 
-			AMyceliumCase* Tile = World->SpawnActor<AMyceliumCase>(CaseClass, TileTransform, Params);
+			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(CaseClass, TileTransform, Params);
 			if (!Tile) continue;
 
 			SpawnedTiles.Add(Tile);

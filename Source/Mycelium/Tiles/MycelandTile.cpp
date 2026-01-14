@@ -1,7 +1,7 @@
-﻿#include "Public/MyceliumCase.h"
+﻿#include "MycelandTile.h"
 #include "Components/StaticMeshComponent.h"
 
-AMyceliumCase::AMyceliumCase()
+AMycelandTile::AMycelandTile()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
