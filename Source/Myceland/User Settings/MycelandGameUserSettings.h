@@ -9,11 +9,10 @@
 /**
  * 
  */
-UCLASS()
+UCLASS(Blueprintable, BlueprintType)
 class MYCELAND_API UMycelandGameUserSettings : public UGameUserSettings
 {
 	GENERATED_BODY()
-
 	public:
 	
 	virtual float GetFrameRateLimit() const override;
