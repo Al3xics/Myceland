@@ -22,7 +22,7 @@ void AMycelandBoardSpawner::OnConstruction(const FTransform& Transform)
 		const float Detected = DetectSizeFromMesh();
 		if (Detected > 0.f)
 		{
-			HexSize = Detected + 1.f;
+			HexSize = Detected + 0.f;
 		}
 	}
 
@@ -36,6 +36,7 @@ void AMycelandBoardSpawner::OnConstruction(const FTransform& Transform)
 		SpawnRectangleWH();
 		break;
 	}
+
 }
 
 
@@ -217,6 +218,3 @@ void AMycelandBoardSpawner::SpawnRectangleWH()
 		}
 	}
 }
-
-
-
