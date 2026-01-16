@@ -8,6 +8,8 @@ public class Myceland : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+        PublicIncludePaths.Add("Myceland");
+
         PublicDependencyModuleNames.AddRange(new string[] {
             "Core",
             "CoreUObject",
@@ -26,16 +28,6 @@ public class Myceland : ModuleRules
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });
-
-        PublicIncludePaths.AddRange(new string[] {
-            "Myceland",
-            "Myceland/Variant_Strategy",
-            "Myceland/Variant_Strategy/UI",
-            "Myceland/Variant_TwinStick",
-            "Myceland/Variant_TwinStick/AI",
-            "Myceland/Variant_TwinStick/Gameplay",
-            "Myceland/Variant_TwinStick/UI"
-        });
 
         // Uncomment if you are using Slate UI
         // PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
