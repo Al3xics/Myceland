@@ -36,6 +36,7 @@ void AMycelandBoardSpawner::OnConstruction(const FTransform& Transform)
 		SpawnRectangleWH();
 		break;
 	}
+
 }
 
 
@@ -217,6 +218,3 @@ void AMycelandBoardSpawner::SpawnRectangleWH()
 		}
 	}
 }
-
-
-
