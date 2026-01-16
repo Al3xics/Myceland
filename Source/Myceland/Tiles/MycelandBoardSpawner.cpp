@@ -15,29 +15,38 @@ void AMycelandBoardSpawner::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	ClearTiles();
+	const bool bHasAlreadyTiles = SpawnedTiles.Num() > 0 || TilesByAxial.Num() > 0;
 
-	if (bAutoDetectHexSize)
+	// Si on ne veut pas rebuild automatiquement et qu'on a deja une grille, on ne touche a rien
+	if (!bAutoRebuildOnConstruction && bHasAlreadyTiles && !bRebuildGrid)
 	{
-		const float Detected = DetectSizeFromMesh();
-		if (Detected > 0.f)
+		return;
+	}
+
+	// Rebuild force
+	if (bRebuildGrid || bAutoRebuildOnConstruction)
+	{
+		bRebuildGrid = false;
+
+		ClearTiles();
+
+		if (bAutoDetectHexSize)
 		{
-			HexSize = Detected + 1.f;
+			const float Detected = DetectSizeFromMesh();
+			if (Detected > 0.f)
+			{
+				HexSize = Detected + 1.f;
+			}
+		}
+
+		switch (GridLayout)
+		{
+		case EHexGridLayout::HexagonRadius: SpawnHexagonRadius(); break;
+		case EHexGridLayout::RectangleWH:   SpawnRectangleWH();   break;
 		}
 	}
-
-	switch (GridLayout)
-	{
-	case EHexGridLayout::HexagonRadius:
-		SpawnHexagonRadius();
-		break;
-
-	case EHexGridLayout::RectangleWH:
-		SpawnRectangleWH();
-		break;
-	}
-
 }
+
 
 
 void AMycelandBoardSpawner::ClearTiles()

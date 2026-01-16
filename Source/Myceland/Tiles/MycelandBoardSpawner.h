@@ -83,6 +83,11 @@ public:
 	UPROPERTY(EditAnywhere, Category="Hex Grid|Tile", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(1.f, 1.f, 1.f);
 
+	UPROPERTY(EditAnywhere, Category="Build", meta=(DisplayName="Rebuild Grid"))
+	bool bRebuildGrid = false;
+
+	UPROPERTY(EditAnywhere, Category="Build")
+	bool bAutoRebuildOnConstruction = true;
 
 
 private:
