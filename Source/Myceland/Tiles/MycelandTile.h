@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "MycelandTile.generated.h"
 
 UCLASS(Blueprintable)
@@ -14,23 +14,20 @@ public:
 	AMycelandTile();
 
 protected:
-	// Appelé quand l’acteur est construit ou modifié dans l’éditeur
-	virtual void OnConstruction(const FTransform& Transform) override;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile")
+	UStaticMeshComponent* HighlightTileMesh;
 
-protected:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Case")
-	UStaticMeshComponent* CaseMesh;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile")
+	UStaticMeshComponent* HexagonCollision;
 
-	// Collision "mur invisible" qui bloque le Pawn à la frontière
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile|Block")
-	USphereComponent* Blocker;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile")
+	FIntPoint AxialCoord = FIntPoint(0, 0);
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Tile|Block")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile")
 	bool bBlocked = false;
 
-	// Recalcule le rayon du blocker en fonction du mesh
-	UFUNCTION(BlueprintCallable, Category="Tile")
-	void SetBlockRadius();
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile")
+	TArray<class AMycelandTile*> Neighbors;
 
 public:
 	UFUNCTION(BlueprintCallable, Category="Tile")
@@ -38,4 +35,16 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Tile")
 	bool IsBlocked() const { return bBlocked; }
+
+	UFUNCTION(BlueprintCallable, Category="Tile")
+	void SetAxialCoord(const FIntPoint& InAxial) { AxialCoord = InAxial; }
+
+	UFUNCTION(BlueprintPure, Category="Tile")
+	FIntPoint GetAxialCoord() const { return AxialCoord; }
+
+	UFUNCTION(BlueprintCallable, Category="Tile")
+	void SetNeighbors(const TArray<class AMycelandTile*>& InNeighbors) { Neighbors = InNeighbors; }
+
+	UFUNCTION(BlueprintPure, Category="Tile")
+	const TArray<class AMycelandTile*>& GetNeighbors() const { return Neighbors; }
 };
