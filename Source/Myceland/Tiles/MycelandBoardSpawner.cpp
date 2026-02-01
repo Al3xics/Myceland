@@ -1,6 +1,8 @@
 ﻿#include "MycelandBoardSpawner.h"
 #include "MycelandTile.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Components/StaticMeshComponent.h"
 
 
 AMycelandBoardSpawner::AMycelandBoardSpawner()
@@ -8,43 +10,175 @@ AMycelandBoardSpawner::AMycelandBoardSpawner()
 	PrimaryActorTick.bCanEverTick = false;
 }
 
-void AMycelandBoardSpawner::OnConstruction(const FTransform& Transform)
+void AMycelandBoardSpawner::Destroyed()
 {
-	Super::OnConstruction(Transform);
+	ClearTiles();
+	Super::Destroyed();
+}
 
+void AMycelandBoardSpawner::RebuildGrid()
+{
 	ClearTiles();
 
-	if (bAutoDetectHexSize)
+	switch (GridLayout)
 	{
-		const float Detected = DetectSizeFromMesh();
-		if (Detected > 0.f)
-		{
-			HexSize = Detected + 1.f;
-		}
+	case EHexGridLayout::HexagonRadius: SpawnHexagonRadius(); break;
+	case EHexGridLayout::RectangleWH:   SpawnRectangleWH();   break;
 	}
+
+	UpdateNeighbors();
+}
+
+void AMycelandBoardSpawner::UpdateCurrentGrid()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// Rebuild map from existing tiles owned by this spawner.
+	TilesByAxial.Empty();
+	SpawnedTiles.Empty();
+
+	for (TActorIterator<AMycelandTile> It(World); It; ++It)
+	{
+		AMycelandTile* Tile = *It;
+		if (!IsValid(Tile)) continue;
+		if (Tile->GetOwner() != this) continue;
+
+		FIntPoint Axial = Tile->GetAxialCoord();
+		if (Axial == FIntPoint(0, 0))
+		{
+			const FIntPoint Derived = WorldToAxial(Tile->GetActorLocation());
+			if (Derived != Axial)
+			{
+				Axial = Derived;
+				Tile->SetAxialCoord(Axial);
+			}
+		}
+
+		if (TilesByAxial.Contains(Axial))
+		{
+			const FIntPoint Derived = WorldToAxial(Tile->GetActorLocation());
+			if (!TilesByAxial.Contains(Derived))
+			{
+				Axial = Derived;
+				Tile->SetAxialCoord(Axial);
+			}
+		}
+
+		if (TilesByAxial.Contains(Axial))
+		{
+			Tile->Destroy();
+			continue;
+		}
+
+		TilesByAxial.Add(Axial, Tile);
+		SpawnedTiles.Add(Tile);
+	}
+
+	TSet<FIntPoint> DesiredAxials;
+	DesiredAxials.Reserve(GridLayout == EHexGridLayout::HexagonRadius
+		? (1 + 3 * Radius * (Radius + 1))
+		: (GridWidth * GridHeight));
 
 	switch (GridLayout)
 	{
 	case EHexGridLayout::HexagonRadius:
-		SpawnHexagonRadius();
-		break;
+		{
+			for (int32 Q = -Radius; Q <= Radius; ++Q)
+			{
+				const int32 RMin = FMath::Max(-Radius, -Q - Radius);
+				const int32 RMax = FMath::Min( Radius, -Q + Radius);
 
+				for (int32 R = RMin; R <= RMax; ++R)
+				{
+					DesiredAxials.Add(FIntPoint(Q, R));
+				}
+			}
+			break;
+		}
 	case EHexGridLayout::RectangleWH:
-		SpawnRectangleWH();
-		break;
+		{
+			for (int32 Row = 0; Row < GridHeight; ++Row)
+			{
+				for (int32 Col = 0; Col < GridWidth; ++Col)
+				{
+					DesiredAxials.Add(OffsetToAxial(Col, Row));
+				}
+			}
+			break;
+		}
 	}
-}
 
+	// Remove tiles that are no longer part of the desired grid.
+	for (const TPair<FIntPoint, TObjectPtr<AMycelandTile>>& Pair : TilesByAxial)
+	{
+		if (DesiredAxials.Contains(Pair.Key)) continue;
+		if (Pair.Value) Pair.Value->Destroy();
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	const bool bCanSpawn = (TileClass != nullptr);
+	TMap<FIntPoint, TObjectPtr<AMycelandTile>> NewTilesByAxial;
+	NewTilesByAxial.Reserve(DesiredAxials.Num());
+
+	for (const FIntPoint& Axial : DesiredAxials)
+	{
+		AMycelandTile* Tile = nullptr;
+		if (const TObjectPtr<AMycelandTile>* Found = TilesByAxial.Find(Axial))
+		{
+			Tile = Found->Get();
+		}
+		else if (bCanSpawn)
+		{
+			const FVector Location = AxialToWorld(Axial.X, Axial.Y);
+			const FTransform TileTransform(TileRotation, Location, TileScale);
+
+			Tile = World->SpawnActor<AMycelandTile>(TileClass, TileTransform, Params);
+		}
+
+		if (!Tile) continue;
+
+		const FVector Location = AxialToWorld(Axial.X, Axial.Y);
+		const FTransform TileTransform(TileRotation, Location, TileScale);
+
+		Tile->SetActorTransform(TileTransform, false, nullptr, ETeleportType::TeleportPhysics);
+		Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+		Tile->SetAxialCoord(Axial);
+
+		NewTilesByAxial.Add(Axial, Tile);
+	}
+
+	TilesByAxial = MoveTemp(NewTilesByAxial);
+	SpawnedTiles.Empty();
+	SpawnedTiles.Reserve(TilesByAxial.Num());
+	for (const TPair<FIntPoint, TObjectPtr<AMycelandTile>>& Pair : TilesByAxial)
+	{
+		SpawnedTiles.Add(Pair.Value);
+	}
+
+	UpdateNeighbors();
+}
 
 void AMycelandBoardSpawner::ClearTiles()
 {
-	for (AActor* Tile : SpawnedTiles)
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// Détruit toute les tiles ou owner=this
+	for (TActorIterator<AMycelandTile> It(World); It; ++It)
 	{
-		if (IsValid(Tile))
+		AMycelandTile* Tile = *It;
+		if (!IsValid(Tile)) continue;
+
+		if (Tile->GetOwner() == this)
 		{
 			Tile->Destroy();
 		}
 	}
+
 	SpawnedTiles.Empty();
 	TilesByAxial.Empty();
 }
@@ -61,24 +195,71 @@ FVector AMycelandBoardSpawner::AxialToWorld(int32 Q, int32 R) const
 	{
 		// x = size * (3/2 q)
 		// y = size * (sqrt(3) * (r + q/2))
-		X2D = HexSize * (1.5f * Q);
-		Y2D = HexSize * (Sqrt3 * (R + 0.5f * Q));
+		X2D = TileSize * (1.5f * Q);
+		Y2D = TileSize * (Sqrt3 * (R + 0.5f * Q));
 	}
 	else // PointyTop
 	{
 		// x = size * (sqrt(3) * (q + r/2))
 		// y = size * (3/2 r)
-		X2D = HexSize * (Sqrt3 * (Q + 0.5f * R));
-		Y2D = HexSize * (1.5f * R);
+		X2D = TileSize * (Sqrt3 * (Q + 0.5f * R));
+		Y2D = TileSize * (1.5f * R);
 	}
 
 	// Dans UE: X,Y sur le plan, Z=0
 	return GetActorLocation() + FVector(X2D, Y2D, 0.f);
 }
 
+FIntPoint AMycelandBoardSpawner::WorldToAxial(const FVector& WorldLocation) const
+{
+	const float Sqrt3 = 1.73205080757f;
+	const FVector Local = WorldLocation - GetActorLocation();
+
+	float Qf = 0.f;
+	float Rf = 0.f;
+
+	if (Orientation == EHexOrientation::FlatTop)
+	{
+		Qf = (2.f / 3.f * Local.X) / TileSize;
+		Rf = (-1.f / 3.f * Local.X + (Sqrt3 / 3.f) * Local.Y) / TileSize;
+	}
+	else
+	{
+		Qf = ((Sqrt3 / 3.f) * Local.X - (1.f / 3.f) * Local.Y) / TileSize;
+		Rf = (2.f / 3.f * Local.Y) / TileSize;
+	}
+
+	const float Xf = Qf;
+	const float Zf = Rf;
+	const float Yf = -Xf - Zf;
+
+	int32 Rx = FMath::RoundToInt(Xf);
+	int32 Ry = FMath::RoundToInt(Yf);
+	int32 Rz = FMath::RoundToInt(Zf);
+
+	const float XDiff = FMath::Abs(Rx - Xf);
+	const float YDiff = FMath::Abs(Ry - Yf);
+	const float ZDiff = FMath::Abs(Rz - Zf);
+
+	if (XDiff > YDiff && XDiff > ZDiff)
+	{
+		Rx = -Ry - Rz;
+	}
+	else if (YDiff > ZDiff)
+	{
+		Ry = -Rx - Rz;
+	}
+	else
+	{
+		Rz = -Rx - Ry;
+	}
+
+	return FIntPoint(Rx, Rz);
+}
+
 void AMycelandBoardSpawner::SpawnHexagonRadius()
 {
-	if (!CaseClass) return;
+	if (!TileClass) return;
 	UWorld* World = GetWorld();
 	if (!World) return;
 
@@ -97,41 +278,53 @@ void AMycelandBoardSpawner::SpawnHexagonRadius()
 		for (int32 R = RMin; R <= RMax; ++R)
 		{
 			const FVector Location = AxialToWorld(Q, R);
-			const FTransform TileTransform(TileRotation, Location);
+			const FTransform TileTransform(TileRotation, Location, TileScale);
 
-			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(CaseClass, TileTransform, Params);
+			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(TileClass, TileTransform, Params);
 			if (!Tile) continue;
 
 			SpawnedTiles.Add(Tile);
-			TilesByAxial.Add(FIntPoint(Q, R), Tile);
+			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+			const FIntPoint Axial(Q, R);
+			Tile->SetAxialCoord(Axial);
+			TilesByAxial.Add(Axial, Tile);
 		}
 	}
 }
 
-float AMycelandBoardSpawner::DetectSizeFromMesh() const
+void AMycelandBoardSpawner::UpdateNeighbors()
 {
-	if (!CaseClass) return HexSize;
+	static const FIntPoint Directions[6] = {
+		FIntPoint(1, 0),
+		FIntPoint(1, -1),
+		FIntPoint(0, -1),
+		FIntPoint(-1, 0),
+		FIntPoint(-1, 1),
+		FIntPoint(0, 1)
+	};
 
-	// On récupère le CDO pour accéder au mesh sans spawn réel
-	const AMycelandTile* DefaultCase = CaseClass->GetDefaultObject<AMycelandTile>();
-	if (!DefaultCase) return HexSize;
-
-	const UStaticMeshComponent* MeshComp = DefaultCase->FindComponentByClass<UStaticMeshComponent>();
-	if (!MeshComp || !MeshComp->GetStaticMesh()) return HexSize;
-
-	const FBoxSphereBounds Bounds = MeshComp->GetStaticMesh()->GetBounds();
-	const FVector Extent = Bounds.BoxExtent;
-
-	// UE units : BoxExtent = demi-taille
-	if (Orientation == EHexOrientation::FlatTop)
+	for (const TPair<FIntPoint, TObjectPtr<AMycelandTile>>& Pair : TilesByAxial)
 	{
-		// largeur sommet → sommet = 2 * Extent.X
-		return Extent.X * CaseClass.GetDefaultObject()->GetActorScale().X;
-	}
-	else // PointyTop
-	{
-		// hauteur sommet → sommet = 2 * Extent.Y
-		return Extent.Y * CaseClass.GetDefaultObject()->GetActorScale().Y;
+		AMycelandTile* Tile = Pair.Value;
+		if (!Tile) continue;
+
+		TArray<AMycelandTile*> Neighbors;
+		Neighbors.Reserve(6);
+
+		for (const FIntPoint& Dir : Directions)
+		{
+			const FIntPoint NeighborKey = Pair.Key + Dir;
+			if (const TObjectPtr<AMycelandTile>* Found = TilesByAxial.Find(NeighborKey))
+			{
+				Neighbors.Add(Found->Get());
+			}
+			else
+			{
+				Neighbors.Add(nullptr);
+			}
+		}
+
+		Tile->SetNeighbors(Neighbors);
 	}
 }
 
@@ -170,7 +363,7 @@ FIntPoint AMycelandBoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
 
 void AMycelandBoardSpawner::SpawnRectangleWH()
 {
-	if (!CaseClass) return;
+	if (!TileClass) return;
 	UWorld* World = GetWorld();
 	if (!World) return;
 
@@ -187,16 +380,16 @@ void AMycelandBoardSpawner::SpawnRectangleWH()
 			const int32 R = Axial.Y;
 
 			const FVector Location = AxialToWorld(Q, R);
-			const FTransform TileTransform(TileRotation, Location);
+			const FTransform TileTransform(TileRotation, Location, TileScale);
 
-			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(CaseClass, TileTransform, Params);
+			AMycelandTile* Tile = World->SpawnActor<AMycelandTile>(TileClass, TileTransform, Params);
 			if (!Tile) continue;
 
 			SpawnedTiles.Add(Tile);
-			TilesByAxial.Add(FIntPoint(Q, R), Tile);
+			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+			const FIntPoint AxialQR(Q, R);
+			Tile->SetAxialCoord(AxialQR);
+			TilesByAxial.Add(AxialQR, Tile);
 		}
 	}
 }
-
-
-

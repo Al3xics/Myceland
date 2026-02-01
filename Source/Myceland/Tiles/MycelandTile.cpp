@@ -1,20 +1,39 @@
 ﻿#include "MycelandTile.h"
-#include "Components/StaticMeshComponent.h"
+
 
 AMycelandTile::AMycelandTile()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// Root
-	CaseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CaseMesh"));
-	RootComponent = CaseMesh;
+	HighlightTileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TileMesh"));
+	RootComponent = HighlightTileMesh;
+	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	HighlightTileMesh->SetCollisionObjectType(ECC_WorldStatic);
+	HighlightTileMesh->SetCollisionResponseToAllChannels(ECR_Block);
+	HighlightTileMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	HighlightTileMesh->SetGenerateOverlapEvents(false);
 
-	// Collision
-	CaseMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	CaseMesh->SetCollisionObjectType(ECC_WorldStatic);
-	CaseMesh->SetCollisionResponseToAllChannels(ECR_Block);
-	CaseMesh->SetGenerateOverlapEvents(true);
+	
+	HexagonCollision = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HexagonCollision"));
+	HexagonCollision->SetupAttachment(RootComponent);
+	HexagonCollision->SetRelativeScale3D(FVector(0.9f, 0.9f, 0.9f));
+	HexagonCollision->SetCollisionObjectType(ECC_WorldStatic);
+	HexagonCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
+	HexagonCollision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+	HexagonCollision->SetGenerateOverlapEvents(false);
+	HexagonCollision->SetHiddenInGame(true);
+	HexagonCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
 
-	// Interaction (clic / hover)
-	CaseMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+void AMycelandTile::SetBlocked(bool bNewBlocked)
+{
+	bBlocked = bNewBlocked;
+
+	if (!HexagonCollision) return;
+
+	HexagonCollision->SetCollisionEnabled(
+		bBlocked
+		? ECollisionEnabled::QueryOnly
+		: ECollisionEnabled::NoCollision
+	);
 }
