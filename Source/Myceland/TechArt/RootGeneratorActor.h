@@ -1,46 +1,65 @@
-// RootGeneratorActor.h
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
+
 #include "RootGeneratorActor.generated.h"
 
-// Plain C++ key
+/* ===================== TILE TYPE PAIR ===================== */
+
+USTRUCT(BlueprintType)
+struct FTileTypePair
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString TypeA;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString TypeB;
+};
+
+/* ===================== EDGE KEY ===================== */
+
 struct FTileEdgeKey
 {
 	int32 AId = 0;
 	int32 BId = 0;
+	int32 Variant = 0;
 
 	FTileEdgeKey() = default;
 
-	FTileEdgeKey(const UObject* A, const UObject* B)
+	FTileEdgeKey(const UObject* A, const UObject* B, int32 InVariant = 0)
 	{
 		const int32 IdA = A ? A->GetUniqueID() : 0;
 		const int32 IdB = B ? B->GetUniqueID() : 0;
 		AId = FMath::Min(IdA, IdB);
 		BId = FMath::Max(IdA, IdB);
+		Variant = InVariant;
 	}
 
 	bool operator==(const FTileEdgeKey& R) const
 	{
-		return AId == R.AId && BId == R.BId;
+		return AId == R.AId && BId == R.BId && Variant == R.Variant;
 	}
 };
 
 FORCEINLINE uint32 GetTypeHash(const FTileEdgeKey& K)
 {
-	return HashCombine(GetTypeHash(K.AId), GetTypeHash(K.BId));
+	return HashCombine(
+		HashCombine(GetTypeHash(K.AId), GetTypeHash(K.BId)),
+		GetTypeHash(K.Variant)
+	);
 }
 
-// Plain C++ runtime
+/* ===================== EDGE RUNTIME ===================== */
+
 struct FEdgeRuntime
 {
 	TObjectPtr<USplineComponent> Spline = nullptr;
 	TArray<TObjectPtr<USplineMeshComponent>> Meshes;
-
 	TArray<TObjectPtr<USplineComponent>> BranchSplines;
 
 	TWeakObjectPtr<AActor> TileA;
@@ -54,6 +73,8 @@ struct FEdgeRuntime
 	bool bDestroying = false;
 };
 
+/* ===================== ACTOR ===================== */
+
 UCLASS(Blueprintable)
 class MYCELAND_API ARootGeneratorActor : public AActor
 {
@@ -62,41 +83,45 @@ class MYCELAND_API ARootGeneratorActor : public AActor
 public:
 	ARootGeneratorActor();
 
-	// BP var names on BP_Tile
+	/* ---------- BP reflection ---------- */
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|BP")
 	FName TileTypeVarName = TEXT("TileType");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|BP")
 	FName NeighborsVarName = TEXT("Neighbors");
+	// Keep branches from bending back toward the main spline
+	UPROPERTY(EditAnywhere, Category = "Roots|Branches")
+	float BranchClearance = 15.f; // world units, push branch start away + minimum "away" bias
 
-	// BP enum entry name you see, ex: Dirt
+	UPROPERTY(EditAnywhere, Category = "Roots|Branches")
+	bool bBranchOffsetsOneSided = true;
+	/* ---------- Tile type filtering ---------- */
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Filter")
-	FString TargetTileTypeDisplayName = TEXT("Dirt");
+	TArray<FString> ConnectTypes;
 
-	// Mesh
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Filter")
+	bool bAllowCrossTypeConnections = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Filter")
+	TArray<FTileTypePair> CrossTypeWhitelist;
+
+	/* ---------- Density ---------- */
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Density", meta = (ClampMin = "0.0"))
+	float RootDensity = 1.0f;
+
+	/* ---------- Mesh ---------- */
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
 	TObjectPtr<UStaticMesh> SegmentMesh = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
 	TObjectPtr<UMaterialInterface> SegmentMaterial = nullptr;
 
-	// Which axis is "along the spline" for your mesh
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
 	TEnumAsByte<ESplineMeshAxis::Type> ForwardAxis = ESplineMeshAxis::X;
-
-	// Offset applied to each spline mesh in its LOCAL space
-	// X = along spline, Y = right, Z = up
-	// Use this to fix "mesh shifted to left" due to pivot.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Endpoints")
-	bool bEnableEndpointOffset = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Endpoints", meta = (ClampMin = "0.0"))
-	float EndpointOffsetRadius = 25.0f; // units in XY
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Variation", meta = (ClampMin = "0.0"))
-	float Variation = 0.0f; // 0 = no deviation. In same units as the value (width units, degrees, etc)
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Variation")
-	bool bDeterministicVariation = true; // stable per edge (recommended)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
 	FVector MeshOffsetLocal = FVector::ZeroVector;
@@ -107,64 +132,86 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (ClampMin = "0.001"))
 	float MeshScaleXY = 0.15f;
 
-	// Anim
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Anim", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
+	float BranchMeshScaleMul = 0.85f;
+
+	/* ---------- Endpoint offset ---------- */
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Endpoints")
+	bool bEnableEndpointOffset = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Endpoints", meta = (ClampMin = "0.0"))
+	float EndpointOffsetRadius = 25.0f;
+
+	/* ---------- Variation ---------- */
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Variation", meta = (ClampMin = "0.0"))
+	float Variation = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Variation")
+	bool bDeterministicVariation = true;
+
+	/* ---------- Spline shape ---------- */
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Spline", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float SplineCurviness = 0.0f;
+
+	/* ---------- Animation ---------- */
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Anim")
 	float GrowStepSeconds = 0.2f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Anim", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Anim")
 	float UngrowStepSeconds = 0.05f;
 
-	// Crack spline shape
+	/* ---------- Crack ---------- */
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Crack", meta = (ClampMin = "2"))
 	int32 PointsPerEdge = 10;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Crack", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Crack")
 	float CrackWidth = 45.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Crack", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Crack")
 	float CrackOndulations = 1.2f;
 
-	// Branching
+	/* ---------- Branch ---------- */
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	bool bEnableBranches = true;
 
-	// Branches per 1000 units of main spline length
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	float BranchDensityPer1000 = 1.6f;
 
-	// Adds +- jitter to computed branch count
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	int32 BranchCountJitter = 1;
 
-	// Avoid spawning too close to ends, in normalized 0..1 along spline
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0", ClampMax = "0.49"))
 	float BranchStartMargin = 0.12f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	float BranchLengthMin = 220.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	float BranchLengthMax = 520.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	float BranchAngleMinDeg = 25.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	float BranchAngleMaxDeg = 70.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "2"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	int32 BranchPointsPerEdge = 7;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	float BranchWidthScale = 0.65f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch")
 	float BranchOndulationsScale = 1.25f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Branch", meta = (ClampMin = "0.0"))
-	float BranchMeshScaleMul = 0.85f;
+	/* ---------- 2D ---------- */
 
-	// 2D plane
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|2D")
 	bool bForce2D = true;
 
@@ -173,6 +220,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|2D")
 	float FixedZ = 0.0f;
+
+	/* ---------- API ---------- */
 
 	UFUNCTION(BlueprintCallable, Category = "Roots")
 	void GenerateRoots();
@@ -187,32 +236,47 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	/* ---------- State ---------- */
+
 	TMap<FTileEdgeKey, FEdgeRuntime> EdgeMap;
 	TSet<TWeakObjectPtr<AActor>> ActiveTiles;
 
-	// Reflection
+	/* ---------- Tile helpers ---------- */
+
 	bool GetTileEnumValue(AActor* Tile, UEnum*& OutEnum, int64& OutValue) const;
-	bool IsTargetTile(AActor* Tile) const;
+	bool GetTileTypeName(AActor* Tile, FString& OutTypeName) const;
+	bool IsConnectType(const FString& TypeName) const;
+	bool CanConnectTypes(const FString& AType, const FString& BType) const;
 	bool GetNeighbors(AActor* Tile, TArray<AActor*>& OutNeighbors) const;
 
-	// Tile membership
+	/* ---------- Tile membership ---------- */
+
 	void AddTile(AActor* Tile);
 	void RemoveTile(AActor* Tile, bool bAnimated);
 
-	// Edge ops
+	/* ---------- Edge ops ---------- */
+
 	void AddEdgesForTile(AActor* Tile);
 	void RemoveEdgesForTile(AActor* Tile, bool bAnimated);
 
-	void CreateEdge(AActor* A, AActor* B);
+	void CreateEdge(AActor* A, AActor* B, int32 Variant);
 	void DestroyEdge(const FTileEdgeKey& Key, bool bAnimated);
-	FVector MakeEndpointOffsetXY(const AActor* A, const AActor* B, bool bForA) const;
-	// Timers
+
+	/* ---------- Timers ---------- */
+
 	void TickGrow(FTileEdgeKey Key);
 	void TickUngrow(FTileEdgeKey Key);
 
-	// Spline helpers
+	/* ---------- Helpers ---------- */
+
 	static FVector FlattenXY(const FVector& V, float Z);
 	static FVector2D SafeNormal2D(const FVector2D& V);
+
+	FVector MakeEndpointOffsetXY(const AActor* A, const AActor* B, bool bForA) const;
+
+	FRandomStream MakeEdgeRng(const AActor* A, const AActor* B, uint32 Salt) const;
+	float VaryFloat(float Base, float Var, FRandomStream& RS, float MinClamp = 0.0f) const;
+	int32 VaryInt(int32 Base, float Var, FRandomStream& RS, int32 MinClamp = 0) const;
 
 	void BuildCrackPoints2D(
 		const FVector& Start,
@@ -222,13 +286,22 @@ private:
 		float Width,
 		float Ondulations,
 		float Phase,
-		TArray<FVector>& OutPoints) const;
+		TArray<FVector>& OutPoints,
+		const FVector2D* LateralDirOverride = nullptr,
+		bool bOneSided = false,
+		float MinLateral = 0.0f
+	) const;
+
+
+	void PushPointsAwayFromSpline2D(
+		const USplineComponent* MainSpline,
+		float Z,
+		float MinClearance,
+		TArray<FVector>& InOutPoints) const;
 
 	void FillSplineFromWorldPoints(USplineComponent* Spline, const TArray<FVector>& WorldPoints) const;
+	void ApplyCurvinessToSpline(USplineComponent* Spline) const;
 
-	// Branch helpers
 	int32 ComputeBranchCount(float MainSplineLen) const;
-
-	// Mesh building
 	void BuildSplineMeshesHidden(FEdgeRuntime& Edge);
 };
