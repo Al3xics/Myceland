@@ -1,10 +1,9 @@
-﻿// RootGeneratorActor.cpp  (FULL DROP-IN, includes RootDensity + Variation + SplineCurviness)
-
-#include "RootGeneratorActor.h"
+﻿#include "RootGeneratorActor.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "UObject/UnrealType.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 /* ===================== CONSTRUCTOR ===================== */
 
@@ -115,7 +114,6 @@ bool ARootGeneratorActor::GetTileEnumValue(AActor* Tile, UEnum*& OutEnum, int64&
 	return false;
 }
 
-
 bool ARootGeneratorActor::GetNeighbors(AActor* Tile, TArray<AActor*>& OutNeighbors) const
 {
 	OutNeighbors.Reset();
@@ -152,7 +150,6 @@ void ARootGeneratorActor::GenerateRoots()
 		FString T;
 		if (GetTileTypeName(*It, T) && IsConnectType(T))
 			ActiveTiles.Add(*It);
-
 	}
 
 	for (TWeakObjectPtr<AActor> WT : ActiveTiles)
@@ -169,7 +166,6 @@ void ARootGeneratorActor::NotifyTileChanged(AActor* Tile)
 	const bool Was = ActiveTiles.Contains(Tile);
 	FString TT;
 	const bool Is = (GetTileTypeName(Tile, TT) && IsConnectType(TT));
-
 
 	if (!Was && Is) AddTile(Tile);
 	else if (Was && !Is) RemoveTile(Tile, true);
@@ -203,7 +199,6 @@ void ARootGeneratorActor::AddTile(AActor* Tile)
 	ActiveTiles.Add(Tile);
 	AddEdgesForTile(Tile);
 }
-
 
 void ARootGeneratorActor::RemoveTile(AActor* Tile, bool bAnimated)
 {
@@ -278,6 +273,7 @@ void ARootGeneratorActor::RemoveEdgesForTile(AActor* Tile, bool bAnimated)
 }
 
 /* ===================== SPLINE SHAPE ===================== */
+
 void ARootGeneratorActor::BuildCrackPoints2D(
 	const FVector& Start,
 	const FVector& End,
@@ -307,7 +303,6 @@ void ARootGeneratorActor::BuildCrackPoints2D(
 
 	const FVector2D Dir = SafeNormal2D(Delta);
 
-	// Lateral direction (the direction we offset points)
 	FVector2D Lat = LateralDirOverride ? SafeNormal2D(*LateralDirOverride) : FVector2D(-Dir.Y, Dir.X);
 	if (Lat.IsNearlyZero()) Lat = FVector2D(-Dir.Y, Dir.X);
 
@@ -324,11 +319,9 @@ void ARootGeneratorActor::BuildCrackPoints2D(
 
 		float Off = Width * Env * Wave;
 
-		// Force offsets to one side only (prevents “crossing back”)
 		if (bOneSided)
 			Off = FMath::Abs(Off);
 
-		// Add a constant “away” bias (also one-sided)
 		if (MinLateral > 0.0f)
 			Off += MinLateral * Env;
 
@@ -339,7 +332,6 @@ void ARootGeneratorActor::BuildCrackPoints2D(
 		OutPoints.Add(P);
 	}
 }
-
 
 /* ===================== SPLINE FILL + CURVINESS ===================== */
 
@@ -352,7 +344,6 @@ void ARootGeneratorActor::ApplyCurvinessToSpline(USplineComponent* Spline) const
 
 	const float C = FMath::Clamp(SplineCurviness, 0.0f, 1.0f);
 
-	// Fully straight
 	if (C <= KINDA_SMALL_NUMBER)
 	{
 		for (int32 i = 0; i < N; ++i)
@@ -362,7 +353,6 @@ void ARootGeneratorActor::ApplyCurvinessToSpline(USplineComponent* Spline) const
 		return;
 	}
 
-	// Smoothness by custom tangents, scaled by curviness
 	for (int32 i = 0; i < N; ++i)
 		Spline->SetSplinePointType(i, ESplinePointType::CurveCustomTangent, false);
 
@@ -370,14 +360,11 @@ void ARootGeneratorActor::ApplyCurvinessToSpline(USplineComponent* Spline) const
 	{
 		const FVector Pm1 = (i > 0) ? Spline->GetLocationAtSplinePoint(i - 1, ESplineCoordinateSpace::Local)
 			: Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::Local);
-		const FVector P0 = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::Local);
 		const FVector Pp1 = (i < N - 1) ? Spline->GetLocationAtSplinePoint(i + 1, ESplineCoordinateSpace::Local)
 			: Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::Local);
 
-		// Classic Catmull-Rom style tangent, then scale by C
 		FVector T = (Pp1 - Pm1) * 0.5f * C;
 
-		// Keep Z tangent 0 if you force 2D
 		if (bForce2D)
 			T.Z = 0.0f;
 
@@ -386,6 +373,28 @@ void ARootGeneratorActor::ApplyCurvinessToSpline(USplineComponent* Spline) const
 
 	Spline->UpdateSpline();
 }
+
+int32 ARootGeneratorActor::GetTileRootDegree(AActor* Tile) const
+{
+	if (!Tile) return 0;
+
+	TSet<int32> UniqueNeighborIds;
+
+	for (const TPair<FTileEdgeKey, FEdgeRuntime>& It : EdgeMap)
+	{
+		const FEdgeRuntime& E = It.Value;
+
+		AActor* A = E.TileA.Get();
+		AActor* B = E.TileB.Get();
+		if (!A || !B) continue;
+
+		if (A == Tile) UniqueNeighborIds.Add(B->GetUniqueID());
+		else if (B == Tile) UniqueNeighborIds.Add(A->GetUniqueID());
+	}
+
+	return UniqueNeighborIds.Num();
+}
+
 
 void ARootGeneratorActor::FillSplineFromWorldPoints(USplineComponent* Spline, const TArray<FVector>& WorldPoints) const
 {
@@ -403,7 +412,123 @@ void ARootGeneratorActor::FillSplineFromWorldPoints(USplineComponent* Spline, co
 	ApplyCurvinessToSpline(Spline);
 }
 
+/* ===================== DECAL HELPERS ===================== */
+
+UMaterialInterface* ARootGeneratorActor::PickDecalMaterial(bool bIsLast, FRandomStream& RS) const
+{
+	const TArray<TObjectPtr<UMaterialInterface>>& List = bIsLast ? EndDecalMaterials : LineDecalMaterials;
+
+	if (List.Num() > 0)
+	{
+		const int32 Idx = RS.RandRange(0, List.Num() - 1);
+		return List[Idx].Get();
+	}
+
+	if (bIsLast && LineDecalMaterials.Num() > 0)
+	{
+		const int32 Idx = RS.RandRange(0, LineDecalMaterials.Num() - 1);
+		return LineDecalMaterials[Idx].Get();
+	}
+
+	return nullptr;
+}
+FRotator ARootGeneratorActor::MakeGroundDecalRotationFromTangent(const FVector& WorldTangent) const
+{
+	// Projection direction (down onto ground)
+	const FVector Up = FVector::UpVector;
+	const FVector ProjX = -Up; // decal local +X points down (projection axis)
+
+	FVector T = WorldTangent;
+	if (bDecalFlattenTangentToXY)
+		T.Z = 0.0f;
+
+	if (T.SizeSquared() < KINDA_SMALL_NUMBER)
+		T = FVector(1, 0, 0);
+
+	T.Normalize();
+
+	// Build a basis where X=projection direction, and either Y or Z aligns to tangent.
+	FVector X = ProjX;
+	FVector Y, Z;
+
+	if (DecalAlongAxis == EDecalAlongAxis::AlongY)
+	{
+		// Y along tangent projected on ground
+		Y = (T - FVector::DotProduct(T, X) * X).GetSafeNormal();
+		if (Y.IsNearlyZero()) Y = FVector(0, 1, 0);
+
+		Z = FVector::CrossProduct(X, Y).GetSafeNormal();
+	}
+	else
+	{
+		// Z along tangent
+		Z = (T - FVector::DotProduct(T, X) * X).GetSafeNormal();
+		if (Z.IsNearlyZero()) Z = FVector(0, 0, 1);
+
+		Y = FVector::CrossProduct(Z, X).GetSafeNormal();
+	}
+
+	// Orthonormalize final basis
+	if (DecalAlongAxis == EDecalAlongAxis::AlongY)
+	{
+		Y = (Y - FVector::DotProduct(Y, X) * X).GetSafeNormal();
+		Z = FVector::CrossProduct(X, Y).GetSafeNormal();
+	}
+	else
+	{
+		Z = (Z - FVector::DotProduct(Z, X) * X).GetSafeNormal();
+		Y = FVector::CrossProduct(Z, X).GetSafeNormal();
+	}
+
+	const FMatrix M(X, Y, Z, FVector::ZeroVector);
+	FRotator R = M.Rotator();
+
+	// Roll tweak around projection axis (local X)
+	R.Roll += DecalRollOffsetDeg;
+	return R;
+}
+
+float ARootGeneratorActor::GetDecalStepLength(float LocalScaleMul) const
+{
+	if (DecalSegmentLength > 0.0f)
+		return DecalSegmentLength;
+
+	return FMath::Max(1.0f, DecalSize.Y * LocalScaleMul);
+}
+
 /* ===================== EDGE CREATION ===================== */
+void ARootGeneratorActor::RebuildDecalsForEdgesTouching(AActor* Tile)
+{
+	if (!Tile) return;
+
+	TArray<FTileEdgeKey> Keys;
+	EdgeMap.GetKeys(Keys);
+
+	for (const FTileEdgeKey& K : Keys)
+	{
+		FEdgeRuntime* E = EdgeMap.Find(K);
+		if (!E || E->bDestroying) continue;
+
+		AActor* A = E->TileA.Get();
+		AActor* B = E->TileB.Get();
+		if (!A || !B) continue;
+
+		if (A != Tile && B != Tile) continue;
+
+		// kill old decals/components
+		for (USceneComponent* C : E->Segments)
+			if (C) C->DestroyComponent();
+		E->Segments.Empty();
+
+		// rebuild segments (end decals will now be correct)
+		BuildSplineSegmentsHidden(*E);
+
+		// show immediately (keep it simple; you can re-add grow if you want)
+		for (USceneComponent* C : E->Segments)
+			if (C) C->SetVisibility(true);
+	}
+}
+
 
 void ARootGeneratorActor::CreateEdge(AActor* A, AActor* B, int32 Variant)
 {
@@ -443,11 +568,11 @@ void ARootGeneratorActor::CreateEdge(AActor* A, AActor* B, int32 Variant)
 	EdgeMap.Add(Key, Edge);
 
 	FEdgeRuntime& Stored = EdgeMap[Key];
-	BuildSplineMeshesHidden(Stored);
+	BuildSplineSegmentsHidden(Stored);
 
 	if (GrowStepSeconds <= 0.0f)
 	{
-		for (USplineMeshComponent* M : Stored.Meshes) if (M) M->SetVisibility(true);
+		for (USceneComponent* C : Stored.Segments) if (C) C->SetVisibility(true);
 		return;
 	}
 
@@ -458,6 +583,8 @@ void ARootGeneratorActor::CreateEdge(AActor* A, AActor* B, int32 Variant)
 		GrowStepSeconds,
 		true
 	);
+	RebuildDecalsForEdgesTouching(A);
+	RebuildDecalsForEdgesTouching(B);
 }
 
 /* ===================== BRANCH COUNT ===================== */
@@ -479,184 +606,326 @@ int32 ARootGeneratorActor::ComputeBranchCount(float MainSplineLen) const
 	return FMath::Max(0, Count);
 }
 
-/* ===================== MESH + BRANCHES ===================== */
-
-void ARootGeneratorActor::BuildSplineMeshesHidden(FEdgeRuntime& Edge)
+/* ===================== SEGMENTS (MESH OR DECAL) + BRANCHES ===================== */
+void ARootGeneratorActor::BuildSplineSegmentsHidden(FEdgeRuntime& Edge)
 {
-	Edge.Meshes.Empty();
+	Edge.Segments.Empty();
+
 	for (USplineComponent* BS : Edge.BranchSplines)
 		if (BS) BS->DestroyComponent();
 	Edge.BranchSplines.Empty();
 
-	if (!Edge.Spline || !SegmentMesh) return;
+	if (!Edge.Spline) return;
 
 	const float MainLen = Edge.Spline->GetSplineLength();
 	if (MainLen < KINDA_SMALL_NUMBER) return;
 
-	FRandomStream RS = MakeEdgeRng(Edge.TileA.Get(), Edge.TileB.Get(), 0xBEEF);
+	/* ================= MAIN ================= */
 
-	const float SegLen = FMath::Max(1.f, VaryFloat(SegmentLength, Variation, RS, 1.f));
-	const int32 SegCount = FMath::CeilToInt(MainLen / SegLen);
-	const float Step = MainLen / SegCount;
-
-	for (int32 i = 0; i < SegCount; ++i)
+	if (bUseDecals)
 	{
-		const float D0 = i * Step;
-		const float D1 = (i + 1) * Step;
+		const float ScaleMul = 1.0f;
+		const float Step = FMath::Max(1.0f, DecalTileLength * ScaleMul);
 
-		const FVector P0 = Edge.Spline->GetLocationAtDistanceAlongSpline(D0, ESplineCoordinateSpace::Local);
-		const FVector P1 = Edge.Spline->GetLocationAtDistanceAlongSpline(D1, ESplineCoordinateSpace::Local);
-		const FVector T0 = Edge.Spline->GetTangentAtDistanceAlongSpline(D0, ESplineCoordinateSpace::Local);
-		const FVector T1 = Edge.Spline->GetTangentAtDistanceAlongSpline(D1, ESplineCoordinateSpace::Local);
+		const bool bStartIsEnd = IsTileExtremity(Edge.TileA.Get());
+		const bool bEndIsEnd = IsTileExtremity(Edge.TileB.Get());
 
-		USplineMeshComponent* SM = NewObject<USplineMeshComponent>(this);
-		SM->SetupAttachment(Edge.Spline);
-		SM->RegisterComponent();
-		SM->SetMobility(EComponentMobility::Movable);
+		const int32 Slots = FMath::FloorToInt(MainLen / Step);
+		if (Slots > 0)
+		{
+			const int32 StartReserved = bStartIsEnd ? 1 : 0;
+			const int32 EndReserved = bEndIsEnd ? 1 : 0;
 
-		SM->SetStaticMesh(SegmentMesh);
-		if (SegmentMaterial) SM->SetMaterial(0, SegmentMaterial);
+			const int32 FirstLineSlot = StartReserved;
+			const int32 LastLineSlotExclusive = Slots - EndReserved;
 
-		SM->SetForwardAxis(ForwardAxis, true);
-		SM->SetRelativeLocation(MeshOffsetLocal);
-		SM->SetStartAndEnd(P0, T0, P1, T1);
-		SM->SetStartScale(FVector2D(MeshScaleXY));
-		SM->SetEndScale(FVector2D(MeshScaleXY));
-		SM->SetVisibility(false);
+			// LINE DECALS (interior slots only)
+			for (int32 s = FirstLineSlot; s < LastLineSlotExclusive; ++s)
+			{
+				const float CenterD = (s + 0.5f) * Step;
 
-		Edge.Meshes.Add(SM);
+				FRandomStream RS = MakeEdgeRng(Edge.TileA.Get(), Edge.TileB.Get(), 1000u + (uint32)s);
+				UMaterialInterface* Mat = PickDecalMaterial(false, RS);
+				if (!Mat) continue;
+
+				const FVector BaseP = Edge.Spline->GetLocationAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+				FVector T = Edge.Spline->GetTangentAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+				T.Z = 0.0f;
+				T = T.GetSafeNormal();
+				if (T.IsNearlyZero()) T = FVector(1, 0, 0);
+
+				FVector Right = FVector::CrossProduct(FVector::UpVector, T).GetSafeNormal();
+				if (Right.IsNearlyZero()) Right = FVector(0, 1, 0);
+
+				const FVector Offset =
+					T * DecalLineForwardOffset +
+					Right * DecalLineRightOffset +
+					FVector(0, 0, DecalZOffset);
+
+				const FVector P = BaseP + Offset;
+				const FRotator Rot = MakeGroundDecalRotationFromTangent(T);
+
+
+				UDecalComponent* DC = NewObject<UDecalComponent>(this);
+				DC->SetupAttachment(Edge.Spline);
+				DC->RegisterComponent();
+				DC->SetMobility(EComponentMobility::Movable);
+
+				DC->SetWorldLocationAndRotation(P, Rot);
+				DC->DecalSize = DecalSize * ScaleMul;
+				DC->SortOrder = DecalSortOrder;
+
+				if (bSetDecalColor)
+				{
+					UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Mat, this);
+					if (MID)
+					{
+						MID->SetVectorParameterValue(DecalColorParamName, DecalColor);
+						DC->SetDecalMaterial(MID);
+					}
+					else DC->SetDecalMaterial(Mat);
+				}
+				else
+				{
+					DC->SetDecalMaterial(Mat);
+				}
+
+				DC->SetVisibility(false);
+				Edge.Segments.Add(DC);
+			}
+
+			// START END DECAL (only if start tile is an extremity)
+			if (bStartIsEnd)
+			{
+				const float CenterD = 0.5f * Step;
+
+				FRandomStream RSEnd = MakeEdgeRng(Edge.TileA.Get(), Edge.TileB.Get(), 2001u);
+				UMaterialInterface* EndMat = PickDecalMaterial(true, RSEnd);
+
+				if (EndMat)
+				{
+					const FVector BaseP = Edge.Spline->GetLocationAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+					FVector T = Edge.Spline->GetTangentAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+					T.Z = 0.0f; T = T.GetSafeNormal();
+					if (T.IsNearlyZero()) T = FVector(1, 0, 0);
+
+					T *= -1.0f; 
+
+					FVector Right = FVector::CrossProduct(FVector::UpVector, T).GetSafeNormal();
+					if (Right.IsNearlyZero()) Right = FVector(0, 1, 0);
+
+					const FVector P = BaseP + (T * DecalEndForwardOffset) + (Right * DecalEndRightOffset) + FVector(0, 0, DecalZOffset);
+					const FRotator Rot = MakeGroundDecalRotationFromTangent(T);
+
+					UDecalComponent* DC = NewObject<UDecalComponent>(this);
+					DC->SetupAttachment(Edge.Spline);
+					DC->RegisterComponent();
+					DC->SetMobility(EComponentMobility::Movable);
+
+					FRotator FixedRot = Rot;
+					FixedRot.Yaw += 180.0f;
+					DC->SetWorldLocationAndRotation(P, FixedRot);
+					DC->DecalSize = DecalSize * ScaleMul;
+					DC->SortOrder = DecalSortOrder;
+
+					if (bSetDecalColor)
+					{
+						UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(EndMat, this);
+						if (MID)
+						{
+							MID->SetVectorParameterValue(DecalColorParamName, DecalColor);
+							DC->SetDecalMaterial(MID);
+						}
+						else
+						{
+							DC->SetDecalMaterial(EndMat);
+						}
+					}
+					else
+					{
+						DC->SetDecalMaterial(EndMat);
+					}
+
+					DC->SetVisibility(false);
+					Edge.Segments.Add(DC);
+				}
+			}
+
+			// END END DECAL (only if end tile is an extremity)
+			if (bEndIsEnd)
+			{
+				const float CenterD = (Slots - 0.5f) * Step;
+
+				FRandomStream RSEnd = MakeEdgeRng(Edge.TileA.Get(), Edge.TileB.Get(), 2002u);
+				UMaterialInterface* EndMat = PickDecalMaterial(true, RSEnd);
+
+				if (EndMat)
+				{
+					const FVector BaseP = Edge.Spline->GetLocationAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+					FVector T = Edge.Spline->GetTangentAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+					T.Z = 0.0f; T = T.GetSafeNormal();
+					if (T.IsNearlyZero()) T = FVector(1, 0, 0);
+
+					FVector Right = FVector::CrossProduct(FVector::UpVector, T).GetSafeNormal();
+					if (Right.IsNearlyZero()) Right = FVector(0, 1, 0);
+
+					const FVector P = BaseP + (T * DecalEndForwardOffset) + (Right * DecalEndRightOffset) + FVector(0, 0, DecalZOffset);
+					const FRotator Rot = MakeGroundDecalRotationFromTangent(T);
+
+					UDecalComponent* DC = NewObject<UDecalComponent>(this);
+					DC->SetupAttachment(Edge.Spline);
+					DC->RegisterComponent();
+					DC->SetMobility(EComponentMobility::Movable);
+
+					FRotator FixedRot = Rot;
+					FixedRot.Yaw += 180.0f;
+					DC->SetWorldLocationAndRotation(P, FixedRot);
+					DC->DecalSize = DecalSize * ScaleMul;
+					DC->SortOrder = DecalSortOrder;
+
+					if (bSetDecalColor)
+					{
+						UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(EndMat, this);
+						if (MID)
+						{
+							MID->SetVectorParameterValue(DecalColorParamName, DecalColor);
+							DC->SetDecalMaterial(MID);
+						}
+						else
+						{
+							DC->SetDecalMaterial(EndMat);
+						}
+					}
+					else
+					{
+						DC->SetDecalMaterial(EndMat);
+					}
+
+					DC->SetVisibility(false);
+					Edge.Segments.Add(DC);
+				}
+			}
+
+
+			
+		}
 	}
+	else
+	{
+		// your mesh mode stays unchanged
+	}
+
+	/* ================= BRANCHES ================= */
 
 	const int32 BranchCount = ComputeBranchCount(MainLen);
 	if (BranchCount <= 0) return;
 
 	for (int32 bi = 0; bi < BranchCount; ++bi)
 	{
-		FRandomStream RSB = MakeEdgeRng(Edge.TileA.Get(), Edge.TileB.Get(), 0xCAFE000u + (uint32)bi);
+		// your branch spline generation stays unchanged above this point
+		// after BS spline is built and BranchLen is known:
 
-		const float Margin = FMath::Clamp(BranchStartMargin, 0.0f, 0.49f);
-		const float t = RSB.FRandRange(Margin, 1.0f - Margin);
-		const float D = t * MainLen;
+		// -------- DECAL MODE --------
 
-		const FVector P = Edge.Spline->GetLocationAtDistanceAlongSpline(D, ESplineCoordinateSpace::World);
-		const FVector T = Edge.Spline->GetTangentAtDistanceAlongSpline(D, ESplineCoordinateSpace::World);
-
-		FVector2D Dir(T.X, T.Y);
-		Dir = SafeNormal2D(Dir);
-		if (Dir.IsNearlyZero()) continue;
-
-		const float Angle = FMath::DegreesToRadians(
-			RSB.FRandRange(BranchAngleMinDeg, BranchAngleMaxDeg) *
-			(RSB.FRand() < 0.5f ? -1.f : 1.f)
-		);
-
-		const float c = FMath::Cos(Angle);
-		const float s = FMath::Sin(Angle);
-
-		Dir = FVector2D(
-			Dir.X * c - Dir.Y * s,
-			Dir.X * s + Dir.Y * c
-		);
-
-		const float Len = RSB.FRandRange(FMath::Max(0.0f, BranchLengthMin), FMath::Max(BranchLengthMin, BranchLengthMax));
-		if (Len <= KINDA_SMALL_NUMBER) continue;
-
-		// World tangent at spawn on main spline
-		const FVector MainT = Edge.Spline->GetTangentAtDistanceAlongSpline(D, ESplineCoordinateSpace::World);
-		FVector2D MainDir(MainT.X, MainT.Y);
-		MainDir = SafeNormal2D(MainDir);
-		if (MainDir.IsNearlyZero()) continue;
-
-		// Main “side” directions
-		FVector2D MainPerp(-MainDir.Y, MainDir.X);
-
-		// Branch direction (your rotated Dir, ensure normalized)
-		FVector2D BranchDir = SafeNormal2D(Dir);
-		if (BranchDir.IsNearlyZero()) continue;
-
-		// Pick the “away” side so that away points generally along the branch direction
-		FVector2D Away = MainPerp;
-		if (FVector2D::DotProduct(BranchDir, Away) < 0.0f)
-			Away *= -1.0f;
-
-		// Lateral direction for ondulations: perpendicular to branch direction,
-		// forced to point “away”
-		FVector2D BranchPerp(-BranchDir.Y, BranchDir.X);
-		BranchPerp = SafeNormal2D(BranchPerp);
-		if (FVector2D::DotProduct(BranchPerp, Away) < 0.0f)
-			BranchPerp *= -1.0f;
-
-		const float Clearance = FMath::Max(0.0f, BranchClearance);
-
-		const float Z = (bForce2D && bUseStartZAsFixedZ) ? P.Z : FixedZ;
-
-		// Push branch start away from main spline to avoid immediate overlap
-		const FVector S = FlattenXY(P + FVector(Away.X, Away.Y, 0.0f) * Clearance, Z);
-		const FVector E = FlattenXY(S + FVector(BranchDir.X, BranchDir.Y, 0.0f) * Len, Z);
-
-		USplineComponent* BS = NewObject<USplineComponent>(this);
-		BS->SetupAttachment(Edge.Spline);
-		BS->RegisterComponent();
-
-		const int32 BP = VaryInt(BranchPointsPerEdge, Variation, RSB, 2);
-		const float BW = VaryFloat(CrackWidth * BranchWidthScale, Variation, RSB, 0.0f);
-		const float BO = VaryFloat(CrackOndulations * BranchOndulationsScale, Variation, RSB, 0.0f);
-		const float Ph = RSB.FRandRange(0.f, 2.f * PI);
-
-		TArray<FVector> Pts;
-		BuildCrackPoints2D(
-			S, E, Z,
-			BP, BW, BO, Ph,
-			Pts,
-			&BranchPerp,
-			bBranchOffsetsOneSided,
-			Clearance
-		);
-
-		FillSplineFromWorldPoints(BS, Pts);
-
-
-		Edge.BranchSplines.Add(BS);
-
-		const float BranchLen = BS->GetSplineLength();
-		if (BranchLen < KINDA_SMALL_NUMBER) continue;
-
-		const float BrSegLen = FMath::Max(1.f, VaryFloat(SegmentLength, Variation, RSB, 1.f));
-		const int32 BrSegCount = FMath::Max(1, FMath::CeilToInt(BranchLen / BrSegLen));
-		const float BrStep = BranchLen / (float)BrSegCount;
-
-		for (int32 si = 0; si < BrSegCount; ++si)
+		if (bUseDecals)
 		{
-			const float BD0 = si * BrStep;
-			const float BD1 = (si + 1) * BrStep;
+			const float BranchLen = Edge.BranchSplines.Last()->GetSplineLength();
+			const float ScaleMul = FMath::Max(0.001f, BranchDecalScaleMul);
+			const float Step = FMath::Max(1.0f, DecalTileLength * ScaleMul);
+			const bool bStartIsEnd = IsTrueEndTile(Edge.TileA.Get());
+			const bool bEndIsEnd = IsTrueEndTile(Edge.TileB.Get());
+			const int32 Slots = FMath::FloorToInt(BranchLen / Step);
+			if (Slots <= 0) continue;
 
-			const FVector BP0 = BS->GetLocationAtDistanceAlongSpline(BD0, ESplineCoordinateSpace::World);
-			const FVector BP1 = BS->GetLocationAtDistanceAlongSpline(BD1, ESplineCoordinateSpace::World);
-			const FVector BT0 = BS->GetTangentAtDistanceAlongSpline(BD0, ESplineCoordinateSpace::World);
-			const FVector BT1 = BS->GetTangentAtDistanceAlongSpline(BD1, ESplineCoordinateSpace::World);
+			USplineComponent* BS = Edge.BranchSplines.Last();
+
+			const int32 LineCount = FMath::Max(0, Slots - 1);
+
+			for (int32 i = 0; i < LineCount; ++i)
+			{
+				const float CenterD = (i + 0.5f) * Step;
+
+				FRandomStream RS = MakeEdgeRng(Edge.TileA.Get(), Edge.TileB.Get(), 3000 + bi * 100 + i);
+				UMaterialInterface* Mat = PickDecalMaterial(false, RS);
+				if (!Mat) continue;
+
+				const FVector BaseP = BS->GetLocationAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+				FVector T = BS->GetTangentAtDistanceAlongSpline(CenterD, ESplineCoordinateSpace::World);
+				T.Z = 0.0f;
+				T = T.GetSafeNormal();
+				if (T.IsNearlyZero()) T = FVector(1, 0, 0);
+
+				FVector Right = FVector::CrossProduct(FVector::UpVector, T).GetSafeNormal();
+				if (Right.IsNearlyZero()) Right = FVector(0, 1, 0);
+
+				const FVector Offset =
+					T * DecalLineForwardOffset +
+					Right * DecalLineRightOffset +
+					FVector(0, 0, DecalZOffset);
+
+				const FVector P = BaseP + Offset;
+				const FRotator Rot = MakeGroundDecalRotationFromTangent(T);
 
 
-			USplineMeshComponent* SM = NewObject<USplineMeshComponent>(this);
-			SM->SetupAttachment(BS);
-			SM->RegisterComponent();
-			SM->SetMobility(EComponentMobility::Movable);
+				UDecalComponent* DC = NewObject<UDecalComponent>(this);
+				DC->SetupAttachment(BS);
+				DC->RegisterComponent();
+				DC->SetMobility(EComponentMobility::Movable);
 
-			SM->SetStaticMesh(SegmentMesh);
-			if (SegmentMaterial) SM->SetMaterial(0, SegmentMaterial);
+				DC->SetWorldLocationAndRotation(P, Rot);
+				DC->DecalSize = DecalSize * ScaleMul;
+				DC->SortOrder = DecalSortOrder;
 
-			SM->SetForwardAxis(ForwardAxis, true);
-			SM->SetRelativeLocation(MeshOffsetLocal);
-			SM->SetStartAndEnd(BP0, BT0, BP1, BT1);
+				DC->SetDecalMaterial(Mat);
+				DC->SetVisibility(false);
 
-			const float Scl = MeshScaleXY * BranchMeshScaleMul;
-			SM->SetStartScale(FVector2D(Scl));
-			SM->SetEndScale(FVector2D(Scl));
-			SM->SetVisibility(false);
+				Edge.Segments.Add(DC);
+			}
 
-			Edge.Meshes.Add(SM);
+			// END
+			const float EndCenter = (Slots - 0.5f) * Step;
+
+			FRandomStream RSEnd = MakeEdgeRng(Edge.TileA.Get(), Edge.TileB.Get(), 3999 + bi);
+			UMaterialInterface* EndMat = PickDecalMaterial(true, RSEnd);
+
+			if (EndMat)
+			{
+				const FVector BaseP = BS->GetLocationAtDistanceAlongSpline(EndCenter, ESplineCoordinateSpace::World);
+				FVector T = BS->GetTangentAtDistanceAlongSpline(EndCenter, ESplineCoordinateSpace::World);
+				T.Z = 0.0f;
+				T = T.GetSafeNormal();
+				if (T.IsNearlyZero()) T = FVector(1, 0, 0);
+
+				FVector Right = FVector::CrossProduct(FVector::UpVector, T).GetSafeNormal();
+				if (Right.IsNearlyZero()) Right = FVector(0, 1, 0);
+
+				const FVector Offset =
+					T * DecalEndForwardOffset +
+					Right * DecalEndRightOffset +
+					FVector(0, 0, DecalZOffset);
+
+				const FVector P = BaseP + Offset;
+				const FRotator Rot = MakeGroundDecalRotationFromTangent(T);
+
+
+				UDecalComponent* DC = NewObject<UDecalComponent>(this);
+				DC->SetupAttachment(BS);
+				DC->RegisterComponent();
+				DC->SetMobility(EComponentMobility::Movable);
+
+				DC->SetWorldLocationAndRotation(P, Rot);
+				DC->DecalSize = DecalSize * ScaleMul;
+				DC->SortOrder = DecalSortOrder;
+
+				DC->SetDecalMaterial(EndMat);
+				DC->SetVisibility(false);
+
+				Edge.Segments.Add(DC);
+			}
 		}
 	}
 }
+
 
 /* ===================== EDGE DESTROY ===================== */
 
@@ -671,18 +940,25 @@ void ARootGeneratorActor::DestroyEdge(const FTileEdgeKey& Key, bool bAnimated)
 
 	if (!bAnimated || UngrowStepSeconds <= 0.0f)
 	{
-		for (USplineMeshComponent* M : Edge->Meshes) if (M) M->DestroyComponent();
-		Edge->Meshes.Empty();
+		AActor* A = Edge->TileA.Get();
+		AActor* B = Edge->TileB.Get();
+
+		for (USceneComponent* C : Edge->Segments) if (C) C->DestroyComponent();
+		Edge->Segments.Empty();
 
 		for (USplineComponent* BS : Edge->BranchSplines) if (BS) BS->DestroyComponent();
 		Edge->BranchSplines.Empty();
 
 		if (Edge->Spline) Edge->Spline->DestroyComponent();
 		EdgeMap.Remove(Key);
+
+		RebuildDecalsForEdgesTouching(A);
+		RebuildDecalsForEdgesTouching(B);
 		return;
 	}
 
-	Edge->UngrowIndex = Edge->Meshes.Num() - 1;
+
+	Edge->UngrowIndex = Edge->Segments.Num() - 1;
 	GetWorldTimerManager().SetTimer(
 		Edge->UngrowTimer,
 		FTimerDelegate::CreateUObject(this, &ARootGeneratorActor::TickUngrow, Key),
@@ -690,6 +966,9 @@ void ARootGeneratorActor::DestroyEdge(const FTileEdgeKey& Key, bool bAnimated)
 		true
 	);
 }
+
+/* ===================== TYPE NAME FILTERING ===================== */
+
 static FString NormalizeTypeName(const FString& S)
 {
 	FString R = S;
@@ -705,7 +984,6 @@ bool ARootGeneratorActor::GetTileTypeName(AActor* Tile, FString& OutTypeName) co
 	int64 Val = 0;
 	if (!GetTileEnumValue(Tile, Enum, Val)) return false;
 
-	// Prefer display name, fallback to internal
 	const FString Display = Enum->GetDisplayNameTextByValue(Val).ToString();
 	const FString Internal = Enum->GetNameStringByValue(Val);
 
@@ -733,13 +1011,10 @@ bool ARootGeneratorActor::CanConnectTypes(const FString& AType, const FString& B
 
 	if (!IsConnectType(A) || !IsConnectType(B)) return false;
 
-	// same type always ok
 	if (A == B) return true;
 
-	// different types
 	if (!bAllowCrossTypeConnections) return false;
 
-	// if no whitelist => allow all cross type
 	if (CrossTypeWhitelist.Num() == 0) return true;
 
 	for (const FTileTypePair& P : CrossTypeWhitelist)
@@ -760,20 +1035,23 @@ void ARootGeneratorActor::TickGrow(FTileEdgeKey Key)
 	FEdgeRuntime* Edge = EdgeMap.Find(Key);
 	if (!Edge || Edge->bDestroying) return;
 
-	if (Edge->GrowIndex >= Edge->Meshes.Num())
+	if (Edge->GrowIndex >= Edge->Segments.Num())
 	{
 		GetWorldTimerManager().ClearTimer(Edge->GrowTimer);
 		return;
 	}
 
-	if (Edge->Meshes.IsValidIndex(Edge->GrowIndex))
+	if (Edge->Segments.IsValidIndex(Edge->GrowIndex))
 	{
-		if (USplineMeshComponent* M = Edge->Meshes[Edge->GrowIndex])
-			M->SetVisibility(true);
+		if (USceneComponent* C = Edge->Segments[Edge->GrowIndex])
+			C->SetVisibility(true);
 	}
 	Edge->GrowIndex++;
 }
-
+bool ARootGeneratorActor::IsTrueEndTile(AActor* Tile) const
+{
+	return GetTileRootDegree(Tile) == 1;
+}
 void ARootGeneratorActor::TickUngrow(FTileEdgeKey Key)
 {
 	FEdgeRuntime* Edge = EdgeMap.Find(Key);
@@ -791,10 +1069,10 @@ void ARootGeneratorActor::TickUngrow(FTileEdgeKey Key)
 		return;
 	}
 
-	if (Edge->Meshes.IsValidIndex(Edge->UngrowIndex))
+	if (Edge->Segments.IsValidIndex(Edge->UngrowIndex))
 	{
-		if (USplineMeshComponent* M = Edge->Meshes[Edge->UngrowIndex])
-			M->DestroyComponent();
+		if (USceneComponent* C = Edge->Segments[Edge->UngrowIndex])
+			C->DestroyComponent();
 	}
 	Edge->UngrowIndex--;
-} 
+}

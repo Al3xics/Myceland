@@ -4,8 +4,17 @@
 #include "GameFramework/Actor.h"
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
-
+#include "Components/DecalComponent.h"
 #include "RootGeneratorActor.generated.h"
+
+UENUM(BlueprintType)
+enum class EDecalAlongAxis : uint8
+{
+	// Decal local Y axis follows spline tangent
+	AlongY UMETA(DisplayName = "Along Y"),
+	// Decal local Z axis follows spline tangent
+	AlongZ UMETA(DisplayName = "Along Z")
+};
 
 /* ===================== TILE TYPE PAIR ===================== */
 
@@ -59,7 +68,11 @@ FORCEINLINE uint32 GetTypeHash(const FTileEdgeKey& K)
 struct FEdgeRuntime
 {
 	TObjectPtr<USplineComponent> Spline = nullptr;
-	TArray<TObjectPtr<USplineMeshComponent>> Meshes;
+
+	// Mesh mode: USplineMeshComponent; Decal mode: UDecalComponent.
+	// Store raw pointers to avoid TObjectPtr implicit conversion issues.
+	TArray<USceneComponent*> Segments;
+
 	TArray<TObjectPtr<USplineComponent>> BranchSplines;
 
 	TWeakObjectPtr<AActor> TileA;
@@ -90,12 +103,15 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|BP")
 	FName NeighborsVarName = TEXT("Neighbors");
-	// Keep branches from bending back toward the main spline
+
+	/* ---------- Branch spacing helpers ---------- */
+
 	UPROPERTY(EditAnywhere, Category = "Roots|Branches")
-	float BranchClearance = 15.f; // world units, push branch start away + minimum "away" bias
+	float BranchClearance = 15.f;
 
 	UPROPERTY(EditAnywhere, Category = "Roots|Branches")
 	bool bBranchOffsetsOneSided = true;
+
 	/* ---------- Tile type filtering ---------- */
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Filter")
@@ -112,28 +128,95 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Density", meta = (ClampMin = "0.0"))
 	float RootDensity = 1.0f;
 
+	/* ---------- Render mode ---------- */
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Render")
+	bool bUseDecals = false;
+
 	/* ---------- Mesh ---------- */
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (EditCondition = "!bUseDecals", EditConditionHides))
 	TObjectPtr<UStaticMesh> SegmentMesh = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (EditCondition = "!bUseDecals", EditConditionHides))
 	TObjectPtr<UMaterialInterface> SegmentMaterial = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (EditCondition = "!bUseDecals", EditConditionHides))
 	TEnumAsByte<ESplineMeshAxis::Type> ForwardAxis = ESplineMeshAxis::X;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (EditCondition = "!bUseDecals", EditConditionHides))
 	FVector MeshOffsetLocal = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (ClampMin = "10.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (ClampMin = "10.0", EditCondition = "!bUseDecals", EditConditionHides))
 	float SegmentLength = 150.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (ClampMin = "0.001"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (ClampMin = "0.001", EditCondition = "!bUseDecals", EditConditionHides))
 	float MeshScaleXY = 0.15f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Mesh", meta = (EditCondition = "!bUseDecals", EditConditionHides))
 	float BranchMeshScaleMul = 0.85f;
+
+	/* ---------- Decals ---------- */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalLineForwardOffset = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalLineRightOffset = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalEndForwardOffset = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalEndRightOffset = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides, ClampMin = "1.0"))
+	float DecalTileLength = 120.0f; // match your decal "length" in world units
+
+	// Which decal axis should run along the spline tangent.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	EDecalAlongAxis DecalAlongAxis = EDecalAlongAxis::AlongY;
+
+	// Extra roll tweak (degrees) around projection axis for quick manual alignment.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalRollOffsetDeg = 0.0f;
+
+	// If true, use 3D tangent. If false, flatten to XY (recommended for ground cracks).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	bool bDecalFlattenTangentToXY = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	TArray<TObjectPtr<UMaterialInterface>> LineDecalMaterials;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	TArray<TObjectPtr<UMaterialInterface>> EndDecalMaterials;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	FVector DecalSize = FVector(32.f, 120.f, 18.f);
+
+	// If > 0 spacing along spline. If <= 0 spacing = DecalSize.Y
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalSegmentLength = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalZOffset = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	int32 DecalSortOrder = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float DecalFadeScreenSize = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	bool bSetDecalColor = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals && bSetDecalColor", EditConditionHides))
+	FName DecalColorParamName = TEXT("Color");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals && bSetDecalColor", EditConditionHides))
+	FLinearColor DecalColor = FLinearColor::White;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roots|Decals", meta = (EditCondition = "bUseDecals", EditConditionHides))
+	float BranchDecalScaleMul = 0.85f;
 
 	/* ---------- Endpoint offset ---------- */
 
@@ -274,7 +357,10 @@ private:
 
 	FVector MakeEndpointOffsetXY(const AActor* A, const AActor* B, bool bForA) const;
 
-	FRandomStream MakeEdgeRng(const AActor* A, const AActor* B, uint32 Salt) const;
+	// IMPORTANT: 3 params everywhere.
+	FRandomStream MakeEdgeRng(const AActor* A, const AActor* B, uint32 Salt = 0) const;
+
+
 	float VaryFloat(float Base, float Var, FRandomStream& RS, float MinClamp = 0.0f) const;
 	int32 VaryInt(int32 Base, float Var, FRandomStream& RS, int32 MinClamp = 0) const;
 
@@ -292,16 +378,17 @@ private:
 		float MinLateral = 0.0f
 	) const;
 
-
-	void PushPointsAwayFromSpline2D(
-		const USplineComponent* MainSpline,
-		float Z,
-		float MinClearance,
-		TArray<FVector>& InOutPoints) const;
-
 	void FillSplineFromWorldPoints(USplineComponent* Spline, const TArray<FVector>& WorldPoints) const;
 	void ApplyCurvinessToSpline(USplineComponent* Spline) const;
 
 	int32 ComputeBranchCount(float MainSplineLen) const;
-	void BuildSplineMeshesHidden(FEdgeRuntime& Edge);
+
+	void BuildSplineSegmentsHidden(FEdgeRuntime& Edge);
+	void RebuildDecalsForEdgesTouching(AActor* Tile);
+	int32 GetTileRootDegree(AActor* Tile) const;
+	bool IsTileExtremity(AActor* Tile) const { return GetTileRootDegree(Tile) == 1; }
+	bool IsTrueEndTile(AActor* Tile) const;
+	UMaterialInterface* PickDecalMaterial(bool bIsLast, FRandomStream& RS) const;
+	FRotator MakeGroundDecalRotationFromTangent(const FVector& WorldTangent) const;
+	float GetDecalStepLength(float LocalScaleMul) const;
 };
