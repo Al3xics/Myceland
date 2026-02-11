@@ -1,10 +1,12 @@
-﻿#pragma once
+﻿// Copyright Myceland Team, All Rights Reserved.
+
+#pragma once
 
 #include "CoreMinimal.h"
-#include "GameSaveData.generated.h"
+#include "ML_GameSaveData.generated.h"
 
 USTRUCT(BlueprintType)
-struct FGameSaveData
+struct FML_GameSaveData
 {
 	GENERATED_BODY()
 	//In game advancement

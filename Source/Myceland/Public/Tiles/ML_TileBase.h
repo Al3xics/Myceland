@@ -1,16 +1,18 @@
-﻿#pragma once
+﻿// Copyright Myceland Team, All Rights Reserved.
+
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "TileBase.generated.h"
+#include "ML_TileBase.generated.h"
 
 UCLASS()
-class MYCELAND_API ATileBase : public AActor
+class MYCELAND_API AML_TileBase : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	ATileBase();
+	AML_TileBase();
 
 protected:
 	virtual void BeginPlay() override;

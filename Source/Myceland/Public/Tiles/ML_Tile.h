@@ -1,17 +1,19 @@
-﻿#pragma once
+﻿// Copyright Myceland Team, All Rights Reserved.
+
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
-#include "MycelandTile.generated.h"
+#include "ML_Tile.generated.h"
 
 UCLASS(Blueprintable)
-class MYCELAND_API AMycelandTile : public AActor
+class MYCELAND_API AML_Tile : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	AMycelandTile();
+	AML_Tile();
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile")
@@ -27,7 +29,7 @@ protected:
 	bool bBlocked = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile")
-	TArray<class AMycelandTile*> Neighbors;
+	TArray<class AML_Tile*> Neighbors;
 
 public:
 	UFUNCTION(BlueprintCallable, Category="Tile")
@@ -43,8 +45,8 @@ public:
 	FIntPoint GetAxialCoord() const { return AxialCoord; }
 
 	UFUNCTION(BlueprintCallable, Category="Tile")
-	void SetNeighbors(const TArray<class AMycelandTile*>& InNeighbors) { Neighbors = InNeighbors; }
+	void SetNeighbors(const TArray<class AML_Tile*>& InNeighbors) { Neighbors = InNeighbors; }
 
 	UFUNCTION(BlueprintPure, Category="Tile")
-	const TArray<class AMycelandTile*>& GetNeighbors() const { return Neighbors; }
+	const TArray<class AML_Tile*>& GetNeighbors() const { return Neighbors; }
 };

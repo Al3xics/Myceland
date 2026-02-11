@@ -1,7 +1,10 @@
-﻿#include "MycelandTile.h"
+﻿// Copyright Myceland Team, All Rights Reserved.
 
 
-AMycelandTile::AMycelandTile()
+#include "Tiles/ML_Tile.h"
+
+
+AML_Tile::AML_Tile()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
@@ -25,7 +28,7 @@ AMycelandTile::AMycelandTile()
 	HexagonCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-void AMycelandTile::SetBlocked(bool bNewBlocked)
+void AML_Tile::SetBlocked(bool bNewBlocked)
 {
 	bBlocked = bNewBlocked;
 

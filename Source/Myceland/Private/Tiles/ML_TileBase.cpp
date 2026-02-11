@@ -1,7 +1,10 @@
-﻿#include "TileBase.h"
+﻿// Copyright Myceland Team, All Rights Reserved.
 
 
-ATileBase::ATileBase()
+#include "Tiles/ML_TileBase.h"
+
+
+AML_TileBase::AML_TileBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	
@@ -17,12 +20,12 @@ ATileBase::ATileBase()
 	GroundBase->SetGenerateOverlapEvents(false);
 }
 	
-void ATileBase::BeginPlay()
+void AML_TileBase::BeginPlay()
 {
 	Super::BeginPlay();
 }
 
-void ATileBase::Tick(float DeltaTime)
+void AML_TileBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }

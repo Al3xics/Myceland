@@ -1,10 +1,12 @@
-﻿#pragma once
+﻿// Copyright Myceland Team, All Rights Reserved.
+
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "MycelandBoardSpawner.generated.h"
+#include "ML_BoardSpawner.generated.h"
 
-class AMycelandTile;
+class AML_Tile;
 
 UENUM(BlueprintType)
 enum class EHexGridLayout : uint8
@@ -30,19 +32,19 @@ enum class EHexOrientation : uint8
 };
 
 UCLASS()
-class MYCELAND_API AMycelandBoardSpawner : public AActor
+class MYCELAND_API AML_BoardSpawner : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	AMycelandBoardSpawner();
+	AML_BoardSpawner();
 
 protected:
 	virtual void Destroyed() override;
 
 public:
 	UPROPERTY(EditAnywhere, Category="Hex Grid")
-	TSubclassOf<class AMycelandTile> TileClass;
+	TSubclassOf<class AML_Tile> TileClass;
 
 	// Choix du mode de génération
 	UPROPERTY(EditAnywhere, Category="Hex Grid")
@@ -90,7 +92,7 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AActor>> SpawnedTiles;
 	
-	TMap<FIntPoint, TObjectPtr<AMycelandTile>> TilesByAxial;
+	TMap<FIntPoint, TObjectPtr<AML_Tile>> TilesByAxial;
 	
 	// Générateurs
 	void SpawnHexagonRadius();

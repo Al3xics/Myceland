@@ -1,5 +1,8 @@
-#include "JsonConsoleCommands.h"
-#include "JsonSaveSystem.h"
+// Copyright Myceland Team, All Rights Reserved.
+
+
+#include "Save System/ML_JsonConsoleCommands.h"
+#include "Save System/ML_JsonSaveSystem.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 
@@ -9,7 +12,7 @@ static FAutoConsoleCommand TestSaveCmd(
 	TEXT("Tests JSON save"),
 	FConsoleCommandDelegate::CreateStatic([]()
 	{
-		JsonSaveSystem SaveSystem;
+		ML_JsonSaveSystem SaveSystem;
 		FString Path = FPaths::ProjectSavedDir() / TEXT("ConsoleTest.json");
 
 		TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
@@ -28,7 +31,7 @@ static FAutoConsoleCommand TestLoadCmd(
 	TEXT("Tests JSON load"),
 	FConsoleCommandDelegate::CreateStatic([]()
 	{
-		JsonSaveSystem SaveSystem;
+		ML_JsonSaveSystem SaveSystem;
 		FString Path = FPaths::ProjectSavedDir() / TEXT("ConsoleTest.json");
 
 		TSharedPtr<FJsonObject> LoadedJson = SaveSystem.ReadJsonFile(Path);

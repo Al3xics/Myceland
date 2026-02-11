@@ -1,20 +1,20 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright Myceland Team, All Rights Reserved.
 
 
-#include "JsonSaveSystem.h"
+#include "Save System/ML_JsonSaveSystem.h"
 #include "Serialization/JsonSerializer.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
-JsonSaveSystem::JsonSaveSystem()
+ML_JsonSaveSystem::ML_JsonSaveSystem()
 {
 }
 
-JsonSaveSystem::~JsonSaveSystem()
+ML_JsonSaveSystem::~ML_JsonSaveSystem()
 {
 }
 
-TSharedPtr<FJsonObject> JsonSaveSystem::ReadJsonFile(FString JsonStringPath)
+TSharedPtr<FJsonObject> ML_JsonSaveSystem::ReadJsonFile(FString JsonStringPath)
 {
 	FString JsonString;
 	FFileHelper::LoadFileToString(JsonString, *JsonStringPath);
@@ -26,7 +26,7 @@ TSharedPtr<FJsonObject> JsonSaveSystem::ReadJsonFile(FString JsonStringPath)
 }
 
 
-void JsonSaveSystem::WriteJsonFile(FString JsonStringPath, TSharedPtr<FJsonObject> JsonObject)
+void ML_JsonSaveSystem::WriteJsonFile(FString JsonStringPath, TSharedPtr<FJsonObject> JsonObject)
 {
 	FString JsonString;
 

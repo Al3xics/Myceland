@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright Myceland Team, All Rights Reserved.
 
 #pragma once
 
@@ -9,11 +9,11 @@
 /**
  * 
  */
-class MYCELAND_API JsonSaveSystem
+class MYCELAND_API ML_JsonSaveSystem
 {
 public:
-	JsonSaveSystem();
-	~JsonSaveSystem();
+	ML_JsonSaveSystem();
+	~ML_JsonSaveSystem();
 
 	static void WriteJsonFile(FString JsonStringPath, TSharedPtr<FJsonObject> JsonObject);
 
