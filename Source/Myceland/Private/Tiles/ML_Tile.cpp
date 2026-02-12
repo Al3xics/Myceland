@@ -7,15 +7,20 @@
 AML_Tile::AML_Tile()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	RootComponent = SceneRoot;
+	
+	TileChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("TileChildActor"));
+	TileChildActor->SetupAttachment(RootComponent);
 
 	HighlightTileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TileMesh"));
-	RootComponent = HighlightTileMesh;
+	HighlightTileMesh->SetupAttachment(RootComponent);
 	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	HighlightTileMesh->SetCollisionObjectType(ECC_WorldStatic);
 	HighlightTileMesh->SetCollisionResponseToAllChannels(ECR_Block);
 	HighlightTileMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	HighlightTileMesh->SetGenerateOverlapEvents(false);
-
 	
 	HexagonCollision = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HexagonCollision"));
 	HexagonCollision->SetupAttachment(RootComponent);

@@ -25,8 +25,8 @@ void AML_BoardSpawner::RebuildGrid()
 
 	switch (GridLayout)
 	{
-	case EHexGridLayout::HexagonRadius: SpawnHexagonRadius(); break;
-	case EHexGridLayout::RectangleWH:   SpawnRectangleWH();   break;
+	case EML_HexGridLayout::HexagonRadius: SpawnHexagonRadius(); break;
+	case EML_HexGridLayout::RectangleWH:   SpawnRectangleWH();   break;
 	}
 
 	UpdateNeighbors();
@@ -38,7 +38,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 	if (!World) return;
 
 	// Rebuild map from existing tiles owned by this spawner.
-	TilesByAxial.Empty();
+	GridMap.Empty();
 	SpawnedTiles.Empty();
 
 	for (TActorIterator<AML_Tile> It(World); It; ++It)
@@ -58,34 +58,34 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 			}
 		}
 
-		if (TilesByAxial.Contains(Axial))
+		if (GridMap.Contains(Axial))
 		{
 			const FIntPoint Derived = WorldToAxial(Tile->GetActorLocation());
-			if (!TilesByAxial.Contains(Derived))
+			if (!GridMap.Contains(Derived))
 			{
 				Axial = Derived;
 				Tile->SetAxialCoord(Axial);
 			}
 		}
 
-		if (TilesByAxial.Contains(Axial))
+		if (GridMap.Contains(Axial))
 		{
 			Tile->Destroy();
 			continue;
 		}
 
-		TilesByAxial.Add(Axial, Tile);
+		GridMap.Add(Axial, Tile);
 		SpawnedTiles.Add(Tile);
 	}
 
 	TSet<FIntPoint> DesiredAxials;
-	DesiredAxials.Reserve(GridLayout == EHexGridLayout::HexagonRadius
+	DesiredAxials.Reserve(GridLayout == EML_HexGridLayout::HexagonRadius
 		? (1 + 3 * Radius * (Radius + 1))
 		: (GridWidth * GridHeight));
 
 	switch (GridLayout)
 	{
-	case EHexGridLayout::HexagonRadius:
+	case EML_HexGridLayout::HexagonRadius:
 		{
 			for (int32 Q = -Radius; Q <= Radius; ++Q)
 			{
@@ -99,7 +99,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 			}
 			break;
 		}
-	case EHexGridLayout::RectangleWH:
+	case EML_HexGridLayout::RectangleWH:
 		{
 			for (int32 Row = 0; Row < GridHeight; ++Row)
 			{
@@ -113,7 +113,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 	}
 
 	// Remove tiles that are no longer part of the desired grid.
-	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : TilesByAxial)
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		if (DesiredAxials.Contains(Pair.Key)) continue;
 		if (Pair.Value) Pair.Value->Destroy();
@@ -130,7 +130,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 	for (const FIntPoint& Axial : DesiredAxials)
 	{
 		AML_Tile* Tile = nullptr;
-		if (const TObjectPtr<AML_Tile>* Found = TilesByAxial.Find(Axial))
+		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(Axial))
 		{
 			Tile = Found->Get();
 		}
@@ -154,10 +154,10 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 		NewTilesByAxial.Add(Axial, Tile);
 	}
 
-	TilesByAxial = MoveTemp(NewTilesByAxial);
+	GridMap = MoveTemp(NewTilesByAxial);
 	SpawnedTiles.Empty();
-	SpawnedTiles.Reserve(TilesByAxial.Num());
-	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : TilesByAxial)
+	SpawnedTiles.Reserve(GridMap.Num());
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		SpawnedTiles.Add(Pair.Value);
 	}
@@ -183,7 +183,23 @@ void AML_BoardSpawner::ClearTiles()
 	}
 
 	SpawnedTiles.Empty();
-	TilesByAxial.Empty();
+	GridMap.Empty();
+}
+
+TArray<AML_Tile*> AML_BoardSpawner::GetNeighbours(AML_Tile* CenterTile)
+{
+	return TArray<AML_Tile*>();
+}
+
+TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const
+{
+	TMap<FIntPoint, AML_Tile*> Result;
+	Result.Reserve(GridMap.Num());
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		Result.Add(Pair.Key, Pair.Value.Get());
+	}
+	return Result;
 }
 
 FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
@@ -194,7 +210,7 @@ FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
 	float X2D = 0.f;
 	float Y2D = 0.f;
 
-	if (Orientation == EHexOrientation::FlatTop)
+	if (Orientation == EML_HexOrientation::FlatTop)
 	{
 		// x = size * (3/2 q)
 		// y = size * (sqrt(3) * (r + q/2))
@@ -221,7 +237,7 @@ FIntPoint AML_BoardSpawner::WorldToAxial(const FVector& WorldLocation) const
 	float Qf = 0.f;
 	float Rf = 0.f;
 
-	if (Orientation == EHexOrientation::FlatTop)
+	if (Orientation == EML_HexOrientation::FlatTop)
 	{
 		Qf = (2.f / 3.f * Local.X) / TileSize;
 		Rf = (-1.f / 3.f * Local.X + (Sqrt3 / 3.f) * Local.Y) / TileSize;
@@ -290,7 +306,7 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 			const FIntPoint Axial(Q, R);
 			Tile->SetAxialCoord(Axial);
-			TilesByAxial.Add(Axial, Tile);
+			GridMap.Add(Axial, Tile);
 		}
 	}
 }
@@ -306,7 +322,7 @@ void AML_BoardSpawner::UpdateNeighbors()
 		FIntPoint(0, 1)
 	};
 
-	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : TilesByAxial)
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		AML_Tile* Tile = Pair.Value;
 		if (!Tile) continue;
@@ -317,7 +333,7 @@ void AML_BoardSpawner::UpdateNeighbors()
 		for (const FIntPoint& Dir : Directions)
 		{
 			const FIntPoint NeighborKey = Pair.Key + Dir;
-			if (const TObjectPtr<AML_Tile>* Found = TilesByAxial.Find(NeighborKey))
+			if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(NeighborKey))
 			{
 				Neighbors.Add(Found->Get());
 			}
@@ -336,25 +352,25 @@ FIntPoint AML_BoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
 	// Retourne (q,r) dans FIntPoint(q,r)
 	switch (OffsetLayout)
 	{
-	case EHexOffsetLayout::OddR:
+	case EML_HexOffsetLayout::OddR:
 		{
 			// q = col - (row - (row&1))/2 ; r = row
 			const int32 Q = Col - ((Row - (Row & 1)) / 2);
 			return FIntPoint(Q, Row);
 		}
-	case EHexOffsetLayout::EvenR:
+	case EML_HexOffsetLayout::EvenR:
 		{
 			// q = col - (row + (row&1))/2 ; r = row
 			const int32 Q = Col - ((Row + (Row & 1)) / 2);
 			return FIntPoint(Q, Row);
 		}
-	case EHexOffsetLayout::OddQ:
+	case EML_HexOffsetLayout::OddQ:
 		{
 			// q = col ; r = row - (col - (col&1))/2
 			const int32 R = Row - ((Col - (Col & 1)) / 2);
 			return FIntPoint(Col, R);
 		}
-	case EHexOffsetLayout::EvenQ:
+	case EML_HexOffsetLayout::EvenQ:
 	default:
 		{
 			// q = col ; r = row - (col + (col&1))/2
@@ -392,7 +408,7 @@ void AML_BoardSpawner::SpawnRectangleWH()
 			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 			const FIntPoint AxialQR(Q, R);
 			Tile->SetAxialCoord(AxialQR);
-			TilesByAxial.Add(AxialQR, Tile);
+			GridMap.Add(AxialQR, Tile);
 		}
 	}
 }

@@ -17,10 +17,10 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile", meta=(AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile", meta=(AllowPrivateAccess = "true"))
 	USceneComponent* SceneRoot;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Tile", meta=(AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile", meta=(AllowPrivateAccess = "true"))
 	UStaticMeshComponent* GroundBase;
 
 public:
