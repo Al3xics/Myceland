@@ -7,6 +7,15 @@
 
 namespace UIGameplayTags
 {
+	// ============================ Levels ============================
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_Menu);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_LevelSelectionMenu);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_1);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_2);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_3);
+	
+	
+	// ============================ UI ============================
 	// ========== Root ==========
 	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Root_Menu);
 	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Root_Game);

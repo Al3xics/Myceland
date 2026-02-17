@@ -5,6 +5,15 @@
 
 namespace UIGameplayTags
 {
+	// ============================ Levels ============================
+	UE_DEFINE_GAMEPLAY_TAG(Level_Menu, "Level.Menu");
+	UE_DEFINE_GAMEPLAY_TAG(Level_LevelSelectionMenu, "Level.LevelSelectionMenu");
+	UE_DEFINE_GAMEPLAY_TAG(Level_1, "Level.1");
+	UE_DEFINE_GAMEPLAY_TAG(Level_2, "Level.2");
+	UE_DEFINE_GAMEPLAY_TAG(Level_3, "Level.3");
+	
+	
+	// ============================ UI ============================
 	// ========== Root ==========
 	UE_DEFINE_GAMEPLAY_TAG(UI_Root_Menu, "UI.Root.Menu");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Root_Game, "UI.Root.Game");

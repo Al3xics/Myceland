@@ -2,19 +2,24 @@
 
 
 #include "Subsystem/ML_UIManagerSubsystem.h"
+
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "Kismet/GameplayStatics.h"
 #include "UI/ML_RootWidgetBase.h"
 #include "UI/ML_WidgetBase.h"
 
 void UML_UIManagerSubsystem::SwitchWidgetInternal(FGameplayTag InWidgetTag, bool bAddToStack)
 {
 	const FML_WidgetRegistryKey* Key = WidgetTagToRegistryKey.Find(InWidgetTag);
-	checkf(Key, TEXT("Widget not registered: %s"), *InWidgetTag.ToString());
+	ensureMsgf(Key, TEXT("Widget not registered: %s"), *InWidgetTag.ToString());
+	if (!Key) return;
 
 	UUserWidget* ChildWidget = RegisteredWidgetsInRoot.FindRef(*Key);
 	UUserWidget* RootWidget = RegisteredRootWidgets.FindRef(Key->RootTag);
 
 	UML_RootWidgetBase* Root = Cast<UML_RootWidgetBase>(RootWidget);
-	checkf(Root, TEXT("Root widget is not UML_RootWidgetBase"));
+	ensureMsgf(Root, TEXT("Root widget is not UML_RootWidgetBase"));
+	if (!Root) return;
 	
 	// Initialize
 	if (!CurrentWidgetTag.IsValid())
@@ -42,10 +47,12 @@ void UML_UIManagerSubsystem::SwitchWidgetInternal(FGameplayTag InWidgetTag, bool
 
 void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) const
 {
-	checkf(Widget, TEXT("Trying to apply input mode from null widget"));
+	ensureMsgf(Widget, TEXT("Trying to apply input mode from null widget"));
+	if (!Widget) return;
 
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	checkf(PC, TEXT("Trying to apply input mode from null player controller"));
+	ensureMsgf(PC, TEXT("Trying to apply input mode from null player controller"));
+	if (!PC) return;
 
 	switch (Widget->InputMode)
 	{
@@ -85,7 +92,8 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 
 void UML_UIManagerSubsystem::RegisterRootWidget(UPARAM(meta=(Categories="UI.Root")) FGameplayTag InRootTag, UUserWidget* InWidget)
 {
-	checkf(InWidget, TEXT("Trying to register null root widget"));
+	ensureMsgf(InWidget, TEXT("Trying to register null root widget"));
+	if (!InWidget) return;
 
 	if (!RegisteredRootWidgets.Contains(InRootTag))
 		RegisteredRootWidgets.Add(InRootTag, InWidget);
@@ -93,8 +101,10 @@ void UML_UIManagerSubsystem::RegisterRootWidget(UPARAM(meta=(Categories="UI.Root
 
 void UML_UIManagerSubsystem::RegisterWidgetInRootWidget(UPARAM(meta=(Categories="UI.Root")) FGameplayTag InRootTag, UPARAM(meta=(Categories="UI.Widget")) FGameplayTag InWidgetTag, UUserWidget* InWidget)
 {
-	checkf(InWidget, TEXT("Trying to register null widget"));
-	checkf(RegisteredRootWidgets.Contains(InRootTag), TEXT("Root widget %s is not registered"), *InRootTag.ToString());
+	ensureMsgf(InWidget, TEXT("Trying to register null widget"));
+	if (!InWidget) return;
+	ensureMsgf(RegisteredRootWidgets.Contains(InRootTag), TEXT("Root widget %s is not registered"), *InRootTag.ToString());
+	if (!RegisteredRootWidgets.Contains(InRootTag)) return;
 
 	if (RegisteredRootWidgets.Contains(InRootTag))
 	{
@@ -108,7 +118,8 @@ void UML_UIManagerSubsystem::RegisterWidgetInRootWidget(UPARAM(meta=(Categories=
 const UUserWidget* UML_UIManagerSubsystem::FindRootWidgetByTag(UPARAM(meta=(Categories="UI.Root")) FGameplayTag InRootTag)
 {
 	const UUserWidget* Found = RegisteredRootWidgets.FindRef(InRootTag);
-	checkf(Found, TEXT("Root widget not found: %s"), *InRootTag.ToString());
+	ensureMsgf(Found, TEXT("Root widget not found: %s"), *InRootTag.ToString());
+	if (!Found) return nullptr;
 	return Found;
 }
 
@@ -116,7 +127,8 @@ const UUserWidget* UML_UIManagerSubsystem::FindWidgetInRootByTag(UPARAM(meta=(Ca
 {
 	const FML_WidgetRegistryKey Key{InRootTag, InWidgetTag};
 	const UUserWidget* Found = RegisteredWidgetsInRoot.FindRef(Key);
-	checkf(Found, TEXT("Widget not found in root %s : %s"), *InRootTag.ToString(), *InWidgetTag.ToString());
+	ensureMsgf(Found, TEXT("Widget not found in root %s : %s"), *InRootTag.ToString(), *InWidgetTag.ToString());
+	if (!Found) return nullptr;
 	return Found;
 }
 
@@ -127,7 +139,32 @@ void UML_UIManagerSubsystem::NavigateTo(UPARAM(meta=(Categories="UI.Widget")) FG
 
 void UML_UIManagerSubsystem::GoBack()
 {
-	checkf(NavigationStack.Num() > 0, TEXT("Navigation stack empty"));
+	ensureMsgf(NavigationStack.Num() > 0, TEXT("Navigation stack empty"));
+	if (NavigationStack.Num() <= 0) return;
 	const FGameplayTag PreviousTag = NavigationStack.Pop();
 	SwitchWidgetInternal(PreviousTag, false);
+}
+
+void UML_UIManagerSubsystem::OpenLevelByTag(UPARAM(meta=(Categories="Level")) FGameplayTag Level, UObject* WorldContextObject)
+{
+	if (!WorldContextObject) return;
+
+	const UML_MycelandDeveloperSettings* Settings = GetDefault<UML_MycelandDeveloperSettings>();
+	if (!Settings) return;
+
+	if (const TSoftObjectPtr<UWorld>* FoundLevel = Settings->Levels.Find(Level))
+	{
+		if (const UWorld* WorldAsset = FoundLevel->LoadSynchronous())
+		{
+			UGameplayStatics::OpenLevel(WorldContextObject, WorldAsset->GetFName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Level '%s' failed to load."), *Level.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Level '%s' not found in Developer Settings"), *Level.ToString());
+	}
 }

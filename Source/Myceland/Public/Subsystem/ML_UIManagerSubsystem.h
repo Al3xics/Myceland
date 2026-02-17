@@ -54,4 +54,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Myceland UI Manager|Navigation")
 	void GoBack();
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland UI Manager|Levels", meta=(WorldContext="WorldContextObject"))
+	static void OpenLevelByTag(UPARAM(meta=(Categories="Level")) FGameplayTag Level, UObject* WorldContextObject);
 };
