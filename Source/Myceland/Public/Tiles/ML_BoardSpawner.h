@@ -3,10 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Core/CoreData.h"
+#include "Core/ML_CoreData.h"
 #include "GameFramework/Actor.h"
 #include "ML_BoardSpawner.generated.h"
 
+class UML_BiomeTileSet;
+class AML_Collectible;
+class AML_TileBase;
+class AML_TileWater;
+class AML_TileParasite;
+class AML_TileGrass;
 class AML_Tile;
 
 UCLASS()
@@ -18,6 +24,12 @@ public:
 	AML_BoardSpawner();
 
 private:
+	// ==================== Myceland Runtime ====================
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	UML_BiomeTileSet* BiomeTileSet;
+	
+	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
 	
@@ -26,7 +38,6 @@ private:
 	// Generators
 	void SpawnHexagonRadius();
 	void SpawnRectangleWH();
-	void UpdateNeighbors();
 
 	// Conversions
 	FVector AxialToWorld(int32 Q, int32 R) const;
@@ -35,8 +46,11 @@ private:
 
 protected:
 	virtual void Destroyed() override;
+	virtual void BeginPlay() override;
 
 public:
+	// ==================== Myceland Hex Grid ====================
+	
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	TSubclassOf<AML_Tile> TileClass;
 
@@ -79,8 +93,14 @@ public:
 	void ClearTiles();
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
-	TArray<AML_Tile*> GetNeighbours(AML_Tile* CenterTile);
+	TArray<AML_Tile*> GetNeighbors(AML_Tile* CenterTile);
 	
-	UFUNCTION(BlueprintPure, Category="Myceland Tile")
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TMap<FIntPoint, AML_Tile*> GetGridMap() const;
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	TArray<AML_Tile*> GetGridTiles();
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	UML_BiomeTileSet* GetBiomeTileSet() const { return BiomeTileSet; }
 };

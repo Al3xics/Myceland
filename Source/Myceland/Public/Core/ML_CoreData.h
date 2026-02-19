@@ -4,9 +4,28 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
-#include "CoreData.generated.h"
+#include "ML_CoreData.generated.h"
+
+// ==================== STATIC ====================
+
+// static const FIntPoint Directions[6];
+
+static const FIntPoint Directions[6] = {
+	FIntPoint(1, 0),
+	FIntPoint(1, -1),
+	FIntPoint(0, -1),
+	FIntPoint(-1, 0),
+	FIntPoint(-1, 1),
+	FIntPoint(0, 1)
+};
+
 
 // ==================== ENUM ====================
+
+class UInputMappingContext;
+class AML_Collectible;
+class UML_PropagationWaves;
+class AML_Tile;
 
 UENUM(BlueprintType)
 enum class EML_HexGridLayout : uint8
@@ -73,7 +92,7 @@ struct FML_GameResult
 	bool bIsGameOver = false;
 };
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FML_WidgetRegistryKey
 {
 	GENERATED_BODY()
@@ -93,4 +112,41 @@ struct FML_WidgetRegistryKey
 	{
 		return HashCombine(GetTypeHash(Key.RootTag), GetTypeHash(Key.WidgetTag));
 	}
+};
+
+USTRUCT(BlueprintType)
+struct FML_WaveChange
+{
+	GENERATED_BODY()
+	
+	UPROPERTY()
+	AML_Tile* Tile = nullptr; // Tile
+	
+	UPROPERTY()
+	EML_TileType TargetType = EML_TileType::Dirt; // Tile
+	
+	UPROPERTY()
+	FVector SpawnLocation = FVector::ZeroVector; // Collectible
+	
+	UPROPERTY()
+	TSubclassOf<AML_Collectible> CollectibleClass = nullptr; // Collectible
+	
+	UPROPERTY()
+	int32 DistanceFromOrigin = 0;
+	
+	FML_WaveChange() = default;
+	FML_WaveChange(AML_Tile* InTile, const EML_TileType InType, const int32 InDistance) : Tile(InTile), TargetType(InType), DistanceFromOrigin(InDistance) {}
+	FML_WaveChange(const FVector& InLocation, const TSubclassOf<AML_Collectible> Class, const int32 InDistance) : SpawnLocation(InLocation), CollectibleClass(Class), DistanceFromOrigin(InDistance)  {}
+};
+
+USTRUCT(BlueprintType)
+struct FML_InputMappingEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, config)
+	TSoftObjectPtr<UInputMappingContext> Mapping;
+
+	UPROPERTY(EditAnywhere, config)
+	int32 Priority = 0;
 };

@@ -6,6 +6,9 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
+#include "Tiles/TileBase/ML_TileGrass.h"
+#include "Tiles/TileBase/ML_TileParasite.h"
+#include "Tiles/TileBase/ML_TileWater.h"
 
 
 AML_BoardSpawner::AML_BoardSpawner()
@@ -19,6 +22,16 @@ void AML_BoardSpawner::Destroyed()
 	Super::Destroyed();
 }
 
+void AML_BoardSpawner::BeginPlay()
+{
+	Super::BeginPlay();
+	
+	ensureMsgf(BiomeTileSet, TEXT("BiomeTileSet is not set for board : %s"), *GetName());
+	if (!BiomeTileSet) return;
+	
+	UpdateCurrentGrid();
+}
+
 void AML_BoardSpawner::RebuildGrid()
 {
 	ClearTiles();
@@ -28,8 +41,6 @@ void AML_BoardSpawner::RebuildGrid()
 	case EML_HexGridLayout::HexagonRadius: SpawnHexagonRadius(); break;
 	case EML_HexGridLayout::RectangleWH:   SpawnRectangleWH();   break;
 	}
-
-	UpdateNeighbors();
 }
 
 void AML_BoardSpawner::UpdateCurrentGrid()
@@ -78,6 +89,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 		SpawnedTiles.Add(Tile);
 	}
 
+	// Determine all desired axial coordinates
 	TSet<FIntPoint> DesiredAxials;
 	DesiredAxials.Reserve(GridLayout == EML_HexGridLayout::HexagonRadius
 		? (1 + 3 * Radius * (Radius + 1))
@@ -90,8 +102,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 			for (int32 Q = -Radius; Q <= Radius; ++Q)
 			{
 				const int32 RMin = FMath::Max(-Radius, -Q - Radius);
-				const int32 RMax = FMath::Min( Radius, -Q + Radius);
-
+				const int32 RMax = FMath::Min(Radius, -Q + Radius);
 				for (int32 R = RMin; R <= RMax; ++R)
 				{
 					DesiredAxials.Add(FIntPoint(Q, R));
@@ -112,46 +123,52 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 		}
 	}
 
-	// Remove tiles that are no longer part of the desired grid.
+	// Remove tiles that are no longer part of the desired grid
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		if (DesiredAxials.Contains(Pair.Key)) continue;
 		if (Pair.Value) Pair.Value->Destroy();
 	}
 
+	// Spawn new tiles or reattach existing
 	FActorSpawnParameters Params;
 	Params.Owner = this;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	const bool bCanSpawn = (TileClass != nullptr);
 	TMap<FIntPoint, TObjectPtr<AML_Tile>> NewTilesByAxial;
 	NewTilesByAxial.Reserve(DesiredAxials.Num());
 
 	for (const FIntPoint& Axial : DesiredAxials)
 	{
 		AML_Tile* Tile = nullptr;
+		
+		// Tile exists
 		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(Axial))
 		{
 			Tile = Found->Get();
+			if (!Tile) continue;
+
+			// Reattach to the board spawner without changing scale/rotation
+			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+			Tile->SetAxialCoord(Axial);
+
+			Tile->Initialize(BiomeTileSet);
 		}
-		else if (bCanSpawn)
+		// New tile
+		else if (TileClass)
 		{
 			const FVector Location = AxialToWorld(Axial.X, Axial.Y);
-			const FTransform TileTransform(TileRotation, Location, TileScale);
+			const FTransform SpawnTransform(FRotator::ZeroRotator, Location, TileScale);
+			Tile = World->SpawnActor<AML_Tile>(TileClass, SpawnTransform, Params);
+			if (!Tile) continue;
 
-			Tile = World->SpawnActor<AML_Tile>(TileClass, TileTransform, Params);
+			Tile->AttachToActor(this, FAttachmentTransformRules::KeepRelativeTransform);
+			Tile->SetAxialCoord(Axial);
+			
+			Tile->Initialize(BiomeTileSet);
 		}
 
-		if (!Tile) continue;
-
-		const FVector Location = AxialToWorld(Axial.X, Axial.Y);
-		const FTransform TileTransform(TileRotation, Location, TileScale);
-
-		Tile->SetActorTransform(TileTransform, false, nullptr, ETeleportType::TeleportPhysics);
-		Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
-		Tile->SetAxialCoord(Axial);
-
-		NewTilesByAxial.Add(Axial, Tile);
+		if (Tile) NewTilesByAxial.Add(Axial, Tile);
 	}
 
 	GridMap = MoveTemp(NewTilesByAxial);
@@ -161,8 +178,6 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 	{
 		SpawnedTiles.Add(Pair.Value);
 	}
-
-	UpdateNeighbors();
 }
 
 void AML_BoardSpawner::ClearTiles()
@@ -186,9 +201,28 @@ void AML_BoardSpawner::ClearTiles()
 	GridMap.Empty();
 }
 
-TArray<AML_Tile*> AML_BoardSpawner::GetNeighbours(AML_Tile* CenterTile)
+TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile)
 {
-	return TArray<AML_Tile*>();
+	if (!CenterTile) return TArray<AML_Tile*>();
+
+	const FIntPoint CenterAxial = CenterTile->GetAxialCoord();
+	TArray<AML_Tile*> Neighbors;
+	Neighbors.Reserve(6);
+
+	for (const FIntPoint& Dir : Directions)
+	{
+		const FIntPoint NeighborKey = CenterAxial + Dir;
+		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(NeighborKey))
+		{
+			Neighbors.Add(Found->Get());
+		}
+		else
+		{
+			Neighbors.Add(nullptr);
+		}
+	}
+
+	return Neighbors;
 }
 
 TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const
@@ -198,6 +232,17 @@ TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		Result.Add(Pair.Key, Pair.Value.Get());
+	}
+	return Result;
+}
+
+TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
+{
+	TArray<AML_Tile*> Result;
+	Result.Reserve(GridMap.Num());
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		Result.Add(Pair.Value.Get());
 	}
 	return Result;
 }
@@ -301,6 +346,7 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 
 			AML_Tile* Tile = World->SpawnActor<AML_Tile>(TileClass, TileTransform, Params);
 			if (!Tile) continue;
+			Tile->Initialize(BiomeTileSet);
 
 			SpawnedTiles.Add(Tile);
 			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
@@ -308,42 +354,6 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 			Tile->SetAxialCoord(Axial);
 			GridMap.Add(Axial, Tile);
 		}
-	}
-}
-
-void AML_BoardSpawner::UpdateNeighbors()
-{
-	static const FIntPoint Directions[6] = {
-		FIntPoint(1, 0),
-		FIntPoint(1, -1),
-		FIntPoint(0, -1),
-		FIntPoint(-1, 0),
-		FIntPoint(-1, 1),
-		FIntPoint(0, 1)
-	};
-
-	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
-	{
-		AML_Tile* Tile = Pair.Value;
-		if (!Tile) continue;
-
-		TArray<AML_Tile*> Neighbors;
-		Neighbors.Reserve(6);
-
-		for (const FIntPoint& Dir : Directions)
-		{
-			const FIntPoint NeighborKey = Pair.Key + Dir;
-			if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(NeighborKey))
-			{
-				Neighbors.Add(Found->Get());
-			}
-			else
-			{
-				Neighbors.Add(nullptr);
-			}
-		}
-
-		Tile->SetNeighbors(Neighbors);
 	}
 }
 
@@ -403,6 +413,7 @@ void AML_BoardSpawner::SpawnRectangleWH()
 
 			AML_Tile* Tile = World->SpawnActor<AML_Tile>(TileClass, TileTransform, Params);
 			if (!Tile) continue;
+			Tile->Initialize(BiomeTileSet);
 
 			SpawnedTiles.Add(Tile);
 			Tile->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);

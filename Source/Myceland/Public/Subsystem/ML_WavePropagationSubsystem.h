@@ -6,8 +6,11 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "ML_WavePropagationSubsystem.generated.h"
 
+struct FML_WaveChange;
+class UML_MycelandDeveloperSettings;
+class UML_PropagationRulesData;
+class AML_Tile;
 class AML_PlayerController;
-class UML_PropagationRules;
 class AML_BoardSpawner;
 class UML_WinLoseSubsystem;
 
@@ -20,43 +23,35 @@ private:
 	UPROPERTY()
 	UML_WinLoseSubsystem* WinLoseSubsystem;
 	
-	UPROPERTY()
-	AML_BoardSpawner* BoardSpawner;
-	
-	UPROPERTY()
-	TArray<UML_PropagationRules*> Rules;
-	
 	UPROPERTY(Transient)
-	TMap<int32, FIntPoint> FutureChanges;
+	TArray<FML_WaveChange> PendingChanges;
 	
 	UPROPERTY()
 	AML_PlayerController* PlayerController = nullptr;
 	
+	UPROPERTY()
+	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
+	
+	UPROPERTY(Transient)
+	AML_Tile* CurrentOriginTile = nullptr;
+	
+	UPROPERTY(Transient)
+	TArray<AML_Tile*> ParasitesThatAteGrass;
+	
 	bool bIsResolvingTiles = false;
 	int ActiveTilUpdates = 0;
+	int32 CurrentWaveIndex = 0;
+	bool bCycleHasChanges = false;
 	
-	void EndTileResolved();
-	void ComputesChanges();
 	void RunWave();
+	void ScheduleNextPriority();
+	void ProcessNextWave();
+	void EndTileResolved();
 	
 public:
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	void EnsureInitialized();
 	
+	// Entry point for starting the Wave Propagation Cycle
 	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
-	void RunFullCycle();
-	
-	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
-	void BeginTileResolved();
-	
-	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
-	void RegisterTileUpdate();
-	
-	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
-	void UnregisterTileUpdate();
-	
-	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
-	void SetInitialTileChanged(FIntPoint AxialCoord);
-
-	UFUNCTION(BlueprintPure, Category="Myceland Wave Propagation")
-	const TArray<UML_PropagationRules*>& GetRules() const { return Rules; }
+	void BeginTileResolved(AML_Tile* HitTile);
 };

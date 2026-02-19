@@ -6,7 +6,7 @@
 #include "GameplayTagContainer.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Blueprint/UserWidget.h"
-#include "Core/CoreData.h"
+#include "Core/ML_CoreData.h"
 #include "ML_UIManagerSubsystem.generated.h"
 
 class UML_WidgetBase;
@@ -56,5 +56,5 @@ public:
 	void GoBack();
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland UI Manager|Levels", meta=(WorldContext="WorldContextObject"))
-	static void OpenLevelByTag(UPARAM(meta=(Categories="Level")) FGameplayTag Level, UObject* WorldContextObject);
+	void OpenLevelByTag(UPARAM(meta=(Categories="Level")) FGameplayTag Level, UObject* WorldContextObject);
 };
