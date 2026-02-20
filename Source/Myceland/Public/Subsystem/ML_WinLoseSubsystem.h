@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Tiles/ML_BoardSpawner.h"
 #include "ML_WinLoseSubsystem.generated.h"
 
 class AML_Tile;
@@ -20,4 +21,10 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool CheckPlayerKilled(AML_Tile* CurrentTileOn);
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
+	AML_BoardSpawner* CurrentBoardSpawner;
+	
+	private:
+    AML_BoardSpawner* FindBoardSpawner() const;
 };
