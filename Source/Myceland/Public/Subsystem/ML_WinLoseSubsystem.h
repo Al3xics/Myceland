@@ -14,17 +14,26 @@ UCLASS()
 class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
-	
+
 public:
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool CheckPlayerKilled(AML_Tile* CurrentTileOn);
 
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	bool AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* Board,
+										   EML_TileType GoalType,
+										   const TArray<EML_TileType>& AllowedPathTypes) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	AML_Tile* GetPlayerCurrentTile() const;
+	
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	AML_BoardSpawner* CurrentBoardSpawner;
 	
-	private:
-    AML_BoardSpawner* FindBoardSpawner() const;
+	AML_BoardSpawner* FindBoardSpawner() const;
+
+private:
 };
