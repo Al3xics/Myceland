@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Core/CoreData.h"
+#include "Core/ML_CoreData.h"
 #include "ML_WidgetBase.generated.h"
 
 UCLASS()
