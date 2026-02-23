@@ -65,7 +65,7 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* 
 
 	// Gather all goal tiles
 	TArray<FIntPoint> GoalAxials;
-	GoalAxials.Reserve(32);
+	GoalAxials.Reserve(16);
 
 	for (const TPair<FIntPoint, AML_Tile*>& Pair : Grid)
 	{
@@ -156,7 +156,7 @@ AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
 	AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(UGameplayStatics::GetPlayerCharacter(World, 0));
 	if (!PlayerCharacter) return nullptr;
 
-	AML_Tile* ChildTile = PlayerCharacter->CurrentTileOn;
+	AML_Tile* PlayerCurrentTile = PlayerCharacter->CurrentTileOn;
 	if (!IsValid(PlayerCurrentTile)) return nullptr;
 	return PlayerCurrentTile;
 }
