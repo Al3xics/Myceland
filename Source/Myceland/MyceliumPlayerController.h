@@ -1,78 +1,77 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Templates/SubclassOf.h"
 #include "GameFramework/PlayerController.h"
+#include "InputActionValue.h"
 #include "MyceliumPlayerController.generated.h"
 
-class UNiagaraSystem;
-class UInputMappingContext;
 class UInputAction;
+class UInputMappingContext;
+class AML_BoardSpawner;
+class AMyceliumCharacter;
+class AML_Tile;
 
-DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
-
-/**
- *  Player controller for a top-down perspective game.
- *  Implements point and click based controls
- */
-UCLASS(abstract)
-class AMyceliumPlayerController : public APlayerController
+UCLASS()
+class MYCELAND_API AMyceliumPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
-protected:
-
-	/** Time Threshold to know if it was a short press */
-	UPROPERTY(EditAnywhere, Category="Input")
-	float ShortPressThreshold;
-
-	/** FX Class that we will spawn when clicking */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UNiagaraSystem* FXCursor;
-
-	/** MappingContext */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputMappingContext* DefaultMappingContext;
-	
-	/** Jump Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* SetDestinationClickAction;
-
-	/** Jump Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* SetDestinationTouchAction;
-
-	/** True if the controlled character should navigate to the mouse cursor. */
-	uint32 bMoveToMouseCursor : 1;
-
-	/** Set to true if we're using touch input */
-	uint32 bIsTouch : 1;
-
-	/** Saved location of the character movement destination */
-	FVector CachedDestination;
-
-	/** Time that the click input has been pressed */
-	float FollowTime = 0.0f;
-
 public:
-
-	/** Constructor */
 	AMyceliumPlayerController();
 
 protected:
-
-	/** Initialize input bindings */
+	virtual void BeginPlay() override;
+	virtual void PlayerTick(float DeltaTime) override;
 	virtual void SetupInputComponent() override;
-	
-	/** Input handlers */
-	void OnInputStarted();
-	void OnSetDestinationTriggered();
-	void OnSetDestinationReleased();
-	void OnTouchTriggered();
-	void OnTouchReleased();
 
+	// ---------- Enhanced Input ----------
+	UPROPERTY(EditDefaultsOnly, Category="Input")
+	TObjectPtr<const UInputAction> IA_SetDestination_Click = nullptr;
+
+	// Assign from editor (simpler)
+	UPROPERTY(EditDefaultsOnly, Category="Input")
+	TObjectPtr<UInputMappingContext> DefaultIMC = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category="Input")
+	int32 DefaultIMCPriority = 0;
+
+	UFUNCTION()
+	void OnSetDestinationTriggered(const FInputActionValue& Value);
+
+	// ---------- Movement tuning ----------
+	UPROPERTY(EditAnywhere, Category="Myceland|Movement")
+	float AcceptanceRadius = 12.f;
+
+	UPROPERTY(EditAnywhere, Category="Myceland|Movement")
+	float MoveSpeedScale = 1.f;
+
+	// 0 = strict center-to-center, 1 = maximum smoothing (skip corners easily)
+	UPROPERTY(EditAnywhere, Category="Myceland|Movement|Smoothing", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float CornerCutStrength = 0.5f;
+
+	// Distance (in cm) used to decide if we can skip a waypoint (scaled by strength)
+	UPROPERTY(EditAnywhere, Category="Myceland|Movement|Smoothing", meta=(ClampMin="0.0"))
+	float BaseCornerCutDistance = 80.f;
+
+private:
+	// Path in world space (tile centers)
+	TArray<FVector> CurrentPathWorld;
+	int32 CurrentPathIndex = 0;
+
+	// ---- Helpers ----
+	AML_Tile* GetTileUnderCursor() const;
+	AML_BoardSpawner* GetBoardFromCurrentTile(const AMyceliumCharacter* MyChar) const;
+
+	bool IsTileWalkable(const AML_Tile* Tile) const;
+
+	bool BuildPath_AxialBFS(
+		const FIntPoint& StartAxial,
+		const FIntPoint& GoalAxial,
+		const TMap<FIntPoint, AML_Tile*>& GridMap,
+		TArray<FIntPoint>& OutAxialPath) const;
+
+	void StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap);
+	void TickMoveAlongPath(float DeltaTime);
+
+	static const FIntPoint AxialDirections[6];
 };
-
-

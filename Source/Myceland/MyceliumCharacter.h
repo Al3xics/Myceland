@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Tiles/ML_Tile.h"
 #include "MyceliumCharacter.generated.h"
 
 /**
@@ -16,13 +17,7 @@ class AMyceliumCharacter : public ACharacter
 
 private:
 
-	/** Top down camera */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	class UCameraComponent* TopDownCameraComponent;
-
-	/** Camera boom positioning the camera above the character */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	class USpringArmComponent* CameraBoom;
+	
 
 public:
 
@@ -35,11 +30,7 @@ public:
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Returns the camera component **/
-	FORCEINLINE class UCameraComponent* GetTopDownCameraComponent() const { return TopDownCameraComponent; }
-
-	/** Returns the Camera Boom component **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
-
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Mycelium Character")
+	AML_Tile* CurrentTileOn;
 };
 

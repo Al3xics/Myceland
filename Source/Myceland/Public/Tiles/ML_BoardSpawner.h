@@ -35,6 +35,7 @@ private:
 
 protected:
 	virtual void Destroyed() override;
+	virtual void BeginPlay() override;
 
 public:
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")

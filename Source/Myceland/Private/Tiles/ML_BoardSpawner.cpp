@@ -13,6 +13,17 @@ AML_BoardSpawner::AML_BoardSpawner()
 	PrimaryActorTick.bCanEverTick = false;
 }
 
+void AML_BoardSpawner::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// If tiles are spawned at runtime, build the grid now
+	// RebuildGrid();
+
+	// OR if you place tiles manually in the level, use:
+	UpdateCurrentGrid();
+}
+
 void AML_BoardSpawner::Destroyed()
 {
 	ClearTiles();
