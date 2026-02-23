@@ -26,13 +26,18 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 	if (bWin)
 	{
 		GameResult.Result = EML_WinLose::Win;
-		GameResult.bIsGameOver = true;
+		GameResult.bIsGameOver = false;
+		OnWin.Broadcast();
 	}
 	if (bLose)
 	{
 		GameResult.Result = EML_WinLose::Lose;
+		GameResult.bIsGameOver = true;
+		OnLose.Broadcast();
 	}
 
+
+	UE_LOG(LogTemp, Log, TEXT("NothingNew"))
 	return GameResult;
 }
 
@@ -60,7 +65,7 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* 
 
 	// Gather all goal tiles
 	TArray<FIntPoint> GoalAxials;
-	GoalAxials.Reserve(16);
+	GoalAxials.Reserve(32);
 
 	for (const TPair<FIntPoint, AML_Tile*>& Pair : Grid)
 	{
@@ -72,9 +77,6 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* 
 			GoalAxials.Add(Pair.Key);
 		}
 	}
-
-	// 0 or 1 goal tile = trivially connected
-	if (GoalAxials.Num() <= 1) return true;
 
 	auto CanTraverse = [&](AML_Tile* Tile) -> bool
 	{
@@ -134,6 +136,9 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* 
 			AML_Tile* const* NextPtr = Grid.Find(Next);
 			if (!NextPtr) continue;
 
+			AML_Tile* NextTile = *NextPtr;
+			if (!CanTraverse(NextTile)) continue;
+
 			Visited.Add(Next);
 			Queue.Enqueue(Next);
 		}
@@ -141,6 +146,7 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* 
 
 	return false;
 }
+
 
 AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
 {
@@ -150,9 +156,7 @@ AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
 	AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(UGameplayStatics::GetPlayerCharacter(World, 0));
 	if (!PlayerCharacter) return nullptr;
 
-	//To replace with
-	//AML_Tile* ChildTile = PlayerCharacter->CurrentTileOn;
-	AML_Tile* PlayerCurrentTile = PlayerCharacter->GetCurrentTileOn();
+	AML_Tile* ChildTile = PlayerCharacter->CurrentTileOn;
 	if (!IsValid(PlayerCurrentTile)) return nullptr;
 	return PlayerCurrentTile;
 }

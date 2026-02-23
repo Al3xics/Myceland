@@ -10,12 +10,21 @@
 class AML_Tile;
 struct FML_GameResult;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
+
 UCLASS()
 class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(BlueprintAssignable, Category="Myceland WinLose")
+	FOnWin OnWin;
+
+	UPROPERTY(BlueprintAssignable, Category="Myceland WinLose")
+	FOnLose OnLose;
+	
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
 
@@ -32,7 +41,8 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	AML_BoardSpawner* CurrentBoardSpawner;
-	
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_BoardSpawner* FindBoardSpawner() const;
 
 private:
