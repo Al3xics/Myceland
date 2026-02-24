@@ -14,28 +14,28 @@ class AML_Tile;
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
 {
-public:
-
-private:
 	GENERATED_BODY()
 
 private:
 	// Path in world space (tile centers)
 	TArray<FVector> CurrentPathWorld;
 	int32 CurrentPathIndex = 0;
+	bool bIsMoving = false;
 
 	// ==================== Helpers ====================
 	AML_Tile* GetTileUnderCursor() const;
-	AML_BoardSpawner* GetBoardFromCurrentTile(const AML_PlayerCharacter* MycelandCharacter) const;
 	bool IsTileWalkable(const AML_Tile* Tile) const;
 	bool BuildPath_AxialBFS(const FIntPoint& StartAxial, const FIntPoint& GoalAxial, const TMap<FIntPoint, AML_Tile*>& GridMap, TArray<FIntPoint>& OutAxialPath) const;
 	void StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap);
 	void TickMoveAlongPath(float DeltaTime);
-	void InitNumberOfEnergyForLevel();
+	
+	UFUNCTION()
+	void HandleBoardStateChanged(const AML_Tile* NewTile);
 	
 protected:
 	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
+	virtual void OnPossess(APawn* aPawn) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
@@ -64,4 +64,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void ConfirmTurn(AML_Tile* HitTile);
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void InitNumberOfEnergyForLevel(int32 Energy);
 };

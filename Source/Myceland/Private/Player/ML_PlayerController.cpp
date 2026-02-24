@@ -60,14 +60,6 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 	return nullptr;
 }
 
-AML_BoardSpawner* AML_PlayerController::GetBoardFromCurrentTile(const AML_PlayerCharacter* MycelandCharacter) const
-{
-	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
-		return nullptr;
-
-	return Cast<AML_BoardSpawner>(MycelandCharacter->CurrentTileOn->GetOwner());
-}
-
 bool AML_PlayerController::IsTileWalkable(const AML_Tile* Tile) const
 {
 	if (!IsValid(Tile))
@@ -169,7 +161,6 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 {
-	ensureMsgf(CurrentPathWorld.Num() == CurrentPathIndex, TEXT("Path is not initialized!"));
 	if (CurrentPathWorld.Num() == 0 || CurrentPathIndex >= CurrentPathWorld.Num()) return;
 
 	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
@@ -220,6 +211,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		{
 			CurrentPathWorld.Reset();
 			CurrentPathIndex = 0;
+			bIsMoving = false;
 		}
 		return;
 	}
@@ -228,34 +220,17 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 	MycelandCharacter->AddMovementInput(To, MoveSpeedScale);
 }
 
-void AML_PlayerController::InitNumberOfEnergyForLevel()
+void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 {
-	const UML_MycelandDeveloperSettings* Settings = GetDefault<UML_MycelandDeveloperSettings>();
-	if (!Settings) return;
-
-	const FString CurrentLevelName = UGameplayStatics::GetCurrentLevelName(this, true);
-
-	for (const TPair<FGameplayTag, TSoftObjectPtr<UWorld>>& Pair : Settings->Levels)
-	{
-		if (!Pair.Value.IsNull())
-		{
-			FString AssetName = Pair.Value.GetAssetName();
-
-			if (AssetName == CurrentLevelName)
-			{
-				if (const int* Energy = Settings->EnergyPerLevel.Find(Pair.Key))
-					CurrentEnergy = *Energy;
-
-				break;
-			}
-		}
-	}
+	if (NewTile)
+		InitNumberOfEnergyForLevel(NewTile->GetBoardSpawnerFromTile()->GetEnergyForPuzzle());
+	else
+		InitNumberOfEnergyForLevel(0);
 }
 
 void AML_PlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-	InitNumberOfEnergyForLevel();
 	GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>()->EnsureInitialized();
 }
 
@@ -263,6 +238,13 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 	TickMoveAlongPath(DeltaTime);
+}
+
+void AML_PlayerController::OnPossess(APawn* aPawn)
+{
+	Super::OnPossess(aPawn);
+	if (AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(aPawn))
+		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
 }
 
 void AML_PlayerController::OnSetDestinationTriggered()
@@ -274,7 +256,7 @@ void AML_PlayerController::OnSetDestinationTriggered()
 	ensureMsgf(IsValid(MycelandCharacter->CurrentTileOn), TEXT("Current tile is not set!"));
 	if (!IsValid(MycelandCharacter->CurrentTileOn)) return;
 
-	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	ensureMsgf(Board, TEXT("Board is not set!"));
 	if (!IsValid(Board)) return;
 
@@ -301,10 +283,14 @@ void AML_PlayerController::OnSetDestinationTriggered()
 	if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
 
 	StartMoveAlongPath(AxialPath, GridMap);
+	
+	bIsMoving = true;
 }
 
 void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile)
 {
+	if (bIsMoving) return;
+	
 	CanPlantGrass = false;
 	HitTile = nullptr;
 
@@ -350,4 +336,9 @@ void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 
 	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
+}
+
+void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
+{
+	CurrentEnergy = Energy;
 }

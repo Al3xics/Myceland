@@ -185,7 +185,7 @@ void AML_BoardSpawner::ClearTiles()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// Détruit toute les tiles ou owner=this
+	// Destroy all tiles where owner=this
 	for (TActorIterator<AML_Tile> It(World); It; ++It)
 	{
 		AML_Tile* Tile = *It;
@@ -331,7 +331,7 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 	Params.Owner = this;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	// Génère un "hexagon" de radius N en axial:
+	// Generates a "hexagon" of radius N in the axial direction:
 	// q ∈ [-N, N]
 	// r ∈ [max(-N, -q-N), min(N, -q+N)]
 	for (int32 Q = -Radius; Q <= Radius; ++Q)
@@ -359,7 +359,7 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 
 FIntPoint AML_BoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
 {
-	// Retourne (q,r) dans FIntPoint(q,r)
+	// Returns (q,r) in FIntPoint(q,r)
 	switch (OffsetLayout)
 	{
 	case EML_HexOffsetLayout::OddR:

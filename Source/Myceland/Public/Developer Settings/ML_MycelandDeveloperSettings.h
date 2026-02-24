@@ -30,9 +30,6 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
 	TMap<FGameplayTag, TSoftObjectPtr<UWorld>> Levels;
 	
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
-	TMap<FGameplayTag, int> EnergyPerLevel;
-	
 	
 	
 	// ==================== Wave Propagation ====================
@@ -63,14 +60,5 @@ public:
 			return nullptr;
 
 		return DefaultInputMappingContext.Mapping.LoadSynchronous();
-	}
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Settings")
-	int GetEnergyPerLevel(FGameplayTag Tag) const
-	{
-		if (const int* Found = EnergyPerLevel.Find(Tag))
-			return *Found;
-		
-		return 0;
 	}
 };
