@@ -64,4 +64,8 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void ConfirmTurn(AML_Tile* HitTile);
+
+	// NEW: used by undo to move back to a previous position
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Movement")
+	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
 };

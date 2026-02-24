@@ -169,7 +169,7 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 {
-	ensureMsgf(CurrentPathWorld.Num() == CurrentPathIndex, TEXT("Path is not initialized!"));
+	ensureMsgf(CurrentPathWorld.Num() != CurrentPathIndex, TEXT("Path is not initialized!"));
 	if (CurrentPathWorld.Num() == 0 || CurrentPathIndex >= CurrentPathWorld.Num()) return;
 
 	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
@@ -346,8 +346,60 @@ void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGra
 
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
-	CurrentEnergy--;
-
 	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
-		WavePropagationSubsystem->BeginTileResolved(HitTile);
+	{
+		WavePropagationSubsystem->BeginTileResolved(HitTile); // record starts here (EnergyBefore captured)
+	}
+
+	CurrentEnergy--; // consume after record
+}
+
+bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld)
+{
+	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
+		return false;
+
+	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
+	if (!IsValid(Board))
+		return false;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial))
+	{
+		if (bFallbackTeleport)
+		{
+			MycelandCharacter->SetActorLocation(TeleportFallbackWorld);
+		}
+		return false;
+	}
+
+	if (!bUsePath)
+	{
+		// Teleport to tile center
+		if (AML_Tile* const* TilePtr = GridMap.Find(TargetAxial))
+		{
+			if (IsValid(*TilePtr))
+			{
+				MycelandCharacter->SetActorLocation((*TilePtr)->GetActorLocation());
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Build path and move along it
+	TArray<FIntPoint> AxialPath;
+	if (!BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, AxialPath))
+	{
+		if (bFallbackTeleport)
+			MycelandCharacter->SetActorLocation(TeleportFallbackWorld);
+		return false;
+	}
+
+	StartMoveAlongPath(AxialPath, GridMap);
+	return true;
 }

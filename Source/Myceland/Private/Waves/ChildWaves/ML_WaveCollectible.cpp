@@ -6,6 +6,7 @@
 #include "Core/ML_CoreData.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
 void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const TArray<AML_Tile*>& ParasitesThatAteGrass, TArray<FML_WaveChange>& OutChanges)
@@ -62,6 +63,16 @@ void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const
                         Change.DistanceFromOrigin = Distance + 1;
 
                         OutChanges.Add(Change);
+
+                        // NEW: record undo snapshot before flipping the flag
+                        if (UWorld* World = OriginTile->GetWorld())
+                        {
+                            if (UML_WavePropagationSubsystem* S = World->GetSubsystem<UML_WavePropagationSubsystem>())
+                            {
+                                S->RecordTileForUndo(Neighbor, Distance + 1);
+                            }
+                        }
+                        
                         Neighbor->SetHasCollectible(true);
                         break;
                     }
