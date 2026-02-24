@@ -23,6 +23,8 @@ void UML_WavePropagationSubsystem::EnsureInitialized()
 
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
+	WinLoseSubsystem->CheckWinLose(); 
+	
 	bIsResolvingTiles = false;
 	PlayerController->EnableInput(PlayerController);
 }

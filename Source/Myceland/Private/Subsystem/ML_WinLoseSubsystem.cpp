@@ -23,26 +23,33 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 	const bool bLose = CheckPlayerKilled(GetPlayerCurrentTile());
 	FML_GameResult GameResult;
 
-	if (bWin)
-	{
-		GameResult.Result = EML_WinLose::Win;
-		GameResult.bIsGameOver = false;
-		OnWin.Broadcast();
-	}
 	if (bLose)
 	{
 		GameResult.Result = EML_WinLose::Lose;
 		GameResult.bIsGameOver = true;
 		OnLose.Broadcast();
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Lost!"));
+		return GameResult;
 	}
-
-
-	UE_LOG(LogTemp, Log, TEXT("NothingNew"))
+	
+	if (bWin)
+	{
+		GameResult.Result = EML_WinLose::Win;
+		GameResult.bIsGameOver = false;
+		OnWin.Broadcast();
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
+	}
+	
 	return GameResult;
 }
 
 bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
 {
+	if (CurrentTileOn->GetCurrentType() == EML_TileType::Water || CurrentTileOn->GetCurrentType() ==
+		EML_TileType::Parasite)
+	{
+		return true;
+	}
 	return false;
 }
 
