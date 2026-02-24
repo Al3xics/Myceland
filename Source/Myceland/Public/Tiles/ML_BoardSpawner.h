@@ -27,6 +27,9 @@ private:
 	// ==================== Myceland Runtime ====================
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	int32 EnergyForPuzzle = 1;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	UML_BiomeTileSet* BiomeTileSet;
 	
 	
@@ -100,6 +103,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AML_Tile*> GetGridTiles();
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	UML_BiomeTileSet* GetBiomeTileSet() const { return BiomeTileSet; }
