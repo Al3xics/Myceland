@@ -28,16 +28,17 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		GameResult.bIsGameOver = false;
 		OnWin.Broadcast();
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));	
+
 	}
 	if (bLose)
 	{
 		GameResult.Result = EML_WinLose::Lose;
 		GameResult.bIsGameOver = true;
 		OnLose.Broadcast();
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Lost!"));	
 	}
-
-
-	UE_LOG(LogTemp, Log, TEXT("NothingNew"))
+	
 	return GameResult;
 }
 
