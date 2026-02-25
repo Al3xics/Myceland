@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "Tiles/ML_Tile.h"
 #include "ML_UndoTypes.generated.h"
 
@@ -14,14 +15,12 @@ struct FML_TileUndoDelta
 	UPROPERTY() EML_TileType OldType = EML_TileType::Dirt;
 
 	UPROPERTY() bool bOldHasCollectible = false;
-
-	// State you already touch in your wave code
 	UPROPERTY() bool bOldConsumedGrass = false;
 
-	// NEW ordering
-	UPROPERTY() int32 PriorityIndex = 0;        // which wave logic in DevSettings->WavesPriority
-	UPROPERTY() int32 DistanceFromOrigin = 0;   // same as WaveChange.DistanceFromOrigin
-	UPROPERTY() int32 Sequence = 0;             // stable ordering
+	// ordering
+	UPROPERTY() int32 PriorityIndex = 0;
+	UPROPERTY() int32 DistanceFromOrigin = 0;
+	UPROPERTY() int32 Sequence = 0;
 };
 
 USTRUCT()
@@ -31,9 +30,7 @@ struct FML_SpawnUndoDelta
 
 	UPROPERTY() TWeakObjectPtr<AActor> SpawnedActor;
 
-	UPROPERTY() bool bOldHasCollectible = false;
-
-	// NEW ordering
+	// ordering
 	UPROPERTY() int32 PriorityIndex = 0;
 	UPROPERTY() int32 DistanceFromOrigin = 0;
 	UPROPERTY() int32 Sequence = 0;
@@ -44,17 +41,49 @@ struct FML_TurnUndoRecord
 {
 	GENERATED_BODY()
 
-	// Energy snapshot (Undo restores this)
 	UPROPERTY() int32 EnergyBefore = 0;
 
-	// Player snapshot (Undo restores player position by path or teleport)
 	UPROPERTY() FIntPoint PlayerAxialBefore = FIntPoint::ZeroValue;
-	UPROPERTY() FVector PlayerWorldBefore = FVector::ZeroVector;
+	UPROPERTY() FVector  PlayerWorldBefore = FVector::ZeroVector;
 
-	// What tile started the propagation (optional but useful)
 	UPROPERTY() TWeakObjectPtr<class AML_Tile> OriginTile;
 
-	// Deltas
 	UPROPERTY() TArray<FML_TileUndoDelta> TileDeltas;
 	UPROPERTY() TArray<FML_SpawnUndoDelta> SpawnDeltas;
+};
+
+UENUM(BlueprintType)
+enum class EML_UndoActionType : uint8
+{
+	Move,
+	PlantWaves
+};
+
+USTRUCT()
+struct FML_MoveUndoRecord
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FIntPoint StartAxial = FIntPoint::ZeroValue;
+	UPROPERTY() FIntPoint EndAxial   = FIntPoint::ZeroValue;
+
+	// Exact path used for deterministic replay
+	UPROPERTY() TArray<FIntPoint> AxialPath;
+
+	UPROPERTY() FVector StartWorld = FVector::ZeroVector;
+	UPROPERTY() FVector EndWorld   = FVector::ZeroVector;
+
+	// Collectibles picked during this move
+	UPROPERTY() TArray<FIntPoint> PickedCollectibleAxials;
+};
+
+USTRUCT()
+struct FML_ActionUndoRecord
+{
+	GENERATED_BODY()
+
+	UPROPERTY() EML_UndoActionType Type = EML_UndoActionType::Move;
+
+	UPROPERTY() FML_MoveUndoRecord Move;
+	UPROPERTY() FML_TurnUndoRecord Turn;
 };

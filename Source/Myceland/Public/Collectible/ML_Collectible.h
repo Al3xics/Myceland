@@ -1,4 +1,6 @@
-﻿// Copyright Myceland Team, All Rights Reserved.
+﻿// ===============================
+// File: Collectible/ML_Collectible.h
+// ===============================
 
 #pragma once
 
@@ -16,17 +18,22 @@ class MYCELAND_API AML_Collectible : public AActor
 
 protected:
 	virtual void BeginPlay() override;
-	
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
 	USceneComponent* SceneRoot;
-	
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
 	USphereComponent* Collision;
 
 public:
 	AML_Collectible();
 	virtual void Tick(float DeltaTime) override;
-	
+
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
 	void AddEnergy(AML_PlayerController* MycelandController);
+
+	UPROPERTY() FIntPoint OwningAxial = FIntPoint::ZeroValue;
+
+	void InitOwningAxial(const FIntPoint& InAxial) { OwningAxial = InAxial; }
+	const FIntPoint& GetOwningAxial() const { return OwningAxial; }
 };

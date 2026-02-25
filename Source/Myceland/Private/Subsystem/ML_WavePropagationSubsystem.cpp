@@ -14,6 +14,7 @@
 
 void UML_WavePropagationSubsystem::EnsureInitialized()
 {
+	if (!GetWorld()) return;
 	WinLoseSubsystem = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>();
 	PlayerController = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController());
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
@@ -41,12 +42,19 @@ void UML_WavePropagationSubsystem::BeginTurnRecord_Internal(AML_Tile* OriginTile
 	CurrentTurnRecord.PlayerAxialBefore = PC->CurrentTileOn->GetAxialCoord();
 	CurrentTurnRecord.PlayerWorldBefore = PC->GetActorLocation();
 	CurrentTurnRecord.OriginTile = OriginTile;
+
+	UndoSequenceCounter = 0;
 }
 
 void UML_WavePropagationSubsystem::CommitTurnRecord_Internal()
 {
 	if (!bHasActiveTurnRecord) return;
-	UndoStack.Add(CurrentTurnRecord);
+
+	FML_ActionUndoRecord A;
+	A.Type = EML_UndoActionType::PlantWaves;
+	A.Turn = CurrentTurnRecord;
+	ActionUndoStack.Add(A);
+
 	bHasActiveTurnRecord = false;
 	CurrentTurnRecord = FML_TurnUndoRecord{};
 }
@@ -61,17 +69,12 @@ void UML_WavePropagationSubsystem::RecordTileBeforeChange(AML_Tile* Tile, int32 
 {
 	if (!bHasActiveTurnRecord || !IsValid(Tile)) return;
 
-	// for (const FML_TileUndoDelta& D : CurrentTurnRecord.TileDeltas)
-	// 	if (D.Tile.Get() == Tile)
-	// 		return;
-
 	FML_TileUndoDelta Delta;
 	Delta.Tile = Tile;
 	Delta.OldType = Tile->GetCurrentType();
 	Delta.bOldConsumedGrass = Tile->bConsumedGrass;
 	Delta.bOldHasCollectible = Tile->HasCollectible();
 
-	// ordering
 	Delta.PriorityIndex = CurrentPriorityIndexForRecording;
 	Delta.DistanceFromOrigin = DistanceFromOrigin;
 	Delta.Sequence = UndoSequenceCounter++;
@@ -85,7 +88,6 @@ void UML_WavePropagationSubsystem::RecordSpawnedActor(AActor* Spawned, int32 Dis
 
 	FML_SpawnUndoDelta D;
 	D.SpawnedActor = Spawned;
-
 	D.PriorityIndex = CurrentPriorityIndexForRecording;
 	D.DistanceFromOrigin = DistanceFromOrigin;
 	D.Sequence = UndoSequenceCounter++;
@@ -97,7 +99,6 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 {
 	bIsResolvingTiles = false;
 
-	// Only commit if we actually started a record (i.e. a “turn” happened)
 	CommitTurnRecord_Internal();
 
 	if (PlayerController)
@@ -120,11 +121,12 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
 
-	// Start undo record BEFORE waves mutate the world
 	BeginTurnRecord_Internal(HitTile);
 
 	ProcessNextWave();
 }
+
+// -------------------- Forward waves --------------------
 
 void UML_WavePropagationSubsystem::RunWave()
 {
@@ -153,46 +155,36 @@ void UML_WavePropagationSubsystem::RunWave()
 			AML_Tile* Tile = Change.Tile;
 			if (!IsValid(Tile)) continue;
 
-			// ---- Record before mutation (Undo) ----
 			RecordTileBeforeChange(Tile, Change.DistanceFromOrigin);
 
 			const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
-			ensureMsgf(TileSet, TEXT("TileSet is not set for BoardSpawner : %s"), *Tile->GetBoardSpawnerFromTile()->GetName());
 			if (!TileSet) return;
 
-			// IMPORTANT: use "silent" update during undo, but normal during forward
 			if (!bUndoInProgress)
-			{
 				Tile->UpdateClassAtRuntime(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
-			}
 			else
-			{
 				Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
-			}
 
-			// your parasite bookkeeping
+			// parasite bookkeeping
 			if (Tile->GetCurrentType() == EML_TileType::Parasite && Tile->bConsumedGrass)
 			{
 				ParasitesThatAteGrass.Add(Tile);
 				Tile->bConsumedGrass = false;
 			}
 
-			// cycle change detection
-			if (Tile->GetCurrentType() != Change.TargetType) // defensive; but normally equals
-				bCycleHasChanges = true;
-			else
-			{
-				// Use OldType capture if you prefer strict logic:
-				// if (OldType != Change.TargetType) bCycleHasChanges = true;
-				// (OldType was recorded in delta anyway)
-			}
+			bCycleHasChanges = true;
 		}
 		else if (Change.CollectibleClass)
 		{
 			FActorSpawnParameters Params;
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-			AActor* Spawned = GetWorld()->SpawnActor<AActor>(Change.CollectibleClass, Change.SpawnLocation, FRotator::ZeroRotator, Params);
+			AActor* Spawned = GetWorld()->SpawnActor<AActor>(
+				Change.CollectibleClass,
+				Change.SpawnLocation,
+				FRotator::ZeroRotator,
+				Params
+			);
 
 			RecordSpawnedActor(Spawned, Change.DistanceFromOrigin);
 			bCycleHasChanges = true;
@@ -241,16 +233,14 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 			CurrentWaveIndex = 0;
 			bCycleHasChanges = false;
 			ProcessNextWave();
+			return;
 		}
-		else
-		{
-			EndTileResolved();
-		}
+
+		EndTileResolved();
 		return;
 	}
 
 	UML_PropagationWaves* WaveLogic = DevSettings->WavesPriority[CurrentWaveIndex]->GetDefaultObject<UML_PropagationWaves>();
-	ensureMsgf(WaveLogic, TEXT("Wave logic is not set!"));
 	if (!WaveLogic)
 	{
 		CurrentWaveIndex++;
@@ -287,146 +277,116 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 	RunWave();
 }
 
-void UML_WavePropagationSubsystem::ApplyUndoRecord(const FML_TurnUndoRecord& Record)
-{
-	if (!PlayerController) return;
-
-	// Restore energy
-	PlayerController->CurrentEnergy = Record.EnergyBefore;
-
-	// Destroy spawned collectibles (reverse order is safer)
-	for (int32 i = Record.SpawnDeltas.Num() - 1; i >= 0; --i)
-	{
-		if (AActor* A = Record.SpawnDeltas[i].SpawnedActor.Get())
-		{
-			if (IsValid(A))
-				A->Destroy();
-		}
-	}
-
-	// Restore tiles (reverse order usually safer if you have dependencies)
-	bUndoInProgress = true;
-	for (int32 i = Record.TileDeltas.Num() - 1; i >= 0; --i)
-	{
-		const FML_TileUndoDelta& D = Record.TileDeltas[i];
-		AML_Tile* Tile = D.Tile.Get();
-		if (!IsValid(Tile)) continue;
-
-		const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
-		if (!TileSet) continue;
-
-		Tile->UpdateClassAtRuntime_Silent(D.OldType, TileSet->GetClassFromTileType(D.OldType));
-		Tile->SetHasCollectible(D.bOldHasCollectible);
-		Tile->bConsumedGrass = D.bOldConsumedGrass;
-	}
-	bUndoInProgress = false;
-
-	// Restore player position (use path back to axial to keep your movement style)
-	PlayerController->MovePlayerToAxial(Record.PlayerAxialBefore, /*bUsePath=*/true, /*bFallbackTeleport=*/true, Record.PlayerWorldBefore);
-}
-
-bool UML_WavePropagationSubsystem::UndoLastTurn()
-{
-	EnsureInitialized();
-	if (!PlayerController) return false;
-
-	// If waves are running, don’t undo (or cancel timers + clean state)
-	if (bIsResolvingTiles)
-		return false;
-
-	if (UndoStack.Num() == 0)
-		return false;
-
-	CancelAllWaveTimers();
-
-	// Pop last record
-	const FML_TurnUndoRecord Record = UndoStack.Pop();
-
-	ApplyUndoRecord(Record);
-	return true;
-}
-
 void UML_WavePropagationSubsystem::RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin)
 {
 	RecordTileBeforeChange(Tile, DistanceFromOrigin);
 }
 
-bool UML_WavePropagationSubsystem::UndoLastTurn_Animated()
+// -------------------- Action recording (Move) --------------------
+
+void UML_WavePropagationSubsystem::NotifyMoveCompleted(
+	const FIntPoint& StartAxial,
+	const FIntPoint& EndAxial,
+	const TArray<FIntPoint>& AxialPath,
+	const FVector& StartWorld,
+	const FVector& EndWorld,
+	const TArray<FIntPoint>& PickedCollectibleAxials)
+{
+	EnsureInitialized();
+	if (!PlayerController) return;
+	if (bIsResolvingTiles || bIsUndoAnimating) return;
+
+	if (AxialPath.Num() < 2) return;
+	if (StartAxial == EndAxial) return;
+
+	FML_ActionUndoRecord A;
+	A.Type = EML_UndoActionType::Move;
+	A.Move.StartAxial = StartAxial;
+	A.Move.EndAxial = EndAxial;
+	A.Move.AxialPath = AxialPath;
+	A.Move.StartWorld = StartWorld;
+	A.Move.EndWorld = EndWorld;
+	A.Move.PickedCollectibleAxials = PickedCollectibleAxials;
+
+	ActionUndoStack.Add(A);
+}
+
+// -------------------- Undo animated (Move + Plant/Waves) --------------------
+
+bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 {
 	EnsureInitialized();
 	if (!PlayerController || !DevSettings) return false;
-
-	// Don't undo while forward resolving OR while another undo animation is running
 	if (bIsResolvingTiles || bIsUndoAnimating) return false;
-	if (UndoStack.Num() == 0) return false;
+	if (ActionUndoStack.Num() == 0) return false;
 
 	CancelAllWaveTimers();
 	PlayerController->DisableInput(PlayerController);
 
-	bIsUndoAnimating = true;
+	const FML_ActionUndoRecord Action = ActionUndoStack.Pop();
 
-	// Pop record and stage
-	ActiveUndoRecord = UndoStack.Pop();
-
-	// Restore energy immediately (UI feedback)
-	PlayerController->CurrentEnergy = ActiveUndoRecord.EnergyBefore;
-
-	// Copy deltas
-	PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
-	PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
-
-	// Sort in reverse order:
-	// - PriorityIndex desc (last wave undone first)
-	// - DistanceFromOrigin desc (farther rings undone first)
-	// - Sequence desc (stable ordering)
-	PendingUndoTileDeltas.Sort([](const FML_TileUndoDelta& A, const FML_TileUndoDelta& B)
+	// MOVE: play reversed path
+	if (Action.Type == EML_UndoActionType::Move)
 	{
-		if (A.PriorityIndex != B.PriorityIndex) return A.PriorityIndex > B.PriorityIndex;
-		if (A.DistanceFromOrigin != B.DistanceFromOrigin) return A.DistanceFromOrigin > B.DistanceFromOrigin;
-		return A.Sequence > B.Sequence;
-	});
+		bIsUndoAnimating = true;
 
-	PendingUndoSpawnDeltas.Sort([](const FML_SpawnUndoDelta& A, const FML_SpawnUndoDelta& B)
+		TArray<FIntPoint> ReversePath = Action.Move.AxialPath;
+		Algo::Reverse(ReversePath);
+
+		PlayerController->StartMoveAlongAxialPathForUndo(ReversePath);
+		return true;
+	}
+
+	// PLANT/WAVES: play undo-wave groups
+	if (Action.Type == EML_UndoActionType::PlantWaves)
 	{
-		if (A.PriorityIndex != B.PriorityIndex) return A.PriorityIndex > B.PriorityIndex;
-		if (A.DistanceFromOrigin != B.DistanceFromOrigin) return A.DistanceFromOrigin > B.DistanceFromOrigin;
-		return A.Sequence > B.Sequence;
-	});
+		bIsUndoAnimating = true;
+		ActiveUndoRecord = Action.Turn;
 
-	// Kick off first undo wave immediately
-	RunUndoWave();
-	return true;
+		PlayerController->CurrentEnergy = ActiveUndoRecord.EnergyBefore;
+
+		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
+		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
+
+		PendingUndoTileDeltas.Sort([](const FML_TileUndoDelta& A, const FML_TileUndoDelta& B)
+		{
+			if (A.PriorityIndex != B.PriorityIndex) return A.PriorityIndex > B.PriorityIndex;
+			if (A.DistanceFromOrigin != B.DistanceFromOrigin) return A.DistanceFromOrigin > B.DistanceFromOrigin;
+			return A.Sequence > B.Sequence;
+		});
+
+		PendingUndoSpawnDeltas.Sort([](const FML_SpawnUndoDelta& A, const FML_SpawnUndoDelta& B)
+		{
+			if (A.PriorityIndex != B.PriorityIndex) return A.PriorityIndex > B.PriorityIndex;
+			if (A.DistanceFromOrigin != B.DistanceFromOrigin) return A.DistanceFromOrigin > B.DistanceFromOrigin;
+			return A.Sequence > B.Sequence;
+		});
+
+		RunUndoWave();
+		return true;
+	}
+
+	// fallback
+	PlayerController->EnableInput(PlayerController);
+	return false;
 }
 
 void UML_WavePropagationSubsystem::RunUndoWave()
 {
-	// If both empty -> finish
 	if (PendingUndoTileDeltas.Num() == 0 && PendingUndoSpawnDeltas.Num() == 0)
 	{
 		FinishUndoAnimation();
 		return;
 	}
 
-	// Determine next group key (PriorityIndex, DistanceFromOrigin) from the "front" of sorted arrays
-	// Since arrays are sorted DESC, index 0 is next to apply.
-	auto PeekKey = [](int32& OutPri, int32& OutDist, const bool bHasTile, const FML_TileUndoDelta& TD, const bool bHasSpawn, const FML_SpawnUndoDelta& SD)
+	auto PeekKey = [](int32& OutPri, int32& OutDist,
+		const bool bHasTile, const FML_TileUndoDelta& TD,
+		const bool bHasSpawn, const FML_SpawnUndoDelta& SD)
 	{
-		// Pick the "highest" key among available heads
-		// Compare (Pri, Dist) lexicographically desc
-		if (bHasTile && !bHasSpawn)
-		{
-			OutPri = TD.PriorityIndex;
-			OutDist = TD.DistanceFromOrigin;
-			return;
-		}
-		if (!bHasTile && bHasSpawn)
-		{
-			OutPri = SD.PriorityIndex;
-			OutDist = SD.DistanceFromOrigin;
-			return;
-		}
+		if (bHasTile && !bHasSpawn) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; return; }
+		if (!bHasTile && bHasSpawn) { OutPri = SD.PriorityIndex; OutDist = SD.DistanceFromOrigin; return; }
 
-		// Both exist: compare heads
+		// both exist
 		if (TD.PriorityIndex != SD.PriorityIndex)
 		{
 			if (TD.PriorityIndex > SD.PriorityIndex) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; }
@@ -434,21 +394,12 @@ void UML_WavePropagationSubsystem::RunUndoWave()
 			return;
 		}
 
-		// same priority, compare distance
-		if (TD.DistanceFromOrigin >= SD.DistanceFromOrigin)
-		{
-			OutPri = TD.PriorityIndex;
-			OutDist = TD.DistanceFromOrigin;
-		}
-		else
-		{
-			OutPri = SD.PriorityIndex;
-			OutDist = SD.DistanceFromOrigin;
-		}
+		// same pri -> larger dist first
+		if (TD.DistanceFromOrigin >= SD.DistanceFromOrigin) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; }
+		else { OutPri = SD.PriorityIndex; OutDist = SD.DistanceFromOrigin; }
 	};
 
-	int32 GroupPri = 0;
-	int32 GroupDist = 0;
+	int32 GroupPri = 0, GroupDist = 0;
 
 	const bool bHasTile = PendingUndoTileDeltas.Num() > 0;
 	const bool bHasSpawn = PendingUndoSpawnDeltas.Num() > 0;
@@ -461,15 +412,12 @@ void UML_WavePropagationSubsystem::RunUndoWave()
 
 	ApplyUndoWaveGroup(GroupPri, GroupDist);
 
-	// Decide delay: if we still have work, use IntraWaveDelay for same "priority sweep",
-	// and InterWaveDelay when moving to next priority group.
 	if (PendingUndoTileDeltas.Num() == 0 && PendingUndoSpawnDeltas.Num() == 0)
 	{
 		FinishUndoAnimation();
 		return;
 	}
 
-	// Compute next key to decide if priority changes
 	int32 NextPri = 0, NextDist = 0;
 	const bool bHasTile2 = PendingUndoTileDeltas.Num() > 0;
 	const bool bHasSpawn2 = PendingUndoSpawnDeltas.Num() > 0;
@@ -486,51 +434,44 @@ void UML_WavePropagationSubsystem::RunUndoWave()
 
 void UML_WavePropagationSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin)
 {
-	// Destroy collectibles first (so tiles revert after visuals vanish)
+	// Destroy spawned actors in this group
+	for (int32 i = 0; i < PendingUndoSpawnDeltas.Num(); )
 	{
-		int32 i = 0;
-		while (i < PendingUndoSpawnDeltas.Num())
+		const FML_SpawnUndoDelta& SD = PendingUndoSpawnDeltas[i];
+		if (SD.PriorityIndex == PriorityIndex && SD.DistanceFromOrigin == DistanceFromOrigin)
 		{
-			const FML_SpawnUndoDelta& SD = PendingUndoSpawnDeltas[i];
-			if (SD.PriorityIndex == PriorityIndex && SD.DistanceFromOrigin == DistanceFromOrigin)
-			{
-				if (AActor* A = SD.SpawnedActor.Get())
-				{
-					if (IsValid(A))
-						A->Destroy();
-				}
-				PendingUndoSpawnDeltas.RemoveAt(i);
-				continue;
-			}
-			i++;
+			if (AActor* A = SD.SpawnedActor.Get())
+				if (IsValid(A)) A->Destroy();
+
+			PendingUndoSpawnDeltas.RemoveAt(i);
+			continue;
 		}
+		i++;
 	}
 
-	// Revert tiles (silent)
+	// Revert tiles in this group
 	bUndoInProgress = true;
+	for (int32 i = 0; i < PendingUndoTileDeltas.Num(); )
 	{
-		int32 i = 0;
-		while (i < PendingUndoTileDeltas.Num())
+		const FML_TileUndoDelta& TD = PendingUndoTileDeltas[i];
+		if (TD.PriorityIndex == PriorityIndex && TD.DistanceFromOrigin == DistanceFromOrigin)
 		{
-			const FML_TileUndoDelta& TD = PendingUndoTileDeltas[i];
-			if (TD.PriorityIndex == PriorityIndex && TD.DistanceFromOrigin == DistanceFromOrigin)
+			AML_Tile* Tile = TD.Tile.Get();
+			if (IsValid(Tile))
 			{
-				AML_Tile* Tile = TD.Tile.Get();
-				if (IsValid(Tile))
+				const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
+				if (TileSet)
 				{
-					const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
-					if (TileSet)
-					{
-						Tile->UpdateClassAtRuntime_Silent(TD.OldType, TileSet->GetClassFromTileType(TD.OldType));
-						Tile->SetHasCollectible(TD.bOldHasCollectible);
-						Tile->bConsumedGrass = TD.bOldConsumedGrass;
-					}
+					Tile->UpdateClassAtRuntime_Silent(TD.OldType, TileSet->GetClassFromTileType(TD.OldType));
+					Tile->SetHasCollectible(TD.bOldHasCollectible);
+					Tile->bConsumedGrass = TD.bOldConsumedGrass;
 				}
-				PendingUndoTileDeltas.RemoveAt(i);
-				continue;
 			}
-			i++;
+
+			PendingUndoTileDeltas.RemoveAt(i);
+			continue;
 		}
+		i++;
 	}
 	bUndoInProgress = false;
 }
@@ -540,7 +481,7 @@ void UML_WavePropagationSubsystem::ScheduleNextUndoWave(float Delay)
 	if (!GetWorld()) return;
 
 	GetWorld()->GetTimerManager().SetTimer(
-		IntraWaveTimerHandle, // reuse handle (we already clear timers at start)
+		IntraWaveTimerHandle,
 		this,
 		&UML_WavePropagationSubsystem::RunUndoWave,
 		Delay,
@@ -550,23 +491,22 @@ void UML_WavePropagationSubsystem::ScheduleNextUndoWave(float Delay)
 
 void UML_WavePropagationSubsystem::FinishUndoAnimation()
 {
-	// Restore player position at the end (feels like "rewind aftermath")
-	if (PlayerController)
-	{
-		PlayerController->MovePlayerToAxial(
-			ActiveUndoRecord.PlayerAxialBefore,
-			/*bUsePath=*/true,
-			/*bFallbackTeleport=*/true,
-			ActiveUndoRecord.PlayerWorldBefore
-		);
-
-		PlayerController->EnableInput(PlayerController);
-	}
-
-	// Clear undo state
 	bIsUndoAnimating = false;
 	bUndoInProgress = false;
+
 	PendingUndoTileDeltas.Reset();
 	PendingUndoSpawnDeltas.Reset();
 	ActiveUndoRecord = FML_TurnUndoRecord{};
+
+	if (PlayerController)
+		PlayerController->EnableInput(PlayerController);
+}
+
+void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
+{
+	// End of undo MOVE playback
+	bIsUndoAnimating = false;
+
+	if (PlayerController)
+		PlayerController->EnableInput(PlayerController);
 }

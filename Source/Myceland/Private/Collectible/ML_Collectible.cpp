@@ -6,16 +6,13 @@
 #include "Components/SphereComponent.h"
 #include "Player/ML_PlayerController.h"
 
-
 AML_Collectible::AML_Collectible()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	
-	// Root pour gérer la rotation/position
+
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	RootComponent = SceneRoot;
 
-	// Sphere collider pour overlap
 	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	Collision->SetupAttachment(RootComponent);
 	Collision->InitSphereRadius(50.f);
@@ -27,7 +24,6 @@ AML_Collectible::AML_Collectible()
 void AML_Collectible::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 void AML_Collectible::Tick(float DeltaTime)
@@ -37,6 +33,12 @@ void AML_Collectible::Tick(float DeltaTime)
 
 void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController)
 {
-	MycelandController->CurrentEnergy++;
-}
+	if (!MycelandController) return;
 
+	MycelandController->CurrentEnergy++;
+
+	if (MycelandController->IsMoveInProgress())
+	{
+		MycelandController->NotifyCollectiblePickedOnAxial(GetOwningAxial());
+	}
+}

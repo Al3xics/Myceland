@@ -10,51 +10,28 @@
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 
-class UML_WavePropagationSubsystem;
-
 AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 {
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
-	{
 		return nullptr;
-	}
 
-	// 1) Direct actor hit
 	if (AML_Tile* Tile = Cast<AML_Tile>(Hit.GetActor()))
-	{
 		return Tile;
-	}
 
-	// 2) If we hit a component that belongs to something else (ChildActor, mesh actor, etc.)
 	if (UPrimitiveComponent* Comp = Hit.GetComponent())
-	{
-		// Try outer chain
 		if (AML_Tile* OuterTile = Comp->GetTypedOuter<AML_Tile>())
-		{
 			return OuterTile;
-		}
-	}
 
-	// 3) If we hit a child actor spawned by your tile (TileChildActor)
 	if (AActor* HitActor = Hit.GetActor())
 	{
 		if (AActor* Parent = HitActor->GetParentActor())
-		{
 			if (AML_Tile* ParentTile = Cast<AML_Tile>(Parent))
-			{
 				return ParentTile;
-			}
-		}
 
-		// 4) Sometimes the tile is the owner of the hit actor
 		if (AActor* Owning = HitActor->GetOwner())
-		{
 			if (AML_Tile* OwnerTile = Cast<AML_Tile>(Owning))
-			{
 				return OwnerTile;
-			}
-		}
 	}
 
 	return nullptr;
@@ -70,12 +47,10 @@ AML_BoardSpawner* AML_PlayerController::GetBoardFromCurrentTile(const AML_Player
 
 bool AML_PlayerController::IsTileWalkable(const AML_Tile* Tile) const
 {
-	if (!IsValid(Tile))
-		return false;
+	if (!IsValid(Tile)) return false;
 
 	const EML_TileType Type = Tile->GetCurrentType();
 	const bool bTypeWalkable = (Type == EML_TileType::Dirt || Type == EML_TileType::Grass);
-
 	return bTypeWalkable && !Tile->IsBlocked();
 }
 
@@ -111,17 +86,13 @@ bool AML_PlayerController::BuildPath_AxialBFS(const FIntPoint& StartAxial, const
 				continue;
 
 			const AML_Tile* const* NextTilePtr = GridMap.Find(Next);
-			if (!NextTilePtr)
-				continue;
-
-			if (!IsTileWalkable(*NextTilePtr))
-				continue;
+			if (!NextTilePtr) continue;
+			if (!IsTileWalkable(*NextTilePtr)) continue;
 
 			CameFrom.Add(Next, Current);
 
 			if (Next == GoalAxial)
 			{
-				// reconstruct
 				FIntPoint Step = GoalAxial;
 				while (Step != StartAxial)
 				{
@@ -150,13 +121,10 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 	for (const FIntPoint& Axial : AxialPath)
 	{
 		if (AML_Tile* const* TilePtr = GridMap.Find(Axial))
-		{
 			if (IsValid(*TilePtr))
 				CurrentPathWorld.Add((*TilePtr)->GetActorLocation());
-		}
 	}
 
-	// Skip first point if already basically there
 	if (APawn* P = GetPawn())
 	{
 		if (CurrentPathWorld.Num() > 0)
@@ -169,23 +137,20 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 {
-	ensureMsgf(CurrentPathWorld.Num() != CurrentPathIndex, TEXT("Path is not initialized!"));
-	if (CurrentPathWorld.Num() == 0 || CurrentPathIndex >= CurrentPathWorld.Num()) return;
+	if (CurrentPathWorld.Num() == 0 || CurrentPathIndex >= CurrentPathWorld.Num())
+		return;
 
 	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
-	ensureMsgf(MycelandCharacter, TEXT("Player Character is not set!"));
 	if (!IsValid(MycelandCharacter)) return;
 
 	const FVector Loc = MycelandCharacter->GetActorLocation();
 
-	// ---------- Corner cut / skip waypoint ----------
-	// If we have at least one more waypoint ahead, we can try to skip the current one.
+	// Corner cut
 	if (CornerCutStrength > 0.f && CurrentPathIndex + 1 < CurrentPathWorld.Num())
 	{
 		const FVector P1 = CurrentPathWorld[CurrentPathIndex];
 		const FVector P2 = CurrentPathWorld[CurrentPathIndex + 1];
 
-		// Compute 2D distance from player to the segment [P1 -> P2]
 		const FVector A = FVector(P1.X, P1.Y, 0.f);
 		const FVector B = FVector(P2.X, P2.Y, 0.f);
 		const FVector P = FVector(Loc.X, Loc.Y, 0.f);
@@ -200,14 +165,11 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 			const float DistToSegment = FVector::Dist(P, Closest);
 
 			const float CutDist = BaseCornerCutDistance * CornerCutStrength;
-
-			// If we're close enough to the shortcut segment, skip the middle waypoint
 			if (DistToSegment <= CutDist)
-				CurrentPathIndex++; // skip P1, go directly toward P2
+				CurrentPathIndex++;
 		}
 	}
 
-	// ---------- Normal movement toward current waypoint ----------
 	const FVector Target = CurrentPathWorld[CurrentPathIndex];
 	FVector To = Target - Loc;
 	To.Z = 0.f;
@@ -218,8 +180,44 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		CurrentPathIndex++;
 		if (CurrentPathIndex >= CurrentPathWorld.Num())
 		{
+			// end
 			CurrentPathWorld.Reset();
 			CurrentPathIndex = 0;
+
+			if (UML_WavePropagationSubsystem* S = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+			{
+				if (bUndoMovePlayback)
+				{
+					bUndoMovePlayback = false;
+					bSuppressMoveRecording = false;
+					S->NotifyUndoMoveFinished();
+				}
+				else if (bMoveInProgress && ActiveMoveAxialPath.Num() > 0)
+				{
+					if (!bSuppressMoveRecording)
+					{
+						const TArray<FIntPoint> Picked = ActiveMovePickedCollectibles.Array();
+
+						S->NotifyMoveCompleted(
+							MoveStartAxial,
+							MoveEndAxial,
+							ActiveMoveAxialPath,
+							MoveStartWorld,
+							MoveEndWorld,
+							Picked
+						);
+					}
+					else
+					{
+						bSuppressMoveRecording = false;
+					}
+				}
+			}
+
+			bMoveInProgress = false;
+			ActiveMoveAxialPath.Reset();
+			ActiveMovePickedCollectibles.Reset();
+			return;
 		}
 		return;
 	}
@@ -239,13 +237,10 @@ void AML_PlayerController::InitNumberOfEnergyForLevel()
 	{
 		if (!Pair.Value.IsNull())
 		{
-			FString AssetName = Pair.Value.GetAssetName();
-
-			if (AssetName == CurrentLevelName)
+			if (Pair.Value.GetAssetName() == CurrentLevelName)
 			{
 				if (const int* Energy = Settings->EnergyPerLevel.Find(Pair.Key))
 					CurrentEnergy = *Energy;
-
 				break;
 			}
 		}
@@ -268,37 +263,37 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 void AML_PlayerController::OnSetDestinationTriggered()
 {
 	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
-	ensureMsgf(MycelandCharacter, TEXT("Player Character is not set!"));
-	if (!IsValid(MycelandCharacter)) return;
-
-	ensureMsgf(IsValid(MycelandCharacter->CurrentTileOn), TEXT("Current tile is not set!"));
-	if (!IsValid(MycelandCharacter->CurrentTileOn)) return;
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
 
 	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
-	ensureMsgf(Board, TEXT("Board is not set!"));
 	if (!IsValid(Board)) return;
 
 	AML_Tile* TargetTile = GetTileUnderCursor();
-	ensureMsgf(IsValid(TargetTile), TEXT("Target tile is not set!"));
 	if (!IsValid(TargetTile)) return;
-
-	ensureMsgf(TargetTile->GetOwner() == Board, TEXT("Target tile is not owned by the board!"));
 	if (TargetTile->GetOwner() != Board) return;
 
 	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
 	const FIntPoint GoalAxial  = TargetTile->GetAxialCoord();
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-
-	ensureMsgf(GridMap.Contains(StartAxial), TEXT("Start axial is not in the grid map!"));
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
-
-	ensureMsgf(IsTileWalkable(GridMap[StartAxial]) && IsTileWalkable(GridMap[GoalAxial]), TEXT("Start or goal axial is not walkable!"));
 	if (!IsTileWalkable(GridMap[StartAxial]) || !IsTileWalkable(GridMap[GoalAxial])) return;
 
 	TArray<FIntPoint> AxialPath;
-	ensureMsgf(BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath), TEXT("Path is not valid!"));
 	if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
+
+	// record move
+	bMoveInProgress = true;
+	MoveStartAxial = StartAxial;
+	MoveEndAxial   = GoalAxial;
+
+	if (APawn* P = GetPawn())
+		MoveStartWorld = P->GetActorLocation();
+
+	MoveEndWorld = TargetTile->GetActorLocation();
+
+	ActiveMoveAxialPath = AxialPath;
+	ActiveMovePickedCollectibles.Reset();
 
 	StartMoveAlongPath(AxialPath, GridMap);
 }
@@ -309,27 +304,19 @@ void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGra
 	HitTile = nullptr;
 
 	const AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetCharacter());
-	ensureMsgf(MycelandCharacter, TEXT("Player Character is not set!"));
 	if (!MycelandCharacter) return;
-	
+
 	AML_Tile* CurrentTileOn = MycelandCharacter->CurrentTileOn;
-	ensureMsgf(CurrentTileOn, TEXT("Current tile is not set!"));
 	if (!CurrentTileOn) return;
-	
+
 	const AActor* HitActor = HitResult.GetActor();
-	ensureMsgf(HitActor, TEXT("Hit actor is not set!"));
 	if (!HitActor) return;
-	
-	// Get all the neighbors of the tile the player is on
+
 	TArray<AML_Tile*> Neighbors = CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn);
 	for (const AML_Tile* Neighbor : Neighbors)
 	{
 		if (!Neighbor) continue;
-		
-		// Get the child actor (TileChildActor) of TileBase
-		const AML_TileBase* Tile = Cast<AML_TileBase>(Neighbor->GetTileChildActor()->GetChildActor());
-		
-		// Get the parent of the HitActor and do multiple checks
+
 		if (const AML_Tile* HitTileActor = Cast<AML_Tile>(HitActor))
 		{
 			if (HitTileActor == Neighbor &&
@@ -346,40 +333,32 @@ void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGra
 
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
-	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
-	{
-		WavePropagationSubsystem->BeginTileResolved(HitTile); // record starts here (EnergyBefore captured)
-	}
+	if (UML_WavePropagationSubsystem* S = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+		S->BeginTileResolved(HitTile);
 
-	CurrentEnergy--; // consume after record
+	CurrentEnergy--;
 }
 
 bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld)
 {
 	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
-	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
-		return false;
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
 
 	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
-	if (!IsValid(Board))
-		return false;
+	if (!IsValid(Board)) return false;
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-
 	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
 
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial))
 	{
 		if (bFallbackTeleport)
-		{
 			MycelandCharacter->SetActorLocation(TeleportFallbackWorld);
-		}
 		return false;
 	}
 
 	if (!bUsePath)
 	{
-		// Teleport to tile center
 		if (AML_Tile* const* TilePtr = GridMap.Find(TargetAxial))
 		{
 			if (IsValid(*TilePtr))
@@ -391,7 +370,6 @@ bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool 
 		return false;
 	}
 
-	// Build path and move along it
 	TArray<FIntPoint> AxialPath;
 	if (!BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, AxialPath))
 	{
@@ -400,6 +378,48 @@ bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool 
 		return false;
 	}
 
+	bMoveInProgress = true;
+	MoveStartAxial = StartAxial;
+	MoveEndAxial   = TargetAxial;
+
+	if (APawn* P = GetPawn())
+		MoveStartWorld = P->GetActorLocation();
+
+	if (AML_Tile* const* TilePtr = GridMap.Find(TargetAxial))
+		MoveEndWorld = IsValid(*TilePtr) ? (*TilePtr)->GetActorLocation() : TeleportFallbackWorld;
+	else
+		MoveEndWorld = TeleportFallbackWorld;
+
+	ActiveMoveAxialPath = AxialPath;
+	ActiveMovePickedCollectibles.Reset();
+
 	StartMoveAlongPath(AxialPath, GridMap);
 	return true;
+}
+
+void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath)
+{
+	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
+
+	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
+	if (!IsValid(Board)) return;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+
+	bUndoMovePlayback = true;
+	bSuppressMoveRecording = true;
+
+	// Ensure end-of-path logic triggers
+	bMoveInProgress = true;
+	ActiveMoveAxialPath = AxialPath;
+	ActiveMovePickedCollectibles.Reset();
+
+	StartMoveAlongPath(AxialPath, GridMap);
+}
+
+void AML_PlayerController::NotifyCollectiblePickedOnAxial(const FIntPoint& Axial)
+{
+	if (!bMoveInProgress) return;
+	ActiveMovePickedCollectibles.Add(Axial);
 }
