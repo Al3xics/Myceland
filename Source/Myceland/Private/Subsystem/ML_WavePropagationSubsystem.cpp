@@ -70,6 +70,11 @@ void UML_WavePropagationSubsystem::RunWave()
 				Change.Tile->bConsumedGrass = false;
 			}
 			
+			if (Change.Tile == WinLoseSubsystem->GetPlayerCurrentTile())
+			{
+				WinLoseSubsystem->CheckPlayerKilled(Change.Tile);
+			}
+			
 			if (OldType != Change.TargetType) bCycleHasChanges = true;
 		}
 		else if (Change.CollectibleClass)

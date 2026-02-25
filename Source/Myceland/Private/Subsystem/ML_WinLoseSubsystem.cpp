@@ -10,6 +10,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
 #include "Player/ML_PlayerCharacter.h"
+#include "Player/ML_PlayerController.h"
 
 FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 {
@@ -20,10 +21,10 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 
 	const bool bWin = AreAllGoalsConnectedByAllowedPaths(CurrentBoardSpawner, EML_TileType::Tree,
 	                                                     {EML_TileType::Grass, EML_TileType::Water});
-	const bool bLose = CheckPlayerKilled(GetPlayerCurrentTile());
+	//const bool bLose = CheckPlayerKilled(GetPlayerCurrentTile());
 	FML_GameResult GameResult;
 
-	if (bLose)
+	if (bIsPlayerDead)
 	{
 		GameResult.Result = EML_WinLose::Lose;
 		GameResult.bIsGameOver = true;
@@ -31,7 +32,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Lost!"));
 		return GameResult;
 	}
-	
+
 	if (bWin)
 	{
 		GameResult.Result = EML_WinLose::Win;
@@ -39,15 +40,20 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		OnWin.Broadcast();
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
-	
+
 	return GameResult;
 }
 
-bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
+bool UML_WinLoseSubsystem::CheckPlayerKilled( AML_Tile* CurrentTileOn)
 {
+	if (bIsPlayerDead) return false;
+	
 	if (CurrentTileOn->GetCurrentType() == EML_TileType::Water || CurrentTileOn->GetCurrentType() ==
 		EML_TileType::Parasite)
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You died"));
+		bIsPlayerDead = true;
+		OnDeath.Broadcast();
 		return true;
 	}
 	return false;
@@ -154,7 +160,6 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* 
 	return false;
 }
 
-
 AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
 {
 	UWorld* World = GetWorld();
@@ -181,6 +186,6 @@ AML_BoardSpawner* UML_WinLoseSubsystem::FindBoardSpawner() const
 	UE_LOG(LogTemp, Log, TEXT("Board found: %s at %s"),
 	       *RetrivedBoardSpawner->GetName(),
 	       *RetrivedBoardSpawner->GetActorLocation().ToString());
-
+	
 	return RetrivedBoardSpawner;
 }
