@@ -23,6 +23,9 @@ public:
 	UPROPERTY(EditAnywhere, config, Category="Input")
 	FML_InputMappingEntry DefaultInputMappingContext;
 	
+	UPROPERTY(EditAnywhere, config, Category="Input")
+	float ExitBoardHoldDuration = 2.f;
+	
 	
 	
 	// ==================== Levels ====================

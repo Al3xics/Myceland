@@ -32,6 +32,9 @@ private:
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	UML_BiomeTileSet* BiomeTileSet;
 	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	ACameraActor* AssociatedCamera;
+	
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
@@ -109,4 +112,7 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	UML_BiomeTileSet* GetBiomeTileSet() const { return BiomeTileSet; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	ACameraActor* GetAssociatedCamera() const { return AssociatedCamera; }
 };
