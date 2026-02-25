@@ -303,6 +303,20 @@ void AML_PlayerController::OnSetDestinationTriggered()
 	StartMoveAlongPath(AxialPath, GridMap);
 }
 
+void AML_PlayerController::RotateCharacterTowardTile( const AML_Tile* HitTileActor)
+{
+	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetCharacter());
+	if (!IsValid(MycelandCharacter) || !IsValid(HitTileActor)) return;
+
+	FVector Dir = HitTileActor->GetActorLocation() - MycelandCharacter->GetActorLocation();
+	Dir.Z = 0.f;
+	if (Dir.IsNearlyZero()) return;
+
+	const float Yaw = Dir.Rotation().Yaw;
+	FRotator Rot = FRotator(0.f, Yaw, 0.f);
+	MycelandCharacter->SetActorRotation(Rot) ;
+}
+
 void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile)
 {
 	CanPlantGrass = false;
@@ -336,6 +350,7 @@ void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGra
 				Neighbor->GetCurrentType() == EML_TileType::Dirt &&
 				CurrentEnergy > 0)
 			{
+				RotateCharacterTowardTile(HitTileActor);
 				HitTile = const_cast<AML_Tile*>(HitTileActor);
 				CanPlantGrass = true;
 				return;

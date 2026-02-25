@@ -39,6 +39,7 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
+	void RotateCharacterTowardTile( const AML_Tile* HitTileActor);
 
 	// ==================== Movement tuning ====================
 	UPROPERTY(EditAnywhere, Category="Myceland|Movement")
