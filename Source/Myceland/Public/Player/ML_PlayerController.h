@@ -39,8 +39,11 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
-	void RotateCharacterTowardTile( const AML_Tile* HitTileActor);
+	void RotateCharacterTowardTile( const AML_Tile* HitTileActor, float DeltaTime,
+	float TurnSpeed);
 
+	bool bTurningToTile = false;
+	
 	// ==================== Movement tuning ====================
 	UPROPERTY(EditAnywhere, Category="Myceland|Movement")
 	float AcceptanceRadius = 12.f;
@@ -56,6 +59,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Myceland|Movement|Smoothing", meta=(ClampMin="0.0"))
 	float BaseCornerCutDistance = 80.f;
 
+	float RotateSpeed = 10.f;
+	
+	const AML_Tile* RotateTargetTile;
+	
 public:
 	UPROPERTY(BlueprintReadWrite, Category="Myceland Controller|Energy")
 	int CurrentEnergy = 0;

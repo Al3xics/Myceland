@@ -79,7 +79,9 @@ bool AML_PlayerController::IsTileWalkable(const AML_Tile* Tile) const
 	return bTypeWalkable && !Tile->IsBlocked();
 }
 
-bool AML_PlayerController::BuildPath_AxialBFS(const FIntPoint& StartAxial, const FIntPoint& GoalAxial, const TMap<FIntPoint, AML_Tile*>& GridMap, TArray<FIntPoint>& OutAxialPath) const
+bool AML_PlayerController::BuildPath_AxialBFS(const FIntPoint& StartAxial, const FIntPoint& GoalAxial,
+                                              const TMap<FIntPoint, AML_Tile*>& GridMap,
+                                              TArray<FIntPoint>& OutAxialPath) const
 {
 	OutAxialPath.Reset();
 
@@ -140,7 +142,8 @@ bool AML_PlayerController::BuildPath_AxialBFS(const FIntPoint& StartAxial, const
 	return false;
 }
 
-void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap)
+void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath,
+                                              const TMap<FIntPoint, AML_Tile*>& GridMap)
 {
 	CurrentPathWorld.Reset();
 	CurrentPathIndex = 0;
@@ -263,6 +266,10 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 	TickMoveAlongPath(DeltaTime);
+
+	if (!bTurningToTile) return;
+
+	RotateCharacterTowardTile(RotateTargetTile, DeltaTime, RotateSpeed);
 }
 
 void AML_PlayerController::OnSetDestinationTriggered()
@@ -286,14 +293,15 @@ void AML_PlayerController::OnSetDestinationTriggered()
 	if (TargetTile->GetOwner() != Board) return;
 
 	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint GoalAxial  = TargetTile->GetAxialCoord();
+	const FIntPoint GoalAxial = TargetTile->GetAxialCoord();
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 
 	ensureMsgf(GridMap.Contains(StartAxial), TEXT("Start axial is not in the grid map!"));
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
 
-	ensureMsgf(IsTileWalkable(GridMap[StartAxial]) && IsTileWalkable(GridMap[GoalAxial]), TEXT("Start or goal axial is not walkable!"));
+	ensureMsgf(IsTileWalkable(GridMap[StartAxial]) && IsTileWalkable(GridMap[GoalAxial]),
+	           TEXT("Start or goal axial is not walkable!"));
 	if (!IsTileWalkable(GridMap[StartAxial]) || !IsTileWalkable(GridMap[GoalAxial])) return;
 
 	TArray<FIntPoint> AxialPath;
@@ -303,18 +311,30 @@ void AML_PlayerController::OnSetDestinationTriggered()
 	StartMoveAlongPath(AxialPath, GridMap);
 }
 
-void AML_PlayerController::RotateCharacterTowardTile( const AML_Tile* HitTileActor)
+void AML_PlayerController::RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime,
+                                                     float TurnSpeed)
 {
 	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetCharacter());
 	if (!IsValid(MycelandCharacter) || !IsValid(HitTileActor)) return;
+
+	StopMovement();
 
 	FVector Dir = HitTileActor->GetActorLocation() - MycelandCharacter->GetActorLocation();
 	Dir.Z = 0.f;
 	if (Dir.IsNearlyZero()) return;
 
-	const float Yaw = Dir.Rotation().Yaw;
-	FRotator Rot = FRotator(0.f, Yaw, 0.f);
-	MycelandCharacter->SetActorRotation(Rot) ;
+	const float DesiredYaw = Dir.Rotation().Yaw;
+	FRotator CurrentRot = MycelandCharacter->GetActorRotation();
+	FRotator DesiredRot = FRotator(0.f, DesiredYaw, 0.f);
+	const FRotator NewRot = FMath::RInterpTo(CurrentRot, DesiredRot, DeltaTime, TurnSpeed);
+
+	MycelandCharacter->SetActorRotation(NewRot);
+	const float YawError = FMath::Abs(FMath::FindDeltaAngleDegrees(NewRot.Yaw, DesiredYaw));
+	const float AcceptYawErrorDeg = 0.1f;
+	if (YawError <= AcceptYawErrorDeg)
+	{
+		bTurningToTile = false;
+	}
 }
 
 void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile)
@@ -325,24 +345,24 @@ void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGra
 	const AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetCharacter());
 	ensureMsgf(MycelandCharacter, TEXT("Player Character is not set!"));
 	if (!MycelandCharacter) return;
-	
+
 	AML_Tile* CurrentTileOn = MycelandCharacter->CurrentTileOn;
 	ensureMsgf(CurrentTileOn, TEXT("Current tile is not set!"));
 	if (!CurrentTileOn) return;
-	
+
 	const AActor* HitActor = HitResult.GetActor();
 	ensureMsgf(HitActor, TEXT("Hit actor is not set!"));
 	if (!HitActor) return;
-	
+
 	// Get all the neighbors of the tile the player is on
 	TArray<AML_Tile*> Neighbors = CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn);
 	for (const AML_Tile* Neighbor : Neighbors)
 	{
 		if (!Neighbor) continue;
-		
+
 		// Get the child actor (TileChildActor) of TileBase
 		const AML_TileBase* Tile = Cast<AML_TileBase>(Neighbor->GetTileChildActor()->GetChildActor());
-		
+
 		// Get the parent of the HitActor and do multiple checks
 		if (const AML_Tile* HitTileActor = Cast<AML_Tile>(HitActor))
 		{
@@ -350,7 +370,8 @@ void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGra
 				Neighbor->GetCurrentType() == EML_TileType::Dirt &&
 				CurrentEnergy > 0)
 			{
-				RotateCharacterTowardTile(HitTileActor);
+				RotateTargetTile = HitTileActor;
+				bTurningToTile = true;
 				HitTile = const_cast<AML_Tile*>(HitTileActor);
 				CanPlantGrass = true;
 				return;
@@ -363,6 +384,7 @@ void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
 	CurrentEnergy--;
 
-	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<
+		UML_WavePropagationSubsystem>())
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
 }
