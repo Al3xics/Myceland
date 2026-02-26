@@ -35,6 +35,9 @@ private:
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	ACameraActor* AssociatedCamera;
 	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	AActor* AssociatedObstacle;
+	
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
