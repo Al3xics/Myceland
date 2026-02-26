@@ -118,4 +118,7 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	ACameraActor* GetAssociatedCamera() const { return AssociatedCamera; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
 };
