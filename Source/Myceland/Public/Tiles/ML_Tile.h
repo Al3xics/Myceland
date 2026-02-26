@@ -109,6 +109,12 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowing();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void GlowCursorHovered();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void StopGlowingCursorUnhovered();
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);
