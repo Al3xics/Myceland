@@ -1,20 +1,20 @@
 ﻿// Copyright Myceland Team, All Rights Reserved.
 
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Core/ML_UndoTypes.h"
-#include "Collectible/ML_Collectible.h"
-#include "EngineUtils.h"
 #include "ML_WavePropagationSubsystem.generated.h"
 
 struct FML_WaveChange;
 class UML_MycelandDeveloperSettings;
 class UML_WinLoseSubsystem;
 class AML_PlayerController;
+class AML_PlayerCharacter;
+class AML_BoardSpawner;
 class AML_Tile;
+class AML_Collectible;
 
 UCLASS()
 class MYCELAND_API UML_WavePropagationSubsystem : public UWorldSubsystem
@@ -45,7 +45,7 @@ private:
 
 	bool bUndoInProgress = false;
 
-	// ordering
+	// Ordering for deterministic undo playback
 	int32 CurrentPriorityIndexForRecording = 0;
 	int32 UndoSequenceCounter = 0;
 
@@ -77,12 +77,13 @@ private:
 	void FinishUndoAnimation();
 	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
 
+	// Removes the collectible actor currently associated with a tile (if any).
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
 
 public:
 	void EnsureInitialized();
 
-	// Called by collectible wave BEFORE flipping the HasCollectible flag
+	// Called by collectible wave BEFORE flipping HasCollectible flag
 	void RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin);
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
@@ -99,6 +100,7 @@ public:
 	UFUNCTION()
 	void NotifyUndoMoveFinished();
 
+	// Called during undo-move playback to restore a collectible on a tile the player just left.
 	UFUNCTION()
 	bool RestoreCollectibleDuringUndoMove(const FIntPoint& Axial);
 

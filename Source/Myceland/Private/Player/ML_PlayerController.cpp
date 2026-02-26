@@ -180,15 +180,14 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		const int32 ReachedIndex = CurrentPathIndex;
 		CurrentPathIndex++;
 
+		// During undo-move playback, restore collectibles *behind the player*.
+		// We restore when the player reaches a tile, meaning they just left the previous one.
 		if (bUndoMovePlayback && bUndoRestoreCollectibles)
 		{
-			const int32 LeftIndex = ReachedIndex - 1; // tile derrière
+			const int32 LeftIndex = ReachedIndex - 1; // tile behind the player
 			if (LeftIndex >= 0 && LeftIndex < ActiveMoveAxialPath.Num())
 			{
 				const FIntPoint LeftAxial = ActiveMoveAxialPath[LeftIndex];
-
-				UE_LOG(LogTemp, Warning, TEXT("[UNDO] LeftAxial = (%d,%d)  ReachedIndex=%d CurrentPathIndex=%d"),
-	LeftAxial.X, LeftAxial.Y, ReachedIndex, CurrentPathIndex);
 
 				if (UndoMoveRemainingCollectibles.Contains(LeftAxial))
 				{
@@ -200,7 +199,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 				}
 			}
 		}
-		
+
 		if (CurrentPathIndex >= CurrentPathWorld.Num())
 		{
 			// end
@@ -214,7 +213,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 					bUndoMovePlayback = false;
 					bSuppressMoveRecording = false;
 
-					// restore leftovers (ex: start tile of original move)
+					// Restore any leftovers (e.g. original start tile depending on timing)
 					if (bUndoRestoreCollectibles && UndoMoveRemainingCollectibles.Num() > 0)
 					{
 						for (const FIntPoint& Ax : UndoMoveRemainingCollectibles)
@@ -224,7 +223,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 						UndoMoveRemainingCollectibles.Reset();
 					}
 					bUndoRestoreCollectibles = false;
-					
+
 					S->NotifyUndoMoveFinished();
 				}
 				else if (bMoveInProgress && ActiveMoveAxialPath.Num() > 0)
@@ -432,7 +431,9 @@ bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool 
 	return true;
 }
 
-void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath, const TArray<FIntPoint>& PickedCollectibleAxials)
+void AML_PlayerController::StartMoveAlongAxialPathForUndo(
+	const TArray<FIntPoint>& AxialPath,
+	const TArray<FIntPoint>& PickedCollectibleAxials)
 {
 	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
@@ -445,7 +446,7 @@ void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint
 	bUndoMovePlayback = true;
 	bSuppressMoveRecording = true;
 
-	// --- NEW: setup collectible restore ---
+	// Setup collectible restore set for this undo playback.
 	bUndoRestoreCollectibles = (PickedCollectibleAxials.Num() > 0);
 	UndoMoveRemainingCollectibles.Reset();
 	for (const FIntPoint& Ax : PickedCollectibleAxials)
@@ -453,7 +454,7 @@ void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint
 		UndoMoveRemainingCollectibles.Add(Ax);
 	}
 
-	// Ensure end-of-path logic triggers
+	// Ensure end-of-path logic triggers.
 	bMoveInProgress = true;
 	ActiveMoveAxialPath = AxialPath;
 	ActiveMovePickedCollectibles.Reset();

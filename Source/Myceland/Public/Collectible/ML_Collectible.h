@@ -1,6 +1,4 @@
-﻿// ===============================
-// File: Collectible/ML_Collectible.h
-// ===============================
+﻿// Copyright Myceland Team, All Rights Reserved.
 
 #pragma once
 
@@ -9,6 +7,7 @@
 #include "ML_Collectible.generated.h"
 
 class AML_PlayerController;
+class AML_PlayerCharacter;
 class USphereComponent;
 
 UCLASS()

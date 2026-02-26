@@ -1,6 +1,5 @@
 ﻿// Copyright Myceland Team, All Rights Reserved.
 
-
 #include "Collectible/ML_Collectible.h"
 
 #include "Components/SphereComponent.h"
@@ -35,26 +34,29 @@ void AML_Collectible::Tick(float DeltaTime)
 
 void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter)
 {
-	if (!MycelandController || !MycelandCharacter || !MycelandCharacter->CurrentTileOn) return;
+	if (!MycelandController || !MycelandCharacter || !MycelandCharacter->CurrentTileOn)
+	{
+		return;
+	}
 
-	// 1) énergie
+	// 1) Give energy to the player.
 	MycelandController->CurrentEnergy++;
 
-	// 2) record du pickup si on est dans un move "normal"
-	// (IMPORTANT: éviter de polluer pendant l'undo playback)
+	// 2) Record the pickup only during a normal move (not during undo playback).
 	if (MycelandController->IsMoveInProgress() && !MycelandController->IsUndoMovePlayback())
 	{
-		// soit via l'axial de la tile sous le joueur au moment exact
 		const FIntPoint PickedAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
 		MycelandController->NotifyCollectiblePickedOnAxial(PickedAxial);
 
-		// (option alternative) si ton OwningAxial est fiable :
+		// Alternative if OwningAxial is 100% reliable:
 		// MycelandController->NotifyCollectiblePickedOnAxial(GetOwningAxial());
 	}
 
-	// 3) monde : plus de collectible sur cette tile
-	MycelandCharacter->CurrentTileOn->SetHasCollectible(false);
+	// 3) World state: this tile no longer has a collectible.
+	AML_Tile* Tile = MycelandCharacter->CurrentTileOn;
+	Tile->CollectibleActor = nullptr;
+	Tile->SetHasCollectible(false);
 
-	// 4) destroy actor
+	// 4) Remove the collectible actor.
 	Destroy();
 }

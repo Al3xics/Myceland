@@ -1,6 +1,5 @@
 ﻿// Copyright Myceland Team, All Rights Reserved.
 
-
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
@@ -8,22 +7,27 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
 #include "Tiles/ML_Tile.h"
+#include "Tiles/ML_BoardSpawner.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Waves/ML_PropagationWaves.h"
 #include "Waves/ChildWaves/ML_WaveCollectible.h"
+#include "Collectible/ML_Collectible.h"
 
 void UML_WavePropagationSubsystem::EnsureInitialized()
 {
 	if (!GetWorld()) return;
+
 	WinLoseSubsystem = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>();
 	PlayerController = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController());
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+
 	ensure(PlayerController && WinLoseSubsystem);
 }
 
 void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 {
 	if (!GetWorld()) return;
+
 	FTimerManager& TM = GetWorld()->GetTimerManager();
 	TM.ClearTimer(IntraWaveTimerHandle);
 	TM.ClearTimer(InterWaveTimerHandle);
@@ -138,6 +142,7 @@ void UML_WavePropagationSubsystem::RunWave()
 
 	const int32 CurrentDistance = PendingChanges[0].DistanceFromOrigin;
 
+	// Build the current "distance group" (wave step)
 	TArray<FML_WaveChange> CurrentWave;
 	int32 Index = 0;
 	while (Index < PendingChanges.Num() && PendingChanges[Index].DistanceFromOrigin == CurrentDistance)
@@ -145,11 +150,11 @@ void UML_WavePropagationSubsystem::RunWave()
 		CurrentWave.Add(PendingChanges[Index]);
 		Index++;
 	}
-
 	PendingChanges.RemoveAt(0, CurrentWave.Num());
 
 	for (const FML_WaveChange& Change : CurrentWave)
 	{
+		// Tile update
 		if (Change.Tile)
 		{
 			AML_Tile* Tile = Change.Tile;
@@ -165,7 +170,7 @@ void UML_WavePropagationSubsystem::RunWave()
 			else
 				Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
 
-			// parasite bookkeeping
+			// Parasite bookkeeping
 			if (Tile->GetCurrentType() == EML_TileType::Parasite && Tile->bConsumedGrass)
 			{
 				ParasitesThatAteGrass.Add(Tile);
@@ -174,6 +179,7 @@ void UML_WavePropagationSubsystem::RunWave()
 
 			bCycleHasChanges = true;
 		}
+		// Collectible spawn
 		else if (Change.CollectibleClass)
 		{
 			FActorSpawnParameters Params;
@@ -191,6 +197,7 @@ void UML_WavePropagationSubsystem::RunWave()
 		}
 	}
 
+	// Schedule next distance step (intra-wave) or next priority (inter-wave)
 	if (PendingChanges.Num() > 0)
 	{
 		GetWorld()->GetTimerManager().SetTimer(
@@ -226,8 +233,10 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 		return;
 	}
 
+	// End of all priorities
 	if (CurrentWaveIndex >= DevSettings->WavesPriority.Num())
 	{
+		// Restart cycle if changes occurred (propagation chain reaction)
 		if (bCycleHasChanges)
 		{
 			CurrentWaveIndex = 0;
@@ -253,6 +262,7 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 
 	PendingChanges.Empty();
 
+	// Collectible wave uses a dedicated entry point
 	if (UML_WaveCollectible* CollectibleWave = Cast<UML_WaveCollectible>(WaveLogic))
 	{
 		CollectibleWave->ComputeWaveForCollectibles(CurrentOriginTile, ParasitesThatAteGrass, PendingChanges);
@@ -293,9 +303,6 @@ void UML_WavePropagationSubsystem::NotifyMoveCompleted(
 	const TArray<FIntPoint>& PickedCollectibleAxials)
 {
 	EnsureInitialized();
-
-	UE_LOG(LogTemp, Warning, TEXT("[MOVE RECORD] Picked=%d Start=(%d,%d) End=(%d,%d)"), PickedCollectibleAxials.Num(), StartAxial.X, StartAxial.Y, EndAxial.X, EndAxial.Y);
-
 	if (!PlayerController) return;
 	if (bIsResolvingTiles || bIsUndoAnimating) return;
 
@@ -346,11 +353,13 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 		bIsUndoAnimating = true;
 		ActiveUndoRecord = Action.Turn;
 
+		// Restore energy at turn start
 		PlayerController->CurrentEnergy = ActiveUndoRecord.EnergyBefore;
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
 
+		// Sort for deterministic reverse playback (priority desc, distance desc, sequence desc)
 		PendingUndoTileDeltas.Sort([](const FML_TileUndoDelta& A, const FML_TileUndoDelta& B)
 		{
 			if (A.PriorityIndex != B.PriorityIndex) return A.PriorityIndex > B.PriorityIndex;
@@ -369,7 +378,6 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 		return true;
 	}
 
-	// fallback
 	PlayerController->EnableInput(PlayerController);
 	return false;
 }
@@ -389,7 +397,7 @@ void UML_WavePropagationSubsystem::RunUndoWave()
 		if (bHasTile && !bHasSpawn) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; return; }
 		if (!bHasTile && bHasSpawn) { OutPri = SD.PriorityIndex; OutDist = SD.DistanceFromOrigin; return; }
 
-		// both exist
+		// Both exist: pick the "largest" group key in our order
 		if (TD.PriorityIndex != SD.PriorityIndex)
 		{
 			if (TD.PriorityIndex > SD.PriorityIndex) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; }
@@ -397,7 +405,7 @@ void UML_WavePropagationSubsystem::RunUndoWave()
 			return;
 		}
 
-		// same pri -> larger dist first
+		// Same priority -> larger distance first
 		if (TD.DistanceFromOrigin >= SD.DistanceFromOrigin) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; }
 		else { OutPri = SD.PriorityIndex; OutDist = SD.DistanceFromOrigin; }
 	};
@@ -437,14 +445,16 @@ void UML_WavePropagationSubsystem::RunUndoWave()
 
 void UML_WavePropagationSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin)
 {
-	// Destroy spawned actors in this group
+	// Destroy actors spawned during this group
 	for (int32 i = 0; i < PendingUndoSpawnDeltas.Num(); )
 	{
 		const FML_SpawnUndoDelta& SD = PendingUndoSpawnDeltas[i];
 		if (SD.PriorityIndex == PriorityIndex && SD.DistanceFromOrigin == DistanceFromOrigin)
 		{
 			if (AActor* A = SD.SpawnedActor.Get())
+			{
 				if (IsValid(A)) A->Destroy();
+			}
 
 			PendingUndoSpawnDeltas.RemoveAt(i);
 			continue;
@@ -467,13 +477,13 @@ void UML_WavePropagationSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32
 				{
 					Tile->UpdateClassAtRuntime_Silent(TD.OldType, TileSet->GetClassFromTileType(TD.OldType));
 
+					// Important: if the tile should NOT have a collectible (pre-wave state),
+					// we must also remove any collectible that may exist now (including those restored by undo-move).
 					const bool bShouldHave = TD.bOldHasCollectible;
 					const bool bHasNow = Tile->HasCollectible();
 
 					if (!bShouldHave && bHasNow)
 					{
-						// Il ne devait PAS y avoir de collectible avant la propagation,
-						// donc on enlève tout collectible présent maintenant, même s'il vient d'un Undo Move.
 						DestroyCollectibleActorOnTile(Tile);
 						Tile->SetHasCollectible(false);
 					}
@@ -531,110 +541,92 @@ void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
 
 bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Axial)
 {
-    EnsureInitialized();
-    if (!GetWorld() || !PlayerController) return false;
+	EnsureInitialized();
+	if (!GetWorld() || !PlayerController) return false;
 
-    AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(PlayerController->GetPawn());
-    if (!IsValid(PC) || !IsValid(PC->CurrentTileOn)) return false;
+	AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(PlayerController->GetPawn());
+	if (!IsValid(PC) || !IsValid(PC->CurrentTileOn)) return false;
 
-    // Source of truth: board = owner de la tile courante du joueur
-    AML_BoardSpawner* Board = Cast<AML_BoardSpawner>(PC->CurrentTileOn->GetOwner());
-    if (!IsValid(Board)) return false;
+	// Board is the owner of the player's current tile (single-board assumption).
+	AML_BoardSpawner* Board = Cast<AML_BoardSpawner>(PC->CurrentTileOn->GetOwner());
+	if (!IsValid(Board)) return false;
 
-    UML_BiomeTileSet* TileSet = Board->GetBiomeTileSet();
-    if (!IsValid(TileSet)) return false;
+	UML_BiomeTileSet* TileSet = Board->GetBiomeTileSet();
+	if (!IsValid(TileSet)) return false;
 
-    // Source of truth: classe collectible vient du biome
-    TSubclassOf<AML_Collectible> CollectibleClass = TileSet->GetCollectibleClass();
-    if (!*CollectibleClass) return false;
+	// Collectible class comes from the current biome.
+	TSubclassOf<AML_Collectible> CollectibleClass = TileSet->GetCollectibleClass();
+	if (!*CollectibleClass) return false;
 
-    // Trouver la tuile cible via l'axial
-    const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-    AML_Tile* const* TilePtr = GridMap.Find(Axial);
-    if (!TilePtr || !IsValid(*TilePtr)) return false;
+	// Resolve target tile from axial coordinate.
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	AML_Tile* const* TilePtr = GridMap.Find(Axial);
+	if (!TilePtr || !IsValid(*TilePtr)) return false;
 
-    AML_Tile* Tile = *TilePtr;
+	AML_Tile* Tile = *TilePtr;
 
-    // Anti doublon : si la tile pense déjà en avoir un, on ne respawn pas
-    if (Tile->HasCollectible())
-    {
-        // UE_LOG(LogTemp, Warning, TEXT("[UNDO] Skip respawn: HasCollectible already true at %d,%d"), Axial.X, Axial.Y);
-        return false;
-    }
+	// Prevent duplicates.
+	if (Tile->HasCollectible())
+	{
+		return false;
+	}
 
-    // Source of truth: spawn location = position monde de la tuile
-    const FVector SpawnLocation = Tile->GetActorLocation();
+	// Spawn at tile world position (same rule as waves).
+	const FVector SpawnLocation = Tile->GetActorLocation();
 
-    FActorSpawnParameters Params;
-    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-    // Spawn (comme RunWave)
-    AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(
-        CollectibleClass,
-        SpawnLocation,
-        FRotator::ZeroRotator,
-        Params
-    );
+	AML_Collectible* SpawnedCollectible = GetWorld()->SpawnActor<AML_Collectible>(
+		CollectibleClass,
+		SpawnLocation,
+		FRotator::ZeroRotator,
+		Params
+	);
 
-    AML_Collectible* SpawnedCollectible = Cast<AML_Collectible>(SpawnedActor);
-    if (!IsValid(SpawnedCollectible))
-    {
-        if (IsValid(SpawnedActor))
-        {
-            // mauvais type -> nettoyage
-            SpawnedActor->Destroy();
-        }
-        return false;
-    }
+	if (!IsValid(SpawnedCollectible))
+	{
+		return false;
+	}
 
-    // IMPORTANT : owning axial
-    SpawnedCollectible->InitOwningAxial(Axial);
+	// Wire tile <-> collectible.
+	SpawnedCollectible->InitOwningAxial(Axial);
+	Tile->CollectibleActor = SpawnedCollectible;
+	Tile->SetHasCollectible(true);
 
-    // IMPORTANT : monde dit maintenant "il y a un collectible"
-    Tile->SetHasCollectible(true);
+	// Give energy back to the world (player loses 1).
+	PlayerController->CurrentEnergy = FMath::Max(0, PlayerController->CurrentEnergy - 1);
 
-    // IMPORTANT : on rend l’énergie au monde
-    PlayerController->CurrentEnergy = FMath::Max(0, PlayerController->CurrentEnergy - 1);
+	// Optional safety: avoid instant overlap in the same frame.
+	if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
+	{
+		Prim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-    // (Option anti re-pick instant si collision énorme)
-    if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
-    {
-        Prim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        FTimerHandle Tmp;
-        GetWorld()->GetTimerManager().SetTimer(Tmp, [Prim]()
-        {
-            if (IsValid(Prim))
-                Prim->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-        }, 0.05f, false);
-    }
+		FTimerHandle Tmp;
+		GetWorld()->GetTimerManager().SetTimer(Tmp, [Prim]()
+		{
+			if (IsValid(Prim))
+			{
+				Prim->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			}
+		}, 0.05f, false);
+	}
 
-    // UE_LOG(LogTemp, Log, TEXT("[UNDO] Respawn collectible at %d,%d"), Axial.X, Axial.Y);
-    return true;
+	return true;
 }
 
 void UML_WavePropagationSubsystem::DestroyCollectibleActorOnTile(AML_Tile* Tile)
 {
-	if (!GetWorld() || !IsValid(Tile)) return;
+	if (!IsValid(Tile)) return;
 
-	// Méthode simple: retrouver un collectible à la position de la tuile
-	// (vu que tu spawns à Tile->GetActorLocation() sans offset)
-	const FVector TileLoc = Tile->GetActorLocation();
-
-	// Scan léger: itère collectibles existants (généralement peu nombreux)
-	for (TActorIterator<AML_Collectible> It(GetWorld()); It; ++It)
+	// Prefer the tile reference (O(1), deterministic).
+	if (AML_Collectible* C = Tile->CollectibleActor.Get())
 	{
-		AML_Collectible* C = *It;
-		if (!IsValid(C)) continue;
-
-		// 2D suffit souvent, garde tolérance
-		const float Dist2D = FVector::DistSquared2D(C->GetActorLocation(), TileLoc);
-		if (Dist2D <= FMath::Square(5.f)) // tolérance
+		if (IsValid(C))
 		{
 			C->Destroy();
-			return;
 		}
-
-		// Encore plus robuste si OwningAxial est set partout:
-		// if (C->GetOwningAxial() == Tile->GetAxialCoord()) { C->Destroy(); return; }
 	}
+
+	Tile->CollectibleActor = nullptr;
 }

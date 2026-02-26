@@ -1,6 +1,5 @@
 ﻿// Copyright Myceland Team, All Rights Reserved.
 
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -45,7 +44,7 @@ private:
 	UPROPERTY(Transient)
 	TSet<FIntPoint> ActiveMovePickedCollectibles;
 
-	// flags
+	// Flags
 	bool bSuppressMoveRecording = false;
 	bool bUndoMovePlayback = false;
 
@@ -96,6 +95,5 @@ public:
 	void NotifyCollectiblePickedOnAxial(const FIntPoint& Axial);
 
 	bool IsMoveInProgress() const { return bMoveInProgress; }
-
 	bool IsUndoMovePlayback() const { return bUndoMovePlayback; }
 };
