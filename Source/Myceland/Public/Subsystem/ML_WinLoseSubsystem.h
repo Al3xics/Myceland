@@ -17,23 +17,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEndTurn);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCheckPaths);
 
-USTRUCT(BlueprintType)
-struct FML_TileGroup
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadOnly)
-	TArray<AML_Tile*> Tiles;
-	
-	// Optional but VERY useful in BP/debug:
-	UPROPERTY(BlueprintReadOnly)
-	TArray<AML_Tile*> Goals;
-
-	//Put in core
-	
-};
 
 UCLASS()
 class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
@@ -51,7 +36,7 @@ public:
 	FOnLose OnDeath;
 
 	UPROPERTY(BlueprintAssignable, Category="Myceland WinLose")
-	FOnEndTurn OnEndTurn;
+	FOnCheckPaths OnCheckPaths;
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
@@ -63,12 +48,7 @@ public:
 	bool AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* Board,
 	                                        EML_TileType GoalType,
 	                                        const TArray<EML_TileType>& AllowedPathTypes);
-
-	bool BuildConnectedGoalGroups(AML_BoardSpawner* Board,
-								  EML_TileType GoalType,
-								  const TSet<EML_TileType>& AllowedSet,
-								  bool bDisallowBlocked,
-								  TArray<FML_TileGroup>& OutGroups) const;
+	
 
 	bool FindConnectedGoalGroups(
 		AML_BoardSpawner* Board,
@@ -88,9 +68,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_BoardSpawner* FindBoardSpawner() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	TArray<AML_Tile*> GetConnectedPathStruct();
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	TArray<AML_Tile*> PathTiles;

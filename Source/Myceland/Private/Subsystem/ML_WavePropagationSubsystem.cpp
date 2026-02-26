@@ -24,8 +24,8 @@ void UML_WavePropagationSubsystem::EnsureInitialized()
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
 	WinLoseSubsystem->CheckWinLose();
+	WinLoseSubsystem->OnCheckPaths.Broadcast();
 	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
-	WinLoseSubsystem->OnEndTurn.Broadcast();
 	
 	bIsResolvingTiles = false;
 	PlayerController->EnableInput(PlayerController);
