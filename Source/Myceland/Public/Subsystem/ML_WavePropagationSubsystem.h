@@ -7,6 +7,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Core/ML_UndoTypes.h"
 #include "Collectible/ML_Collectible.h"
+#include "EngineUtils.h"
 #include "ML_WavePropagationSubsystem.generated.h"
 
 struct FML_WaveChange;
@@ -76,6 +77,8 @@ private:
 	void FinishUndoAnimation();
 	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
 
+	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
+
 public:
 	void EnsureInitialized();
 
@@ -95,6 +98,9 @@ public:
 	// Called by PlayerController when an undo-move playback ends
 	UFUNCTION()
 	void NotifyUndoMoveFinished();
+
+	UFUNCTION()
+	bool RestoreCollectibleDuringUndoMove(const FIntPoint& Axial);
 
 	// Called by PlayerController when a NORMAL move ends (success)
 	void NotifyMoveCompleted(

@@ -293,6 +293,9 @@ void UML_WavePropagationSubsystem::NotifyMoveCompleted(
 	const TArray<FIntPoint>& PickedCollectibleAxials)
 {
 	EnsureInitialized();
+
+	UE_LOG(LogTemp, Warning, TEXT("[MOVE RECORD] Picked=%d Start=(%d,%d) End=(%d,%d)"), PickedCollectibleAxials.Num(), StartAxial.X, StartAxial.Y, EndAxial.X, EndAxial.Y);
+
 	if (!PlayerController) return;
 	if (bIsResolvingTiles || bIsUndoAnimating) return;
 
@@ -333,7 +336,7 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 		TArray<FIntPoint> ReversePath = Action.Move.AxialPath;
 		Algo::Reverse(ReversePath);
 
-		PlayerController->StartMoveAlongAxialPathForUndo(ReversePath);
+		PlayerController->StartMoveAlongAxialPathForUndo(ReversePath, Action.Move.PickedCollectibleAxials);
 		return true;
 	}
 
@@ -463,7 +466,22 @@ void UML_WavePropagationSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32
 				if (TileSet)
 				{
 					Tile->UpdateClassAtRuntime_Silent(TD.OldType, TileSet->GetClassFromTileType(TD.OldType));
-					Tile->SetHasCollectible(TD.bOldHasCollectible);
+
+					const bool bShouldHave = TD.bOldHasCollectible;
+					const bool bHasNow = Tile->HasCollectible();
+
+					if (!bShouldHave && bHasNow)
+					{
+						// Il ne devait PAS y avoir de collectible avant la propagation,
+						// donc on enlève tout collectible présent maintenant, même s'il vient d'un Undo Move.
+						DestroyCollectibleActorOnTile(Tile);
+						Tile->SetHasCollectible(false);
+					}
+					else
+					{
+						Tile->SetHasCollectible(bShouldHave);
+					}
+
 					Tile->bConsumedGrass = TD.bOldConsumedGrass;
 				}
 			}
@@ -509,4 +527,114 @@ void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
 
 	if (PlayerController)
 		PlayerController->EnableInput(PlayerController);
+}
+
+bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Axial)
+{
+    EnsureInitialized();
+    if (!GetWorld() || !PlayerController) return false;
+
+    AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(PlayerController->GetPawn());
+    if (!IsValid(PC) || !IsValid(PC->CurrentTileOn)) return false;
+
+    // Source of truth: board = owner de la tile courante du joueur
+    AML_BoardSpawner* Board = Cast<AML_BoardSpawner>(PC->CurrentTileOn->GetOwner());
+    if (!IsValid(Board)) return false;
+
+    UML_BiomeTileSet* TileSet = Board->GetBiomeTileSet();
+    if (!IsValid(TileSet)) return false;
+
+    // Source of truth: classe collectible vient du biome
+    TSubclassOf<AML_Collectible> CollectibleClass = TileSet->GetCollectibleClass();
+    if (!*CollectibleClass) return false;
+
+    // Trouver la tuile cible via l'axial
+    const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+    AML_Tile* const* TilePtr = GridMap.Find(Axial);
+    if (!TilePtr || !IsValid(*TilePtr)) return false;
+
+    AML_Tile* Tile = *TilePtr;
+
+    // Anti doublon : si la tile pense déjà en avoir un, on ne respawn pas
+    if (Tile->HasCollectible())
+    {
+        // UE_LOG(LogTemp, Warning, TEXT("[UNDO] Skip respawn: HasCollectible already true at %d,%d"), Axial.X, Axial.Y);
+        return false;
+    }
+
+    // Source of truth: spawn location = position monde de la tuile
+    const FVector SpawnLocation = Tile->GetActorLocation();
+
+    FActorSpawnParameters Params;
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    // Spawn (comme RunWave)
+    AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(
+        CollectibleClass,
+        SpawnLocation,
+        FRotator::ZeroRotator,
+        Params
+    );
+
+    AML_Collectible* SpawnedCollectible = Cast<AML_Collectible>(SpawnedActor);
+    if (!IsValid(SpawnedCollectible))
+    {
+        if (IsValid(SpawnedActor))
+        {
+            // mauvais type -> nettoyage
+            SpawnedActor->Destroy();
+        }
+        return false;
+    }
+
+    // IMPORTANT : owning axial
+    SpawnedCollectible->InitOwningAxial(Axial);
+
+    // IMPORTANT : monde dit maintenant "il y a un collectible"
+    Tile->SetHasCollectible(true);
+
+    // IMPORTANT : on rend l’énergie au monde
+    PlayerController->CurrentEnergy = FMath::Max(0, PlayerController->CurrentEnergy - 1);
+
+    // (Option anti re-pick instant si collision énorme)
+    if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
+    {
+        Prim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        FTimerHandle Tmp;
+        GetWorld()->GetTimerManager().SetTimer(Tmp, [Prim]()
+        {
+            if (IsValid(Prim))
+                Prim->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        }, 0.05f, false);
+    }
+
+    // UE_LOG(LogTemp, Log, TEXT("[UNDO] Respawn collectible at %d,%d"), Axial.X, Axial.Y);
+    return true;
+}
+
+void UML_WavePropagationSubsystem::DestroyCollectibleActorOnTile(AML_Tile* Tile)
+{
+	if (!GetWorld() || !IsValid(Tile)) return;
+
+	// Méthode simple: retrouver un collectible à la position de la tuile
+	// (vu que tu spawns à Tile->GetActorLocation() sans offset)
+	const FVector TileLoc = Tile->GetActorLocation();
+
+	// Scan léger: itère collectibles existants (généralement peu nombreux)
+	for (TActorIterator<AML_Collectible> It(GetWorld()); It; ++It)
+	{
+		AML_Collectible* C = *It;
+		if (!IsValid(C)) continue;
+
+		// 2D suffit souvent, garde tolérance
+		const float Dist2D = FVector::DistSquared2D(C->GetActorLocation(), TileLoc);
+		if (Dist2D <= FMath::Square(5.f)) // tolérance
+		{
+			C->Destroy();
+			return;
+		}
+
+		// Encore plus robuste si OwningAxial est set partout:
+		// if (C->GetOwningAxial() == Tile->GetAxialCoord()) { C->Destroy(); return; }
+	}
 }

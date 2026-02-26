@@ -129,4 +129,7 @@ public:
 
 	// Guard (optional)
 	bool bSuppressPropagationBroadcast = false;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AML_Collectible> CollectibleActor;
 };

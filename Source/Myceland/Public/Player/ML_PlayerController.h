@@ -49,6 +49,12 @@ private:
 	bool bSuppressMoveRecording = false;
 	bool bUndoMovePlayback = false;
 
+	// ---- Undo move collectible restore ----
+	UPROPERTY(Transient)
+	TSet<FIntPoint> UndoMoveRemainingCollectibles;
+
+	bool bUndoRestoreCollectibles = false;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
@@ -82,9 +88,14 @@ public:
 	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
 
 	UFUNCTION(BlueprintCallable, Category="Myceland|Undo")
-	void StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath);
+	void StartMoveAlongAxialPathForUndo(
+		const TArray<FIntPoint>& AxialPath,
+		const TArray<FIntPoint>& PickedCollectibleAxials
+	);
 
 	void NotifyCollectiblePickedOnAxial(const FIntPoint& Axial);
 
 	bool IsMoveInProgress() const { return bMoveInProgress; }
+
+	bool IsUndoMovePlayback() const { return bUndoMovePlayback; }
 };

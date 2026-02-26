@@ -30,7 +30,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
-	void AddEnergy(AML_PlayerController* MycelandController);
+	void AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter);
 
 	UPROPERTY() FIntPoint OwningAxial = FIntPoint::ZeroValue;
 
