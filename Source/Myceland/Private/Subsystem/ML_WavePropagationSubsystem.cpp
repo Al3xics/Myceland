@@ -33,7 +33,7 @@ void UML_WavePropagationSubsystem::RunWave()
 {
 	if (PendingChanges.Num() == 0)
 	{
-		ScheduleNextPriority();
+		EndTileResolved();
 		return;
 	}
 
@@ -151,8 +151,8 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 
 	if (PendingChanges.Num() == 0)
 	{
-		// No tiles affected → immediately go to the next priority
-		ProcessNextWave();
+		// No changes in this wave → STOP immediately
+		EndTileResolved();
 		return;
 	}
 
