@@ -383,6 +383,7 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 	Super::PlayerTick(DeltaTime);
 	TickMoveAlongPath(DeltaTime);
 	TickExitHold(DeltaTime);
+	TickHoverPreview(DeltaTime);
 }
 
 void AML_PlayerController::OnPossess(APawn* aPawn)
@@ -544,6 +545,128 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 
 	StartMoveAlongPath(FullPath, GridMap);
 	bIsMoving = true;
+}
+
+
+// ==================== Hover Preview ====================
+
+void AML_PlayerController::TickHoverPreview(float DeltaTime)
+{
+	// Only preview in board mode when not moving
+	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard) 
+	{
+		ClearHoverPreview();
+		return;
+	}
+    
+	if (bIsMoving)
+	{
+		ClearHoverPreview();
+		return;
+	}
+
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
+	{
+		ClearHoverPreview();
+		return;
+	}
+
+	// Get tile under cursor
+	AML_Tile* HoveredTile = GetTileUnderCursor();
+
+	// Same tile as before → no update needed
+	if (HoveredTile == LastHoveredTile)
+		return;
+
+	// Update last hovered
+	LastHoveredTile = HoveredTile;
+
+	// No valid tile under cursor → clear preview
+	if (!IsValid(HoveredTile))
+	{
+		ClearHoverPreview();
+		return;
+	}
+
+	// Tile is not on the same board → clear preview
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board) || HoveredTile->GetOwner() != Board)
+	{
+		ClearHoverPreview();
+		return;
+	}
+
+	// Tile is not walkable → clear preview
+	if (!IsTileWalkable(HoveredTile))
+	{
+		ClearHoverPreview();
+		return;
+	}
+
+	// Build preview path
+	TArray<AML_Tile*> NewPath = BuildPreviewPath(HoveredTile);
+
+	// Update current preview path
+	CurrentPreviewPath = NewPath;
+
+	// Notify blueprints
+	if (CurrentPreviewPath.Num() > 0)
+		OnHoverPathUpdated(CurrentPreviewPath);
+	else
+		OnHoverPathCleared();
+}
+
+void AML_PlayerController::ClearHoverPreview()
+{
+	if (CurrentPreviewPath.Num() > 0)
+	{
+		CurrentPreviewPath.Empty();
+		OnHoverPathCleared();
+	}
+    
+	LastHoveredTile = nullptr;
+}
+
+TArray<AML_Tile*> AML_PlayerController::BuildPreviewPath(const AML_Tile* TargetTile) const
+{
+	TArray<AML_Tile*> Result;
+
+	if (!IsValid(TargetTile) || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
+		return Result;
+
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board))
+		return Result;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint GoalAxial = TargetTile->GetAxialCoord();
+
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial))
+		return Result;
+
+	if (!IsTileWalkable(GridMap[StartAxial]) || !IsTileWalkable(GridMap[GoalAxial]))
+		return Result;
+
+	// Build axial path using BFS
+	TArray<FIntPoint> AxialPath;
+	if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath))
+		return Result;
+
+	// Convert axial path to tile array
+	Result.Reserve(AxialPath.Num());
+	for (const FIntPoint& Axial : AxialPath)
+	{
+		if (AML_Tile* const* TilePtr = GridMap.Find(Axial))
+		{
+			if (IsValid(*TilePtr))
+			{
+				Result.Add(*TilePtr);
+			}
+		}
+	}
+
+	return Result;
 }
 
 

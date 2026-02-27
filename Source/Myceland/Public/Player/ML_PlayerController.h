@@ -125,6 +125,18 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0"))
 	float BaseCornerCutDistance = 80.f;
+	
+	// ==================== Hover Preview ====================
+    
+	UPROPERTY(Transient)
+	AML_Tile* LastHoveredTile = nullptr;
+    
+	UPROPERTY(Transient)
+	TArray<AML_Tile*> CurrentPreviewPath;
+    
+	void TickHoverPreview(float DeltaTime);
+	void ClearHoverPreview();
+	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
 
 public:
 
@@ -135,6 +147,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void InitNumberOfEnergyForLevel(int32 Energy);
+	
+	// ==================== Hover Preview Events (for Blueprints) ====================
+    
+	// Called when hover path changes
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Myceland Controller|Hover")
+	void OnHoverPathUpdated(const TArray<AML_Tile*>& PathTiles);
+    
+	// Called when hover is cleared
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Myceland Controller|Hover")
+	void OnHoverPathCleared();
 
 	// ==================== Actions ====================
 
