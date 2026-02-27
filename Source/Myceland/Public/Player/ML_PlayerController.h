@@ -51,6 +51,12 @@ private:
 
 	UPROPERTY(Transient)
 	AML_Tile* PendingBoardEntryTargetTile = nullptr;
+	
+	// Move and Plant
+	UPROPERTY(Transient)
+	AML_Tile* PendingPlantTargetTile = nullptr;
+	
+	bool bPendingPlantOnArrival = false;
 
 	// ==================== Helpers ====================
 
@@ -100,6 +106,10 @@ protected:
 	// Bind to OnCompleted / OnCanceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationReleased();
+	
+	// Bind to OnStarted - for Plant and Move only
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnMoveAndPlantStarted();
 
 	// ==================== Movement Tuning ====================
 
