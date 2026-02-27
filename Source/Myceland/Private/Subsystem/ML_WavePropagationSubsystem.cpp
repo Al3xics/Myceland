@@ -101,7 +101,9 @@ void UML_WavePropagationSubsystem::RecordSpawnedActor(AActor* Spawned, int32 Dis
 
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
-	WinLoseSubsystem->CheckWinLose(); 
+	WinLoseSubsystem->CheckWinLose();
+	WinLoseSubsystem->OnCheckPaths.Broadcast();
+	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 	
 	bIsResolvingTiles = false;
 
@@ -178,8 +180,13 @@ void UML_WavePropagationSubsystem::RunWave()
 				ParasitesThatAteGrass.Add(Tile);
 				Tile->bConsumedGrass = false;
 			}
-
-			bCycleHasChanges = true;
+			
+			if (Change.Tile == WinLoseSubsystem->GetPlayerCurrentTile())
+			{
+				WinLoseSubsystem->CheckPlayerKilled(Change.Tile);
+			}
+			
+			if (OldType != Change.TargetType) bCycleHasChanges = true;
 		}
 		// Collectible spawn
 		else if (Change.CollectibleClass)
