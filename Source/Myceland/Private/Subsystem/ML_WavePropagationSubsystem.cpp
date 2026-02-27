@@ -161,6 +161,7 @@ void UML_WavePropagationSubsystem::RunWave()
 		// Tile update
 		if (Change.Tile)
 		{
+			const EML_TileType OldType = Change.Tile->GetCurrentType();
 			AML_Tile* Tile = Change.Tile;
 			if (!IsValid(Tile)) continue;
 
@@ -215,13 +216,7 @@ void UML_WavePropagationSubsystem::RunWave()
 	// Schedule next distance step (intra-wave) or next priority (inter-wave)
 	if (PendingChanges.Num() > 0)
 	{
-		GetWorld()->GetTimerManager().SetTimer(
-			IntraWaveTimerHandle,
-			this,
-			&UML_WavePropagationSubsystem::RunWave,
-			DevSettings->IntraWaveDelay,
-			false
-		);
+		GetWorld()->GetTimerManager().SetTimer(IntraWaveTimerHandle, this, &UML_WavePropagationSubsystem::RunWave, DevSettings->IntraWaveDelay, false);
 	}
 	else
 	{
