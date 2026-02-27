@@ -8,10 +8,17 @@
 #include "ML_WinLoseSubsystem.generated.h"
 
 class AML_Tile;
+class AML_PlayerCharacter;
 struct FML_GameResult;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCheckPaths);
+
 
 UCLASS()
 class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
@@ -24,7 +31,13 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Myceland WinLose")
 	FOnLose OnLose;
-	
+
+	UPROPERTY(BlueprintAssignable, Category="Myceland WinLose")
+	FOnLose OnDeath;
+
+	UPROPERTY(BlueprintAssignable, Category="Myceland WinLose")
+	FOnCheckPaths OnCheckPaths;
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
 
@@ -33,17 +46,37 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* Board,
-										   EML_TileType GoalType,
-										   const TArray<EML_TileType>& AllowedPathTypes) const;
+	                                        EML_TileType GoalType,
+	                                        const TArray<EML_TileType>& AllowedPathTypes);
+	
+
+	bool FindConnectedGoalGroups(
+		AML_BoardSpawner* Board,
+		EML_TileType GoalType,
+		const TArray<EML_TileType>& AllowedPathTypes,
+		bool bDisallowBlocked,
+		int32 MinGoalsInGroup);
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	TArray<FML_TileGroup> TriggerFindConnectedGoalCheck();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_Tile* GetPlayerCurrentTile() const;
-	
+
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	AML_BoardSpawner* CurrentBoardSpawner;
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_BoardSpawner* FindBoardSpawner() const;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
+	TArray<AML_Tile*> PathTiles;
+
+	UPROPERTY(BlueprintReadOnly, Category="Myceland WinLose")
+	TArray<FML_TileGroup> ConnectedGoalGroups;
+
+	bool bIsPlayerDead;
+
 private:
+	TWeakObjectPtr<AML_PlayerCharacter> BoundPlayer;
 };

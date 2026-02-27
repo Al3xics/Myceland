@@ -59,6 +59,7 @@ void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const
                     if (ParasiteSet.Contains(CheckTile))
                     {
                         FML_WaveChange Change;
+                        Change.Neighbor = Neighbor;
                         Change.SpawnLocation = Neighbor->GetActorLocation();
                         Change.CollectibleClass = Board->GetBiomeTileSet()->GetCollectibleClass();
                         Change.DistanceFromOrigin = Distance + 1;

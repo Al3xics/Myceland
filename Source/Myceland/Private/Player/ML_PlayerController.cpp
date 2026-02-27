@@ -251,6 +251,36 @@ void AML_PlayerController::OnPathFinished()
 		StartMoveAlongPath(AxialPath, GridMap);
 		bIsMoving = true;
 	}
+	
+	if (bPendingPlantOnArrival)
+	{
+		bPendingPlantOnArrival = false;
+
+		if (!IsValid(PendingPlantTargetTile) || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
+		{
+			PendingPlantTargetTile = nullptr;
+			return;
+		}
+
+		AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+		if (!IsValid(Board))
+		{
+			PendingPlantTargetTile = nullptr;
+			return;
+		}
+
+		// Verify the target is still a neighbor and is Dirt
+		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
+		if (Neighbors.Contains(PendingPlantTargetTile) &&
+			PendingPlantTargetTile->GetCurrentType() == EML_TileType::Dirt &&
+			CurrentEnergy > 0)
+		{
+			// Plant!
+			ConfirmTurn(PendingPlantTargetTile);
+		}
+
+		PendingPlantTargetTile = nullptr;
+	}
 }
 
 
@@ -453,6 +483,67 @@ void AML_PlayerController::OnSetDestinationReleased()
 {
 	bIsHoldingExitInput = false;
 	bIsHoldingFreeInput = false;
+}
+
+void AML_PlayerController::OnMoveAndPlantStarted()
+{
+	// Only works in board mode
+	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard) return;
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
+	if (CurrentEnergy <= 0) return; // Need energy to plant
+
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	AML_Tile* TargetTile = GetTileUnderCursor();
+
+	// Must click on a valid tile in the same board
+	if (!IsValid(TargetTile) || TargetTile->GetOwner() != Board) return;
+
+	// Target must be Dirt
+	if (TargetTile->GetCurrentType() != EML_TileType::Dirt) return;
+
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint TargetAxial = TargetTile->GetAxialCoord();
+
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return;
+
+	// Check if target is already a neighbor (adjacent)
+	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
+	if (CurrentNeighbors.Contains(TargetTile))
+	{
+		// Already adjacent → just plant immediately (like right-click behavior)
+		ConfirmTurn(TargetTile);
+		return;
+	}
+
+	// Target is NOT adjacent → need to path there
+	// Build full path to target
+	TArray<FIntPoint> FullPath;
+	if (!BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return;
+
+	// Need at least 2 tiles in path (start + at least one step)
+	if (FullPath.Num() < 2) return;
+
+	// Remove the last tile (we want to stop BEFORE the target, not ON it)
+	FullPath.RemoveAt(FullPath.Num() - 1);
+
+	// Verify the new end position is walkable
+	const FIntPoint StopAxial = FullPath.Last();
+	if (!GridMap.Contains(StopAxial) || !IsTileWalkable(GridMap[StopAxial])) return;
+
+	// Verify that from the stop position, target is a neighbor
+	AML_Tile* StopTile = GridMap[StopAxial];
+	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
+	if (!StopNeighbors.Contains(TargetTile)) return;
+
+	// All checks passed → move and plant!
+	PendingPlantTargetTile = TargetTile;
+	bPendingPlantOnArrival = true;
+
+	StartMoveAlongPath(FullPath, GridMap);
+	bIsMoving = true;
 }
 
 

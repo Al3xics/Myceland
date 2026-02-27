@@ -135,6 +135,9 @@ struct FML_WaveChange
 	EML_TileType TargetType = EML_TileType::Dirt; // Tile
 	
 	UPROPERTY()
+	AML_Tile* Neighbor = nullptr; // Collectible
+	
+	UPROPERTY()
 	FVector SpawnLocation = FVector::ZeroVector; // Collectible
 	
 	UPROPERTY()
@@ -158,4 +161,16 @@ struct FML_InputMappingEntry
 
 	UPROPERTY(EditAnywhere, config)
 	int32 Priority = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FML_TileGroup
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<AML_Tile*> Tiles;
+	
+	UPROPERTY(BlueprintReadOnly)
+	TArray<AML_Tile*> Goals;
 };
