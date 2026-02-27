@@ -10,6 +10,7 @@
 #include "ML_Tile.generated.h"
 
 class AML_TileTree;
+class AML_TileBase;
 class AML_TileObstacle;
 class AML_TileWater;
 class AML_TileParasite;
@@ -115,6 +116,12 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowingCursorUnhovered();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void GlowPathWalk();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void StopGlowingPathWalk();
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);
@@ -128,4 +135,13 @@ public:
 	
 	UFUNCTION()
 	UChildActorComponent* GetTileChildActor() const { return TileChildActor; }
+
+	UFUNCTION()
+	void UpdateClassAtRuntime_Silent(EML_TileType NewTileType, TSubclassOf<AML_TileBase> NewClass);
+
+	// Guard (optional)
+	bool bSuppressPropagationBroadcast = false;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AML_Collectible> CollectibleActor;
 };

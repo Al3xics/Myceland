@@ -58,6 +58,32 @@ private:
 	
 	bool bPendingPlantOnArrival = false;
 
+	// ==================== Undo ====================
+
+	// ---- Move recording for Undo ----
+	bool bMoveInProgress = false;
+
+	FIntPoint MoveStartAxial = FIntPoint::ZeroValue;
+	FVector   MoveStartWorld = FVector::ZeroVector;
+
+	FIntPoint MoveEndAxial   = FIntPoint::ZeroValue;
+	FVector   MoveEndWorld   = FVector::ZeroVector;
+
+	TArray<FIntPoint> ActiveMoveAxialPath;
+
+	UPROPERTY(Transient)
+	TSet<FIntPoint> ActiveMovePickedCollectibles;
+
+	// Flags
+	bool bSuppressMoveRecording = false;
+	bool bUndoMovePlayback = false;
+
+	// ---- Undo move collectible restore ----
+	UPROPERTY(Transient)
+	TSet<FIntPoint> UndoMoveRemainingCollectibles;
+
+	bool bUndoRestoreCollectibles = false;
+
 	// ==================== Helpers ====================
 
 	AML_Tile* GetTileUnderCursor() const;
@@ -125,6 +151,18 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0"))
 	float BaseCornerCutDistance = 80.f;
+	
+	// ==================== Hover Preview ====================
+    
+	UPROPERTY(Transient)
+	AML_Tile* LastHoveredTile = nullptr;
+    
+	UPROPERTY(Transient)
+	TArray<AML_Tile*> CurrentPreviewPath;
+    
+	void TickHoverPreview(float DeltaTime);
+	void ClearHoverPreview();
+	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
 
 public:
 
@@ -135,6 +173,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void InitNumberOfEnergyForLevel(int32 Energy);
+	
+	// ==================== Hover Preview Events (for Blueprints) ====================
+    
+	// Called when hover path changes
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Myceland Controller|Hover")
+	void OnHoverPathUpdated(const TArray<AML_Tile*>& PathTiles);
+    
+	// Called when hover is cleared
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Myceland Controller|Hover")
+	void OnHoverPathCleared();
 
 	// ==================== Actions ====================
 
@@ -143,4 +191,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void ConfirmTurn(AML_Tile* HitTile);
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Movement")
+	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
+
+	UFUNCTION(BlueprintCallable, Category="Myceland|Undo")
+	void StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath, const TArray<FIntPoint>& PickedCollectibleAxials);
+
+	void NotifyCollectiblePickedOnAxial(const FIntPoint& Axial);
+
+	bool IsMoveInProgress() const { return bMoveInProgress; }
+	bool IsUndoMovePlayback() const { return bUndoMovePlayback; }
 };
