@@ -77,6 +77,15 @@ enum class EML_WidgetInputMode : uint8
 	GameAndUI
 };
 
+UENUM(BlueprintType)
+enum class EML_PlayerMovementMode : uint8
+{
+	InsideBoard,   // Tile-by-tile movement (current behavior)
+	EnteringBoard, // PLayer enter the board from exterior
+	ExitingBoard,  // Hold in progress to confirm exit
+	FreeMovement   // Free movement off the board
+};
+
 
 // ==================== STRUCT ====================
 
@@ -124,6 +133,9 @@ struct FML_WaveChange
 	
 	UPROPERTY()
 	EML_TileType TargetType = EML_TileType::Dirt; // Tile
+	
+	UPROPERTY()
+	AML_Tile* Neighbor = nullptr; // Collectible
 	
 	UPROPERTY()
 	FVector SpawnLocation = FVector::ZeroVector; // Collectible

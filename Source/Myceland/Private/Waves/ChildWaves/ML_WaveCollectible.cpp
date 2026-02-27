@@ -10,6 +10,8 @@
 
 void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const TArray<AML_Tile*>& ParasitesThatAteGrass, TArray<FML_WaveChange>& OutChanges)
 {
+    GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, TEXT("Collectible Wave"));
+    
     if (!OriginTile || ParasitesThatAteGrass.Num() == 0) return;
 
     AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
@@ -57,6 +59,7 @@ void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const
                     if (ParasiteSet.Contains(CheckTile))
                     {
                         FML_WaveChange Change;
+                        Change.Neighbor = Neighbor;
                         Change.SpawnLocation = Neighbor->GetActorLocation();
                         Change.CollectibleClass = Board->GetBiomeTileSet()->GetCollectibleClass();
                         Change.DistanceFromOrigin = Distance + 1;
