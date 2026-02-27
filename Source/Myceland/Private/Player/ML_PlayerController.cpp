@@ -462,6 +462,22 @@ void AML_PlayerController::OnSetDestinationStarted()
 			TArray<FIntPoint> AxialPath;
 			if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
 
+			// --- Arm move recording (NORMAL board move) ---
+			bMoveInProgress = true;
+			bUndoMovePlayback = false;          // safety: this is NOT an undo playback
+			bSuppressMoveRecording = false;     // safety: allow recording
+
+			MoveStartAxial = StartAxial;
+			MoveEndAxial   = GoalAxial;
+
+			MoveStartWorld = MycelandCharacter->GetActorLocation();
+			MoveEndWorld   = TargetTile->GetActorLocation();
+
+			// This is the deterministic path we will record/undo
+			ActiveMoveAxialPath = AxialPath;
+			ActiveMovePickedCollectibles.Reset();
+			// ---------------------------------------------
+
 			StartMoveAlongPath(AxialPath, GridMap);
 			bIsMoving = true;
 			return;
@@ -580,10 +596,9 @@ void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 
 bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld)
 {
-	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
 
-	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return false;
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
@@ -636,14 +651,11 @@ bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool 
 	return true;
 }
 
-void AML_PlayerController::StartMoveAlongAxialPathForUndo(
-	const TArray<FIntPoint>& AxialPath,
-	const TArray<FIntPoint>& PickedCollectibleAxials)
+void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath, const TArray<FIntPoint>& PickedCollectibleAxials)
 {
-	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
 
-	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return;
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();

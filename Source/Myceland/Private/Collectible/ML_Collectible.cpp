@@ -35,22 +35,22 @@ void AML_Collectible::Tick(float DeltaTime)
 
 void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter)
 {
-	MycelandController->CurrentEnergy++;
-
 	if (!MycelandController || !MycelandCharacter || !MycelandCharacter->CurrentTileOn)
 	{
 		return;
 	}
 
-	// Record the pickup only during a normal move (not during undo playback).
-	if (MycelandController->IsMoveInProgress() && !MycelandController->IsUndoMovePlayback())
-	{
-		const FIntPoint PickedAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-		MycelandController->NotifyCollectiblePickedOnAxial(PickedAxial);
-	}
+	MycelandController->CurrentEnergy++;
 
 	if (OwningTile)
 	{
+		// Record the pickup only during a normal move (not during undo playback).
+		if (!MycelandController->IsUndoMovePlayback())
+		{
+			const FIntPoint PickedAxial = OwningTile->GetAxialCoord();
+			MycelandController->NotifyCollectiblePickedOnAxial(PickedAxial);
+		}
+
 		OwningTile->CollectibleActor = nullptr;
 		OwningTile->SetHasCollectible(false);
 		OwningTile = nullptr;
@@ -58,7 +58,7 @@ void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_Pl
 	Destroy();
 }
 
-bool AML_Collectible::CheckIsOwningTile(AML_PlayerCharacter* MycelandCharacter)
-{
-	return MycelandCharacter->CurrentTileOn == OwningTile;
-}
+// bool AML_Collectible::CheckIsOwningTile(AML_PlayerCharacter* MycelandCharacter)
+// {
+// 	return MycelandCharacter->CurrentTileOn == OwningTile;
+// }

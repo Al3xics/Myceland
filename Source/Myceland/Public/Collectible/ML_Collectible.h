@@ -40,8 +40,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible", meta=(Tooltip="Will clear the bHasCollectible from the tile it was on, and then destroy this actor !"))
 	void AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter);
 	
-	UFUNCTION(BlueprintPure, Category="Myceland Collectible")
-	bool CheckIsOwningTile(AML_PlayerCharacter* MycelandCharacter);
+	// UFUNCTION(BlueprintPure, Category="Myceland Collectible")
+	// bool CheckIsOwningTile(AML_PlayerCharacter* MycelandCharacter);
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
 	AML_Tile* GetOwningTile() const { return OwningTile; }

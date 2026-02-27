@@ -197,6 +197,8 @@ void UML_WavePropagationSubsystem::RunWave()
         
 				// Finish spawning
 				Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
+
+				RecordSpawnedActor(Collectible, Change.DistanceFromOrigin);
         
 				bCycleHasChanges = true;
 			}
@@ -310,6 +312,9 @@ void UML_WavePropagationSubsystem::NotifyMoveCompleted(
 	const TArray<FIntPoint>& PickedCollectibleAxials)
 {
 	EnsureInitialized();
+
+	UE_LOG(LogTemp, Warning, TEXT("[MOVE RECORD] Picked=%d Start=(%d,%d) End=(%d,%d)"), PickedCollectibleAxials.Num(), StartAxial.X, StartAxial.Y, EndAxial.X, EndAxial.Y);
+	
 	if (!PlayerController) return;
 	if (bIsResolvingTiles || bIsUndoAnimating) return;
 
@@ -535,6 +540,8 @@ void UML_WavePropagationSubsystem::FinishUndoAnimation()
 
 	if (PlayerController)
 		PlayerController->EnableInput(PlayerController);
+
+	PlayerController->CurrentEnergy ++;
 }
 
 void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
@@ -584,12 +591,18 @@ bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPo
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	AML_Collectible* SpawnedCollectible = GetWorld()->SpawnActor<AML_Collectible>(
-		CollectibleClass,
-		SpawnLocation,
-		FRotator::ZeroRotator,
-		Params
-	);
+	AML_Collectible* SpawnedCollectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(CollectibleClass, FTransform(FRotator::ZeroRotator, SpawnLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (SpawnedCollectible)
+	{
+		// Configure BEFORE the spawn
+		SpawnedCollectible->SetOwningTile(*TilePtr);
+        
+		// Finish spawning
+		SpawnedCollectible->FinishSpawning(FTransform(FRotator::ZeroRotator, SpawnLocation));
+
+		//RecordSpawnedActor(SpawnedCollectible, DistanceFromOrigin);
+        
+	}
 
 	if (!IsValid(SpawnedCollectible))
 	{
