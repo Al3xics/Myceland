@@ -41,8 +41,7 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 
 bool AML_PlayerController::IsTileWalkable(const AML_Tile* Tile) const
 {
-	if (!IsValid(Tile))
-		return false;
+	if (!IsValid(Tile)) return false;
 
 	const EML_TileType Type = Tile->GetCurrentType();
 	return (Type == EML_TileType::Dirt || Type == EML_TileType::Grass) && !Tile->IsBlocked();
@@ -143,7 +142,6 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 			if (IsValid(*TilePtr))
 				CurrentPathWorld.Add((*TilePtr)->GetActorLocation());
 
-	// Skip first point if already basically there
 	if (APawn* P = GetPawn())
 		if (CurrentPathWorld.Num() > 0)
 			if (FVector::DistSquared2D(P->GetActorLocation(), CurrentPathWorld[0]) <= FMath::Square(AcceptanceRadius))
@@ -197,13 +195,84 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 
 	if (To.Size() <= AcceptanceRadius)
 	{
+		const int32 ReachedIndex = CurrentPathIndex;
 		CurrentPathIndex++;
+
+		// During undo-move playback, restore collectibles *behind the player*.
+		// We restore when the player reaches a tile, meaning they just left the previous one.
+		if (bUndoMovePlayback && bUndoRestoreCollectibles)
+		{
+			const int32 LeftIndex = ReachedIndex - 1; // tile behind the player
+			if (LeftIndex >= 0 && LeftIndex < ActiveMoveAxialPath.Num())
+			{
+				const FIntPoint LeftAxial = ActiveMoveAxialPath[LeftIndex];
+
+				if (UndoMoveRemainingCollectibles.Contains(LeftAxial))
+				{
+					if (UML_WavePropagationSubsystem* S = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+					{
+						S->RestoreCollectibleDuringUndoMove(LeftAxial);
+					}
+					UndoMoveRemainingCollectibles.Remove(LeftAxial);
+				}
+			}
+		}
+
 		if (CurrentPathIndex >= CurrentPathWorld.Num())
 		{
+			if (UML_WavePropagationSubsystem* S = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+			{
+				if (bUndoMovePlayback)
+				{
+					bUndoMovePlayback = false;
+					bSuppressMoveRecording = false;
+
+					// Restore any leftovers (e.g. original start tile depending on timing)
+					if (bUndoRestoreCollectibles && UndoMoveRemainingCollectibles.Num() > 0)
+					{
+						for (const FIntPoint& Ax : UndoMoveRemainingCollectibles)
+						{
+							S->RestoreCollectibleDuringUndoMove(Ax);
+						}
+						UndoMoveRemainingCollectibles.Reset();
+					}
+					bUndoRestoreCollectibles = false;
+
+					S->NotifyUndoMoveFinished();
+				}
+				else if (bMoveInProgress && ActiveMoveAxialPath.Num() > 0)
+				{
+					if (!bSuppressMoveRecording)
+					{
+						const TArray<FIntPoint> Picked = ActiveMovePickedCollectibles.Array();
+
+						S->NotifyMoveCompleted(
+							MoveStartAxial,
+							MoveEndAxial,
+							ActiveMoveAxialPath,
+							MoveStartWorld,
+							MoveEndWorld,
+							Picked
+						);
+					}
+					else
+					{
+						bSuppressMoveRecording = false;
+					}
+				}
+			}
+
+			bMoveInProgress = false;
+			ActiveMoveAxialPath.Reset();
+			ActiveMovePickedCollectibles.Reset();
+
+			// end
 			CurrentPathWorld.Reset();
 			CurrentPathIndex = 0;
 			bIsMoving = false;
 			OnPathFinished();
+
+			// return;
 		}
 		return;
 	}
@@ -507,4 +576,99 @@ void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 
 	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
+}
+
+bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld)
+{
+	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
+
+	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
+	if (!IsValid(Board)) return false;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial))
+	{
+		if (bFallbackTeleport)
+			MycelandCharacter->SetActorLocation(TeleportFallbackWorld);
+		return false;
+	}
+
+	if (!bUsePath)
+	{
+		if (AML_Tile* const* TilePtr = GridMap.Find(TargetAxial))
+		{
+			if (IsValid(*TilePtr))
+			{
+				MycelandCharacter->SetActorLocation((*TilePtr)->GetActorLocation());
+				return true;
+			}
+		}
+		return false;
+	}
+
+	TArray<FIntPoint> AxialPath;
+	if (!BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, AxialPath))
+	{
+		if (bFallbackTeleport)
+			MycelandCharacter->SetActorLocation(TeleportFallbackWorld);
+		return false;
+	}
+
+	bMoveInProgress = true;
+	MoveStartAxial = StartAxial;
+	MoveEndAxial   = TargetAxial;
+
+	if (APawn* P = GetPawn())
+		MoveStartWorld = P->GetActorLocation();
+
+	if (AML_Tile* const* TilePtr = GridMap.Find(TargetAxial))
+		MoveEndWorld = IsValid(*TilePtr) ? (*TilePtr)->GetActorLocation() : TeleportFallbackWorld;
+	else
+		MoveEndWorld = TeleportFallbackWorld;
+
+	ActiveMoveAxialPath = AxialPath;
+	ActiveMovePickedCollectibles.Reset();
+
+	StartMoveAlongPath(AxialPath, GridMap);
+	return true;
+}
+
+void AML_PlayerController::StartMoveAlongAxialPathForUndo(
+	const TArray<FIntPoint>& AxialPath,
+	const TArray<FIntPoint>& PickedCollectibleAxials)
+{
+	AML_PlayerCharacter* MycelandCharacter = Cast<AML_PlayerCharacter>(GetPawn());
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
+
+	AML_BoardSpawner* Board = GetBoardFromCurrentTile(MycelandCharacter);
+	if (!IsValid(Board)) return;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+
+	bUndoMovePlayback = true;
+	bSuppressMoveRecording = true;
+
+	// Setup collectible restore set for this undo playback.
+	bUndoRestoreCollectibles = (PickedCollectibleAxials.Num() > 0);
+	UndoMoveRemainingCollectibles.Reset();
+	for (const FIntPoint& Ax : PickedCollectibleAxials)
+	{
+		UndoMoveRemainingCollectibles.Add(Ax);
+	}
+
+	// Ensure end-of-path logic triggers.
+	bMoveInProgress = true;
+	ActiveMoveAxialPath = AxialPath;
+	ActiveMovePickedCollectibles.Reset();
+
+	StartMoveAlongPath(AxialPath, GridMap);
+}
+
+void AML_PlayerController::NotifyCollectiblePickedOnAxial(const FIntPoint& Axial)
+{
+	if (!bMoveInProgress) return;
+	ActiveMovePickedCollectibles.Add(Axial);
 }

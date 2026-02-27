@@ -9,6 +9,7 @@
 class AML_Tile;
 class AML_PlayerCharacter;
 class AML_PlayerController;
+class AML_PlayerCharacter;
 class USphereComponent;
 
 UCLASS()
@@ -22,14 +23,17 @@ private:
 
 protected:
 	virtual void BeginPlay() override;
-	
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
 	USceneComponent* SceneRoot;
-	
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
 	USphereComponent* Collision;
 
 public:
+	UPROPERTY()
+	FIntPoint OwningAxial = FIntPoint::ZeroValue;
+
 	AML_Collectible();
 	virtual void Tick(float DeltaTime) override;
 	
@@ -44,4 +48,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
 	void SetOwningTile(AML_Tile* InOwningTile) { OwningTile = InOwningTile; }
+
+	void InitOwningAxial(const FIntPoint& InAxial) { OwningAxial = InAxial; }
+	const FIntPoint& GetOwningAxial() const { return OwningAxial; }
 };
