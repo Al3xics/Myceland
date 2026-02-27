@@ -74,11 +74,22 @@ void UML_WavePropagationSubsystem::RunWave()
 		}
 		else if (Change.CollectibleClass)
 		{
-			// Collectible wave
+			// Collectible wave - Deferred Spawn
 			FActorSpawnParameters Params;
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			GetWorld()->SpawnActor<AActor>(Change.CollectibleClass, Change.SpawnLocation, FRotator::ZeroRotator, Params);
-			bCycleHasChanges = true;
+			
+			// Create the actor WITHOUT the spawn (deferred)
+			AML_Collectible* Collectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(Change.CollectibleClass, FTransform(FRotator::ZeroRotator, Change.SpawnLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			if (Collectible)
+			{
+				// Configure BEFORE the spawn
+				Collectible->SetOwningTile(Change.Neighbor);
+        
+				// Finish spawning
+				Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
+        
+				bCycleHasChanges = true;
+			}
 		}
 	}
 

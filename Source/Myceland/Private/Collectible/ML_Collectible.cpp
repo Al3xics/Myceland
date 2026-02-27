@@ -40,7 +40,16 @@ void AML_Collectible::Tick(float DeltaTime)
 void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter)
 {
 	MycelandController->CurrentEnergy++;
-	MycelandCharacter->CurrentTileOn->SetHasCollectible(false);
+	if (OwningTile)
+	{
+		OwningTile->SetHasCollectible(false);
+		OwningTile = nullptr;
+	}
 	Destroy();
+}
+
+bool AML_Collectible::CheckIsOwningTile(AML_PlayerCharacter* MycelandCharacter)
+{
+	return MycelandCharacter->CurrentTileOn == OwningTile;
 }
 

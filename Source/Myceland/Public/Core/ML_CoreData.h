@@ -135,6 +135,9 @@ struct FML_WaveChange
 	EML_TileType TargetType = EML_TileType::Dirt; // Tile
 	
 	UPROPERTY()
+	AML_Tile* Neighbor = nullptr; // Collectible
+	
+	UPROPERTY()
 	FVector SpawnLocation = FVector::ZeroVector; // Collectible
 	
 	UPROPERTY()
