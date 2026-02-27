@@ -23,15 +23,15 @@ public:
 	UPROPERTY(EditAnywhere, config, Category="Input")
 	FML_InputMappingEntry DefaultInputMappingContext;
 	
+	UPROPERTY(EditAnywhere, config, Category="Input")
+	float ExitBoardHoldDuration = 2.f;
+	
 	
 	
 	// ==================== Levels ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
 	TMap<FGameplayTag, TSoftObjectPtr<UWorld>> Levels;
-	
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
-	TMap<FGameplayTag, int> EnergyPerLevel;
 	
 	
 	
@@ -63,14 +63,5 @@ public:
 			return nullptr;
 
 		return DefaultInputMappingContext.Mapping.LoadSynchronous();
-	}
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Settings")
-	int GetEnergyPerLevel(FGameplayTag Tag) const
-	{
-		if (const int* Found = EnergyPerLevel.Find(Tag))
-			return *Found;
-		
-		return 0;
 	}
 };

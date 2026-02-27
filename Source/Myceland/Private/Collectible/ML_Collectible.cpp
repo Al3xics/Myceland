@@ -4,7 +4,9 @@
 #include "Collectible/ML_Collectible.h"
 
 #include "Components/SphereComponent.h"
+#include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_PlayerController.h"
+#include "Tiles/ML_Tile.h"
 
 
 AML_Collectible::AML_Collectible()
@@ -35,8 +37,10 @@ void AML_Collectible::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController)
+void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter)
 {
 	MycelandController->CurrentEnergy++;
+	MycelandCharacter->CurrentTileOn->SetHasCollectible(false);
+	Destroy();
 }
 

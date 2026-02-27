@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "ML_Collectible.generated.h"
 
+class AML_PlayerCharacter;
 class AML_PlayerController;
 class USphereComponent;
 
@@ -27,6 +28,6 @@ public:
 	AML_Collectible();
 	virtual void Tick(float DeltaTime) override;
 	
-	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
-	void AddEnergy(AML_PlayerController* MycelandController);
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible", meta=(Tooltip="Will clear the bHasCollectible from the tile it was on, and then destroy this actor !"))
+	void AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter);
 };

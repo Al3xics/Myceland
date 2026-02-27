@@ -7,103 +7,104 @@
 #include "Core/ML_CoreData.h"
 #include "Tiles/ML_Tile.h"
 
-void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
+void UML_WaveGrass::ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTile, TSet<AML_Tile*>& WaterConnected)
 {
-        if (!OriginTile) return;
-    
-    AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
-    ensureMsgf(Board, TEXT("Board is not set!"));
-    if (!Board) return;
-    
-    TSet<AML_Tile*> Scheduled;
-    
-    // If the origin is no longer Dirt, it means the grass was eaten
-    // or transformed during a previous cycle. Stop here.
-    if (OriginTile->GetCurrentType() != EML_TileType::Dirt)
-        return;
-    
-    // Step 0: Transforms the origin if it's Dirt
-    OutChanges.Add(FML_WaveChange(OriginTile, EML_TileType::Grass, 0));
-    Scheduled.Add(OriginTile);
-    
-    // Step 1.1: Build the connected water network from the source
-    TSet<AML_Tile*> WaterConnected;
-    TQueue<AML_Tile*> WaterQueue;
-    
-    for (AML_Tile* Neighbor : Board->GetNeighbors(OriginTile))
+    TQueue<AML_Tile*> ExpansionQueue;
+
+    for (AML_Tile* Neighbor : Board->GetNeighbors(FromTile))
     {
-        if (Neighbor && Neighbor->GetCurrentType() == EML_TileType::Water)
+        if (Neighbor && Neighbor->GetCurrentType() == EML_TileType::Water && !WaterConnected.Contains(Neighbor))
         {
             WaterConnected.Add(Neighbor);
-            WaterQueue.Enqueue(Neighbor);
+            ExpansionQueue.Enqueue(Neighbor);
         }
     }
-    
-    // Step 1.2: Continue building the water network
-    while (!WaterQueue.IsEmpty())
+
+    while (!ExpansionQueue.IsEmpty())
     {
         AML_Tile* CurrentWater;
-        WaterQueue.Dequeue(CurrentWater);
-    
+        ExpansionQueue.Dequeue(CurrentWater);
+
         for (AML_Tile* Neighbor : Board->GetNeighbors(CurrentWater))
         {
             if (Neighbor && Neighbor->GetCurrentType() == EML_TileType::Water && !WaterConnected.Contains(Neighbor))
             {
                 WaterConnected.Add(Neighbor);
-                WaterQueue.Enqueue(Neighbor);
+                ExpansionQueue.Enqueue(Neighbor);
             }
         }
     }
+}
 
-    // Step 2: Sequential propagation by continuity
+bool UML_WaveGrass::IsDirtLike(const AML_Tile* Tile)
+{
+    return Tile->GetCurrentType() == EML_TileType::Dirt || Tile->GetCurrentType() == EML_TileType::Obstacle;
+}
+
+void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
+{
+    GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("Grass Wave"));
+    
+     if (!OriginTile) return;
+
+    AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
+    if (!Board) return;
+
+    TSet<AML_Tile*> Scheduled;
+    TSet<AML_Tile*> WaterConnected;
+    TArray<AML_Tile*> GrassSources;
+
+    // -------------------------------------------------
+    // CASE 1: FIRST WAVE (Origin = Dirt)
+    // -------------------------------------------------
+    if (OriginTile->GetCurrentType() == EML_TileType::Dirt)
+    {
+        OutChanges.Add(FML_WaveChange(OriginTile, EML_TileType::Grass, 0));
+        Scheduled.Add(OriginTile);
+        GrassSources.Add(OriginTile);
+
+        ExpandWaterNetwork(Board, OriginTile, WaterConnected);
+    }
+    else
+    {
+        // -------------------------------------------------
+        // CASE 2: RETURN AFTER WATER / PARASITE
+        // -------------------------------------------------
+
+        // We take all existing Grasses
+        for (AML_Tile* Tile : Board->GetGridTiles())
+        {
+            if (!Tile) continue;
+
+            if (Tile->GetCurrentType() == EML_TileType::Grass)
+            {
+                GrassSources.Add(Tile);
+                ExpandWaterNetwork(Board, Tile, WaterConnected);
+                Scheduled.Add(Tile);
+            }
+        }
+
+        if (GrassSources.Num() == 0)
+            return;
+    }
+
+    // -------------------------------------------------
+    // COMPLETE BFS PROPAGATION (STEP-BY-STEP via Distance)
+    // -------------------------------------------------
+
     TQueue<TPair<AML_Tile*, int32>> PropagationQueue;
 
-    // Helper lambda to check if a tile is Dirt or Obstacle (treated as passable Dirt)
-    auto IsDirtLike = [](AML_Tile* Tile) -> bool
+    // Initialization
+    for (AML_Tile* Source : GrassSources)
     {
-        return Tile->GetCurrentType() == EML_TileType::Dirt || Tile->GetCurrentType() == EML_TileType::Obstacle;
-    };
-    
-    // Initial: all the Dirt neighboring the origin tile touching the water
-    for (AML_Tile* Neighbor : Board->GetNeighbors(OriginTile))
-    {
-        // IsDirtLike instead of == Dirt
-        if (Neighbor && IsDirtLike(Neighbor) && !Scheduled.Contains(Neighbor))
+        for (AML_Tile* Neighbor : Board->GetNeighbors(Source))
         {
-            for (AML_Tile* Around : Board->GetNeighbors(Neighbor))
-            {
-                if (Around && WaterConnected.Contains(Around))
-                {
-                    PropagationQueue.Enqueue({ Neighbor, 1 });
-                    Scheduled.Add(Neighbor);
-                    break;
-                }
-            }
-        }
-    }
-    
-    while (!PropagationQueue.IsEmpty())
-    {
-        TPair<AML_Tile*, int32> Current;
-        PropagationQueue.Dequeue(Current);
-    
-        AML_Tile* CurrentTile = Current.Key;
-        int32 StepDistance = Current.Value;
-    
-        // Only add to OutChanges if it's real Dirt, not an Obstacle
-        if (CurrentTile->GetCurrentType() == EML_TileType::Dirt)
-        {
-            OutChanges.Add(FML_WaveChange(CurrentTile, EML_TileType::Grass, StepDistance));
-        }
-    
-        // Dirt neighbors must be neighbors of the current Grass tile
-        for (AML_Tile* Neighbor : Board->GetNeighbors(CurrentTile))
-        {
-            // IsDirtLike instead of == Dirt
-            if (!Neighbor || Scheduled.Contains(Neighbor) || !IsDirtLike(Neighbor))
+            if (!Neighbor || Scheduled.Contains(Neighbor))
                 continue;
-    
-            // must touch the water network
+
+            if (!IsDirtLike(Neighbor))
+                continue;
+
             bool bTouchesWater = false;
             for (AML_Tile* Around : Board->GetNeighbors(Neighbor))
             {
@@ -113,7 +114,47 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
                     break;
                 }
             }
-    
+
+            if (bTouchesWater)
+            {
+                PropagationQueue.Enqueue({ Neighbor, 1 });
+                Scheduled.Add(Neighbor);
+            }
+        }
+    }
+
+    while (!PropagationQueue.IsEmpty())
+    {
+        TPair<AML_Tile*, int32> Current;
+        PropagationQueue.Dequeue(Current);
+
+        AML_Tile* CurrentTile = Current.Key;
+        int32 StepDistance = Current.Value;
+
+        if (CurrentTile->GetCurrentType() == EML_TileType::Dirt)
+        {
+            OutChanges.Add(FML_WaveChange(CurrentTile, EML_TileType::Grass, StepDistance));
+            ExpandWaterNetwork(Board, CurrentTile, WaterConnected);
+        }
+
+        for (AML_Tile* Neighbor : Board->GetNeighbors(CurrentTile))
+        {
+            if (!Neighbor || Scheduled.Contains(Neighbor))
+                continue;
+
+            if (!IsDirtLike(Neighbor))
+                continue;
+
+            bool bTouchesWater = false;
+            for (AML_Tile* Around : Board->GetNeighbors(Neighbor))
+            {
+                if (Around && WaterConnected.Contains(Around))
+                {
+                    bTouchesWater = true;
+                    break;
+                }
+            }
+
             if (bTouchesWater)
             {
                 PropagationQueue.Enqueue({ Neighbor, StepDistance + 1 });
@@ -121,4 +162,10 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
             }
         }
     }
+
+    // We sort by distance to ensure the correct order
+    OutChanges.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+    {
+        return A.DistanceFromOrigin < B.DistanceFromOrigin;
+    });
 }

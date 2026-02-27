@@ -27,7 +27,16 @@ private:
 	// ==================== Myceland Runtime ====================
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	int32 EnergyForPuzzle = 1;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	UML_BiomeTileSet* BiomeTileSet;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	ACameraActor* AssociatedCamera;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	AActor* AssociatedObstacle;
 	
 	
 	UPROPERTY(Transient)
@@ -102,5 +111,14 @@ public:
 	TArray<AML_Tile*> GetGridTiles();
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	UML_BiomeTileSet* GetBiomeTileSet() const { return BiomeTileSet; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	ACameraActor* GetAssociatedCamera() const { return AssociatedCamera; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
 };

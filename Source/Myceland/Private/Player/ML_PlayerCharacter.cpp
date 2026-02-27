@@ -7,6 +7,7 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Player/ML_PlayerController.h"
 #include "Tiles/ML_Tile.h"
 
 
@@ -63,12 +64,13 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 		Params
 	);
 
+	AML_Tile* OldTile = CurrentTileOn;
 	AML_Tile* NewTile = nullptr;
 
 	if (bHit)
 		NewTile = Cast<AML_Tile>(Hit.GetActor());
 
-	if (NewTile == CurrentTileOn)
+	if (NewTile == OldTile)
 		return;
 
 	if (CurrentTileOn)
@@ -81,6 +83,7 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	}
 
 	CurrentTileOn = NewTile;
+	HandleTileStateChange(OldTile, NewTile);
 
 	if (CurrentTileOn)
 	{
@@ -92,9 +95,20 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	}
 }
 
+void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const AML_Tile* NewTile) const
+{
+	const bool bWasNull = (OldTile == nullptr);
+	const bool bIsNull  = (NewTile == nullptr);
+
+	// Only trigger on null <-> non-null transition
+	if (bWasNull != bIsNull)
+		OnBoardChanged.Broadcast(CurrentTileOn);
+}
+
 void AML_PlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	MycelandController = Cast<AML_PlayerController>(GetController());
 }
 
 void AML_PlayerCharacter::Tick(float DeltaTime)
