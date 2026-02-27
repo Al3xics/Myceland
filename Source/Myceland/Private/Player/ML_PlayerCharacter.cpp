@@ -89,7 +89,9 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	{
 		for (AML_Tile* Neighbor : CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn))
 		{
-			if (Neighbor && Neighbor->IsBlocked() == false)
+			if (Neighbor &&
+				Neighbor->IsBlocked() == false &&
+				Neighbor->GetCurrentType() != EML_TileType::Grass)
 				Neighbor->Glow();
 		}
 	}
