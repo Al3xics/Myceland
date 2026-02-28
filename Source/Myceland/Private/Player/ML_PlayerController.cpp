@@ -537,12 +537,26 @@ void AML_PlayerController::OnSetDestinationStarted()
 		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) return;
 
-		// Store target so OnPathFinished can BFS to it after entry
+		// Find the nearest border/entry tile
+		const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+		AML_Tile* NearestBorderTile = FindNearestWalkableTile(MycelandCharacter->GetActorLocation(), GridMap);
+
+		// Setup board entry state
 		PendingBoardEntryTargetTile = TargetTile;
 		bPendingBoardEntryOnArrival = true;
 		CurrentMovementMode = EML_PlayerMovementMode::EnteringBoard;
 
-		StartMoveToWorldLocation(TargetTile->GetActorLocation());
+		if (!IsValid(NearestBorderTile))
+		{
+			// Fallback: go directly to target if no border tile found
+			StartMoveToWorldLocation(TargetTile->GetActorLocation());
+		}
+		else
+		{
+			// Move to the border tile first (not directly to target)
+			StartMoveToWorldLocation(NearestBorderTile->GetActorLocation());
+		}
+    
 		bIsMoving = true;
 	}
 }
