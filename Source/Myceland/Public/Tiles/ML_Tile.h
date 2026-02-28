@@ -139,9 +139,6 @@ public:
 	UFUNCTION()
 	void UpdateClassAtRuntime_Silent(EML_TileType NewTileType, TSubclassOf<AML_TileBase> NewClass);
 
-	// Guard (optional)
-	bool bSuppressPropagationBroadcast = false;
-
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;
 };
