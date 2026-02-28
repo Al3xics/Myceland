@@ -14,6 +14,8 @@ class AML_PlayerCharacter;
 class AML_BoardSpawner;
 class AML_Tile;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
+
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
 {
@@ -165,6 +167,12 @@ protected:
 	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
 
 public:
+	
+	// ==================== Grass Plant Delegate ====================
+	
+	// Called when grass is successfully planted on a tile
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
+	FOnGrassPlanted OnGrassPlanted;
 
 	// ==================== Energy ====================
 
@@ -192,10 +200,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void ConfirmTurn(AML_Tile* HitTile);
 	
-	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Movement")
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller")
 	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
 
-	UFUNCTION(BlueprintCallable, Category="Myceland|Undo")
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Undo")
 	void StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath, const TArray<FIntPoint>& PickedCollectibleAxials);
 
 	void NotifyCollectiblePickedOnAxial(const FIntPoint& Axial);
