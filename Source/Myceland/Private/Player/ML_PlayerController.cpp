@@ -438,6 +438,20 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 }
 
 
+// ==================== Actions ====================
+
+void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
+{
+	CurrentEnergy--;
+
+	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+	{
+		OnGrassPlanted.Broadcast(HitTile);
+		WavePropagationSubsystem->BeginTileResolved(HitTile);
+	}
+}
+
+
 // ==================== Lifecycle ====================
 
 void AML_PlayerController::BeginPlay()
@@ -778,52 +792,6 @@ void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
 
 
 // ==================== Actions ====================
-
-void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile)
-{
-	if (bIsMoving) return;
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard) return;
-
-	CanPlantGrass = false;
-	HitTile = nullptr;
-
-	if (!MycelandCharacter) return;
-
-	AML_Tile* CurrentTileOn = MycelandCharacter->CurrentTileOn;
-	if (!CurrentTileOn) return;
-
-	const AActor* HitActor = HitResult.GetActor();
-	if (!HitActor) return;
-
-	TArray<AML_Tile*> Neighbors = CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn);
-	for (const AML_Tile* Neighbor : Neighbors)
-	{
-		if (!Neighbor) continue;
-
-		if (const AML_Tile* HitTileActor = Cast<AML_Tile>(HitActor))
-		{
-			if (HitTileActor == Neighbor &&
-				Neighbor->GetCurrentType() == EML_TileType::Dirt &&
-				CurrentEnergy > 0)
-			{
-				HitTile = const_cast<AML_Tile*>(HitTileActor);
-				CanPlantGrass = true;
-				return;
-			}
-		}
-	}
-}
-
-void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
-{
-	CurrentEnergy--;
-
-	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
-	{
-		OnGrassPlanted.Broadcast(HitTile);
-		WavePropagationSubsystem->BeginTileResolved(HitTile);
-	}
-}
 
 bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld)
 {

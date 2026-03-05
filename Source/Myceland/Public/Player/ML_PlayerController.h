@@ -113,6 +113,10 @@ private:
 	UFUNCTION()
 	void HandleBoardStateChanged(const AML_Tile* NewTile);
 
+	// ==================== Actions ====================
+
+	void ConfirmTurn(AML_Tile* HitTile);
+
 protected:
 
 	// ==================== Lifecycle ====================
@@ -193,12 +197,6 @@ public:
 	void OnHoverPathCleared();
 
 	// ==================== Actions ====================
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void ConfirmTurn(AML_Tile* HitTile);
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller")
 	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
