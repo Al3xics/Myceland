@@ -748,25 +748,39 @@ void AML_PlayerController::TickHoverPreview(float DeltaTime)
 
 	// Build preview path
 	TArray<AML_Tile*> NewPath = BuildPreviewPath(HoveredTile);
-
+	
+	// Determine which tiles to unglow and glow
+	TSet<AML_Tile*> NewPathSet(NewPath);
+	TSet<AML_Tile*> OldPathSet(CurrentPreviewPath);
+    
+	// Unglow tiles that are no longer in the path
+	for (AML_Tile* Tile : OldPathSet)
+	{
+		if (!NewPathSet.Contains(Tile))
+			Tile->StopGlowingPathWalk();
+	}
+    
+	// Glow new tiles
+	for (AML_Tile* Tile : NewPathSet)
+	{
+		if (!OldPathSet.Contains(Tile))
+			Tile->GlowPathWalk();
+	}
+    
 	// Update current preview path
 	CurrentPreviewPath = NewPath;
-
-	// Notify blueprints
-	if (CurrentPreviewPath.Num() > 0)
-		OnHoverPathUpdated(CurrentPreviewPath);
-	else
-		OnHoverPathCleared();
 }
 
 void AML_PlayerController::ClearHoverPreview()
 {
-	if (CurrentPreviewPath.Num() > 0)
+	// Unglow all tiles
+	for (AML_Tile* Tile : CurrentPreviewPath)
 	{
-		CurrentPreviewPath.Empty();
-		OnHoverPathCleared();
+		if (IsValid(Tile))
+			Tile->StopGlowingPathWalk();
 	}
     
+	CurrentPreviewPath.Empty();
 	LastHoveredTile = nullptr;
 }
 
