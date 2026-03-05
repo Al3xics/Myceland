@@ -6,7 +6,6 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
-#include "Tiles/ML_TileBase.h"
 
 class UML_WavePropagationSubsystem;
 
@@ -466,6 +465,7 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 	Super::PlayerTick(DeltaTime);
 	TickMoveAlongPath(DeltaTime);
 	TickExitHold(DeltaTime);
+	TickCursorHoverPreview(DeltaTime);
 	TickHoverPreview(DeltaTime);
 }
 
@@ -662,6 +662,36 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 
 
 // ==================== Hover Preview ====================
+
+void AML_PlayerController::TickCursorHoverPreview(float DeltaTime)
+{
+	// Get tile under cursor
+	AML_Tile* CursorHoveredTile = GetTileUnderCursor();
+	
+	if (CursorHoveredTile == LastCursorHoveredTile)
+		return;
+	
+	if (!IsValid(CursorHoveredTile))
+	{
+		ClearCursorHoverPreview();
+		return;
+	}
+	
+	if (IsValid(LastCursorHoveredTile))
+		LastCursorHoveredTile->StopGlowingCursorUnhovered();
+	
+	CursorHoveredTile->GlowCursorHovered();
+	LastCursorHoveredTile = CursorHoveredTile;
+}
+
+void AML_PlayerController::ClearCursorHoverPreview()
+{
+	if (IsValid(LastCursorHoveredTile))
+	{
+		LastCursorHoveredTile->StopGlowingCursorUnhovered();
+		LastCursorHoveredTile = nullptr;
+	}
+}
 
 void AML_PlayerController::TickHoverPreview(float DeltaTime)
 {

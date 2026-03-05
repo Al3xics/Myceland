@@ -127,7 +127,7 @@ protected:
 
 	// ==================== Input ====================
 
-	// Bind to OnStarted  — one shot per click (BFS, exit hold trigger, board re-entry)
+	// Bind to OnStarted — one shot per click (BFS, exit hold trigger, board re-entry)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
@@ -161,11 +161,16 @@ protected:
 	// ==================== Hover Preview ====================
     
 	UPROPERTY(Transient)
+	AML_Tile* LastCursorHoveredTile = nullptr;
+    
+	UPROPERTY(Transient)
 	AML_Tile* LastHoveredTile = nullptr;
     
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> CurrentPreviewPath;
     
+	void TickCursorHoverPreview(float DeltaTime);
+	void ClearCursorHoverPreview();
 	void TickHoverPreview(float DeltaTime);
 	void ClearHoverPreview();
 	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
