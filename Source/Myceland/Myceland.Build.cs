@@ -23,7 +23,8 @@ public class Myceland : ModuleRules
 			"Slate",
 			"Json",
 			"DeveloperSettings",
-			"GameplayTags"
+            "ProceduralMeshComponent",
+            "GameplayTags"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
