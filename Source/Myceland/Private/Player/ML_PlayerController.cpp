@@ -6,7 +6,6 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
-#include "Tiles/ML_TileBase.h"
 
 class UML_WavePropagationSubsystem;
 
@@ -438,6 +437,20 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 }
 
 
+// ==================== Actions ====================
+
+void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
+{
+	CurrentEnergy--;
+
+	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+	{
+		OnGrassPlanted.Broadcast(HitTile);
+		WavePropagationSubsystem->BeginTileResolved(HitTile);
+	}
+}
+
+
 // ==================== Lifecycle ====================
 
 void AML_PlayerController::BeginPlay()
@@ -452,6 +465,7 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 	Super::PlayerTick(DeltaTime);
 	TickMoveAlongPath(DeltaTime);
 	TickExitHold(DeltaTime);
+	TickCursorHoverPreview(DeltaTime);
 	TickHoverPreview(DeltaTime);
 }
 
@@ -649,6 +663,36 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 
 // ==================== Hover Preview ====================
 
+void AML_PlayerController::TickCursorHoverPreview(float DeltaTime)
+{
+	// Get tile under cursor
+	AML_Tile* CursorHoveredTile = GetTileUnderCursor();
+	
+	if (CursorHoveredTile == LastCursorHoveredTile)
+		return;
+	
+	if (!IsValid(CursorHoveredTile))
+	{
+		ClearCursorHoverPreview();
+		return;
+	}
+	
+	if (IsValid(LastCursorHoveredTile))
+		LastCursorHoveredTile->StopGlowingCursorUnhovered();
+	
+	CursorHoveredTile->GlowCursorHovered();
+	LastCursorHoveredTile = CursorHoveredTile;
+}
+
+void AML_PlayerController::ClearCursorHoverPreview()
+{
+	if (IsValid(LastCursorHoveredTile))
+	{
+		LastCursorHoveredTile->StopGlowingCursorUnhovered();
+		LastCursorHoveredTile = nullptr;
+	}
+}
+
 void AML_PlayerController::TickHoverPreview(float DeltaTime)
 {
 	// Only preview in board mode when not moving
@@ -704,25 +748,39 @@ void AML_PlayerController::TickHoverPreview(float DeltaTime)
 
 	// Build preview path
 	TArray<AML_Tile*> NewPath = BuildPreviewPath(HoveredTile);
-
+	
+	// Determine which tiles to unglow and glow
+	TSet<AML_Tile*> NewPathSet(NewPath);
+	TSet<AML_Tile*> OldPathSet(CurrentPreviewPath);
+    
+	// Unglow tiles that are no longer in the path
+	for (AML_Tile* Tile : OldPathSet)
+	{
+		if (!NewPathSet.Contains(Tile))
+			Tile->StopGlowingPathWalk();
+	}
+    
+	// Glow new tiles
+	for (AML_Tile* Tile : NewPathSet)
+	{
+		if (!OldPathSet.Contains(Tile))
+			Tile->GlowPathWalk();
+	}
+    
 	// Update current preview path
 	CurrentPreviewPath = NewPath;
-
-	// Notify blueprints
-	if (CurrentPreviewPath.Num() > 0)
-		OnHoverPathUpdated(CurrentPreviewPath);
-	else
-		OnHoverPathCleared();
 }
 
 void AML_PlayerController::ClearHoverPreview()
 {
-	if (CurrentPreviewPath.Num() > 0)
+	// Unglow all tiles
+	for (AML_Tile* Tile : CurrentPreviewPath)
 	{
-		CurrentPreviewPath.Empty();
-		OnHoverPathCleared();
+		if (IsValid(Tile))
+			Tile->StopGlowingPathWalk();
 	}
     
+	CurrentPreviewPath.Empty();
 	LastHoveredTile = nullptr;
 }
 
@@ -778,52 +836,6 @@ void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
 
 
 // ==================== Actions ====================
-
-void AML_PlayerController::TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile)
-{
-	if (bIsMoving) return;
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard) return;
-
-	CanPlantGrass = false;
-	HitTile = nullptr;
-
-	if (!MycelandCharacter) return;
-
-	AML_Tile* CurrentTileOn = MycelandCharacter->CurrentTileOn;
-	if (!CurrentTileOn) return;
-
-	const AActor* HitActor = HitResult.GetActor();
-	if (!HitActor) return;
-
-	TArray<AML_Tile*> Neighbors = CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn);
-	for (const AML_Tile* Neighbor : Neighbors)
-	{
-		if (!Neighbor) continue;
-
-		if (const AML_Tile* HitTileActor = Cast<AML_Tile>(HitActor))
-		{
-			if (HitTileActor == Neighbor &&
-				Neighbor->GetCurrentType() == EML_TileType::Dirt &&
-				CurrentEnergy > 0)
-			{
-				HitTile = const_cast<AML_Tile*>(HitTileActor);
-				CanPlantGrass = true;
-				return;
-			}
-		}
-	}
-}
-
-void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
-{
-	CurrentEnergy--;
-
-	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
-	{
-		OnGrassPlanted.Broadcast(HitTile);
-		WavePropagationSubsystem->BeginTileResolved(HitTile);
-	}
-}
 
 bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld)
 {

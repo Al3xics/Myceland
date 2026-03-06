@@ -113,6 +113,10 @@ private:
 	UFUNCTION()
 	void HandleBoardStateChanged(const AML_Tile* NewTile);
 
+	// ==================== Actions ====================
+
+	void ConfirmTurn(AML_Tile* HitTile);
+
 protected:
 
 	// ==================== Lifecycle ====================
@@ -123,7 +127,7 @@ protected:
 
 	// ==================== Input ====================
 
-	// Bind to OnStarted  — one shot per click (BFS, exit hold trigger, board re-entry)
+	// Bind to OnStarted — one shot per click (BFS, exit hold trigger, board re-entry)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
@@ -157,11 +161,16 @@ protected:
 	// ==================== Hover Preview ====================
     
 	UPROPERTY(Transient)
+	AML_Tile* LastCursorHoveredTile = nullptr;
+    
+	UPROPERTY(Transient)
 	AML_Tile* LastHoveredTile = nullptr;
     
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> CurrentPreviewPath;
     
+	void TickCursorHoverPreview(float DeltaTime);
+	void ClearCursorHoverPreview();
 	void TickHoverPreview(float DeltaTime);
 	void ClearHoverPreview();
 	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
@@ -193,12 +202,6 @@ public:
 	void OnHoverPathCleared();
 
 	// ==================== Actions ====================
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void ConfirmTurn(AML_Tile* HitTile);
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller")
 	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
