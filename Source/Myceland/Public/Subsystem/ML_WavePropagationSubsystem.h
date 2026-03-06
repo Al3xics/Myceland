@@ -80,6 +80,18 @@ private:
 	// Removes the collectible actor currently associated with a tile (if any).
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
 
+	void ContinueResetAllActions();
+	float GetCurrentUndoDelay(bool bInterWave) const;
+
+	bool bIsResettingAllActions = false;
+	bool bUseFastResetDelays = false;
+
+	UPROPERTY(EditDefaultsOnly, Category="Myceland|Undo")
+	float FastResetIntraWaveDelay = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category="Myceland|Undo")
+	float FastResetInterWaveDelay = 0.01f;
+
 public:
 	void EnsureInitialized();
 
@@ -113,4 +125,7 @@ public:
 		const FVector& EndWorld,
 		const TArray<FIntPoint>& PickedCollectibleAxials
 	);
+
+	UFUNCTION(BlueprintCallable, Category="Myceland|Undo")
+	bool ResetAllActions_Animated(bool bFastReset = true);
 };
