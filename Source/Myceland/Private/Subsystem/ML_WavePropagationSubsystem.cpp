@@ -453,7 +453,7 @@ void UML_WavePropagationSubsystem::RunUndoWave()
 		bHasSpawn2, bHasSpawn2 ? PendingUndoSpawnDeltas[0] : FML_SpawnUndoDelta{}
 	);
 
-	const float Delay = GetCurrentUndoDelay(NextPri != GroupPri);
+	const float Delay = (NextPri != GroupPri) ? DevSettings->InterWaveDelay : DevSettings->IntraWaveDelay;
 	ScheduleNextUndoWave(Delay);
 }
 
@@ -541,20 +541,9 @@ void UML_WavePropagationSubsystem::FinishUndoAnimation()
 	ActiveUndoRecord = FML_TurnUndoRecord{};
 
 	if (PlayerController)
-	{
-		PlayerController->CurrentEnergy++;
-	}
-
-	if (bIsResettingAllActions)
-	{
-		ContinueResetAllActions();
-		return;
-	}
-
-	if (PlayerController)
-	{
 		PlayerController->EnableInput(PlayerController);
-	}
+
+	PlayerController->CurrentEnergy ++;
 }
 
 void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
@@ -562,16 +551,8 @@ void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
 	// End of undo MOVE playback
 	bIsUndoAnimating = false;
 
-	if (bIsResettingAllActions)
-	{
-		ContinueResetAllActions();
-		return;
-	}
-
 	if (PlayerController)
-	{
 		PlayerController->EnableInput(PlayerController);
-	}
 }
 
 bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Axial)
@@ -670,60 +651,4 @@ void UML_WavePropagationSubsystem::DestroyCollectibleActorOnTile(AML_Tile* Tile)
 	}
 
 	Tile->CollectibleActor = nullptr;
-}
-
-bool UML_WavePropagationSubsystem::ResetAllActions_Animated(bool bFastReset)
-{
-	EnsureInitialized();
-	if (!PlayerController || !DevSettings) return false;
-	if (bIsResolvingTiles || bIsUndoAnimating) return false;
-	if (ActionUndoStack.Num() == 0) return false;
-
-	bIsResettingAllActions = true;
-	bUseFastResetDelays = bFastReset;
-
-	PlayerController->DisableInput(PlayerController);
-
-	ContinueResetAllActions();
-	return true;
-}
-
-void UML_WavePropagationSubsystem::ContinueResetAllActions()
-{
-	EnsureInitialized();
-
-	if (ActionUndoStack.Num() == 0)
-	{
-		bIsResettingAllActions = false;
-		bUseFastResetDelays = false;
-
-		if (PlayerController)
-		{
-			PlayerController->EnableInput(PlayerController);
-		}
-		return;
-	}
-
-	const bool bStartedUndo = UndoLastAction_Animated();
-	if (!bStartedUndo)
-	{
-		// Safety: do not stay stuck in reset mode if something failed.
-		bIsResettingAllActions = false;
-		bUseFastResetDelays = false;
-
-		if (PlayerController)
-		{
-			PlayerController->EnableInput(PlayerController);
-		}
-	}
-}
-
-float UML_WavePropagationSubsystem::GetCurrentUndoDelay(bool bInterWave) const
-{
-	if (bIsResettingAllActions && bUseFastResetDelays)
-	{
-		return bInterWave ? FastResetInterWaveDelay : FastResetIntraWaveDelay;
-	}
-
-	return bInterWave ? DevSettings->InterWaveDelay : DevSettings->IntraWaveDelay;
 }
