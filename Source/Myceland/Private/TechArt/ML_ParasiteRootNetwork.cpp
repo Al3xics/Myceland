@@ -91,7 +91,6 @@ void AML_ParasiteRootNetwork::ClearAllRoots()
 
 	ActiveConnections.Empty();
 	TileToConnections.Empty();
-	UsedExtremities.Empty();
 	PendingBuildRequests.Empty();
 }
 
@@ -128,16 +127,6 @@ void AML_ParasiteRootNetwork::RegisterParasiteActor(AActor* ParasiteActor)
 		for (const FML_ParasiteConnectionBuildRequest& Request : Requests)
 		{
 			PendingBuildRequests.Add(Request);
-
-			if (Request.ExtremityA.IsValid())
-			{
-				MarkExtremityUsed(Request.ExtremityA.Get());
-			}
-
-			if (Request.ExtremityB.IsValid())
-			{
-				MarkExtremityUsed(Request.ExtremityB.Get());
-			}
 		}
 	}
 
@@ -225,7 +214,6 @@ TArray<USceneComponent*> AML_ParasiteRootNetwork::GetAvailableExtremities(AML_Ti
 	for (USceneComponent* Extremity : Parasite->GetExtremities())
 	{
 		if (!IsValid(Extremity)) continue;
-		if (UsedExtremities.Contains(Extremity)) continue;
 		Result.Add(Extremity);
 	}
 
@@ -270,16 +258,6 @@ void AML_ParasiteRootNetwork::RemoveConnectionsForTileSet(const TSet<AML_Tile*>&
 	{
 		FML_ParasiteConnectionRecord* Record = ActiveConnections.Find(Id);
 		if (!Record) continue;
-
-		if (Record->ExtremityA.IsValid())
-		{
-			MarkExtremityFree(Record->ExtremityA.Get());
-		}
-
-		if (Record->ExtremityB.IsValid())
-		{
-			MarkExtremityFree(Record->ExtremityB.Get());
-		}
 
 		if (IsValid(Record->SplineComponent))
 		{
@@ -344,16 +322,6 @@ void AML_ParasiteRootNetwork::EnqueueConnectionsForTileSet(const TSet<AML_Tile*>
 			for (const FML_ParasiteConnectionBuildRequest& Request : Requests)
 			{
 				PendingBuildRequests.Add(Request);
-
-				if (Request.ExtremityA.IsValid())
-				{
-					MarkExtremityUsed(Request.ExtremityA.Get());
-				}
-
-				if (Request.ExtremityB.IsValid())
-				{
-					MarkExtremityUsed(Request.ExtremityB.Get());
-				}
 			}
 		}
 	}
@@ -407,8 +375,6 @@ void AML_ParasiteRootNetwork::BuildConnectionNow(const FML_ParasiteConnectionBui
 
 	if (!IsValid(TileA) || !IsValid(TileB) || !IsValid(ExtremityA) || !IsValid(ExtremityB))
 	{
-		if (IsValid(ExtremityA)) MarkExtremityFree(ExtremityA);
-		if (IsValid(ExtremityB)) MarkExtremityFree(ExtremityB);
 		return;
 	}
 
@@ -686,8 +652,8 @@ void AML_ParasiteRootNetwork::GatherBestConnectionsForPair(
 	for (const FLocalCandidate& Candidate : Candidates)
 	{
 		if (OutRequests.Num() >= MissingCount) break;
-		if (LocallyUsedA.Contains(Candidate.A)) continue;
-		if (LocallyUsedB.Contains(Candidate.B)) continue;
+		//if (LocallyUsedA.Contains(Candidate.A)) continue;
+		//if (LocallyUsedB.Contains(Candidate.B)) continue;
 
 		FML_ParasiteConnectionBuildRequest Request;
 		Request.TileA = TileA;
@@ -696,8 +662,8 @@ void AML_ParasiteRootNetwork::GatherBestConnectionsForPair(
 		Request.ExtremityB = Candidate.B;
 		OutRequests.Add(Request);
 
-		LocallyUsedA.Add(Candidate.A);
-		LocallyUsedB.Add(Candidate.B);
+		//LocallyUsedA.Add(Candidate.A);
+		//LocallyUsedB.Add(Candidate.B);
 	}
 }
 
