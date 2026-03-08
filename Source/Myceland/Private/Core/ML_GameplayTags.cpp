@@ -32,5 +32,6 @@ namespace ML_GameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_TitleScreen, "UI.Widget.TitleScreen");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_MainMenu, "UI.Widget.MainMenu");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Settings, "UI.Widget.Settings");
+	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Credits, "UI.Widget.Credits");
 }
 
