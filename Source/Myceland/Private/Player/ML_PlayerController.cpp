@@ -702,11 +702,12 @@ void AML_PlayerController::TickHoverPreview(float DeltaTime)
 		return;
 	}
     
-	if (bIsMoving)
-	{
-		ClearHoverPreview();
-		return;
-	}
+	// If we don't want the path preview to show when player is moving
+	// if (bIsMoving)
+	// {
+	// 	ClearHoverPreview();
+	// 	return;
+	// }
 
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
 	{
