@@ -102,28 +102,6 @@ struct FML_GameResult
 };
 
 USTRUCT(BlueprintType)
-struct FML_WidgetRegistryKey
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FGameplayTag RootTag;
-
-	UPROPERTY()
-	FGameplayTag WidgetTag;
-
-	bool operator==(const FML_WidgetRegistryKey& Other) const
-	{
-		return RootTag == Other.RootTag && WidgetTag == Other.WidgetTag;
-	}
-
-	friend uint32 GetTypeHash(const FML_WidgetRegistryKey& Key)
-	{
-		return HashCombine(GetTypeHash(Key.RootTag), GetTypeHash(Key.WidgetTag));
-	}
-};
-
-USTRUCT(BlueprintType)
 struct FML_WaveChange
 {
 	GENERATED_BODY()
