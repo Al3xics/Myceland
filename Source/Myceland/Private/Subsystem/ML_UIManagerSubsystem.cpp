@@ -59,8 +59,9 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 		case EML_WidgetInputMode::GameOnly:
 			{
 				FInputModeGameOnly Mode;
+				Mode.SetConsumeCaptureMouseDown(false);
 				PC->SetInputMode(Mode);
-				PC->SetShowMouseCursor(false);
+				PC->SetShowMouseCursor(true);
 				break;
 			}
 
@@ -78,6 +79,8 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 			{
 				FInputModeGameAndUI Mode;
 				Mode.SetWidgetToFocus(Widget->TakeWidget());
+				Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+				Mode.SetHideCursorDuringCapture(false);
 				PC->SetInputMode(Mode);
 				PC->SetShowMouseCursor(true);
 				break;
