@@ -48,7 +48,7 @@ public:
 	bool AreAllGoalsConnectedByAllowedPaths(AML_BoardSpawner* Board,
 	                                        EML_TileType GoalType,
 	                                        const TArray<EML_TileType>& AllowedPathTypes);
-	
+
 
 	bool FindConnectedGoalGroups(
 		AML_BoardSpawner* Board,
@@ -68,6 +68,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_BoardSpawner* FindBoardSpawner() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void ClearWinPath(const AML_BoardSpawner* Board,
+	                  const AML_Tile* StartTile,
+	                  const AML_Tile* GoalTile,
+	                  const TArray<EML_TileType>& AllowedPathTypes) const;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	TArray<AML_Tile*> PathTiles;

@@ -11,6 +11,7 @@
 #include "GameFramework/Pawn.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_PlayerController.h"
+#include "Tiles/TileBase/ML_TileGrass.h"
 
 FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 {
@@ -37,6 +38,8 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		GameResult.bIsGameOver = false;
 		OnWin.Broadcast();
+		ClearWinPath(CurrentBoardSpawner, GetPlayerCurrentTile(), CurrentBoardSpawner->ExitTile,
+		             {EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 
@@ -227,12 +230,12 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 	};
 
 	static const FIntPoint Dirs[6] = {
-		FIntPoint( 1,  0),
-		FIntPoint( 1, -1),
-		FIntPoint( 0, -1),
-		FIntPoint(-1,  0),
-		FIntPoint(-1,  1),
-		FIntPoint( 0,  1)
+		FIntPoint(1, 0),
+		FIntPoint(1, -1),
+		FIntPoint(0, -1),
+		FIntPoint(-1, 0),
+		FIntPoint(-1, 1),
+		FIntPoint(0, 1)
 	};
 
 	// Gather goals
@@ -260,7 +263,8 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 	for (const FIntPoint& A : GoalAxials) GoalSet.Add(A);
 
 	// Helper to reconstruct path from Parent map (Target -> Start)
-	auto ReconstructPath = [&](const FIntPoint& Start, const FIntPoint& Target, const TMap<FIntPoint, FIntPoint>& Parent, TArray<AML_Tile*>& OutTiles) -> bool
+	auto ReconstructPath = [&](const FIntPoint& Start, const FIntPoint& Target,
+	                           const TMap<FIntPoint, FIntPoint>& Parent, TArray<AML_Tile*>& OutTiles) -> bool
 	{
 		OutTiles.Reset();
 
@@ -364,7 +368,8 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 
 TArray<FML_TileGroup> UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 {
-	bool bHasConnectedGoals = FindConnectedGoalGroups(CurrentBoardSpawner,EML_TileType::Tree,{EML_TileType::Grass, EML_TileType::Water}, false, 2);
+	bool bHasConnectedGoals = FindConnectedGoalGroups(CurrentBoardSpawner, EML_TileType::Tree,
+	                                                  {EML_TileType::Grass, EML_TileType::Water}, false, 2);
 	return ConnectedGoalGroups;
 }
 
@@ -398,3 +403,118 @@ AML_BoardSpawner* UML_WinLoseSubsystem::FindBoardSpawner() const
 	return RetrivedBoardSpawner;
 }
 
+void UML_WinLoseSubsystem::ClearWinPath(const AML_BoardSpawner* Board,
+                                        const AML_Tile* StartTile,
+                                        const AML_Tile* GoalTile,
+                                        const TArray<EML_TileType>& AllowedPathTypes) const
+{
+	if (!IsValid(Board) || !IsValid(StartTile) || !IsValid(GoalTile)) return;
+
+	static const FIntPoint Dirs[6] = {
+		FIntPoint(1, 0),
+		FIntPoint(1, -1),
+		FIntPoint(0, -1),
+		FIntPoint(-1, 0),
+		FIntPoint(-1, 1),
+		FIntPoint(0, 1)
+	};
+
+	const TMap<FIntPoint, AML_Tile*> Grid = Board->GetGridMap();
+	if (Grid.Num() == 0) return;
+
+	TSet<EML_TileType> AllowedSet;
+	for (EML_TileType Type : AllowedPathTypes)
+	{
+		AllowedSet.Add(Type);
+	}
+
+	const FIntPoint Start = StartTile->GetAxialCoord();
+	const FIntPoint Goal = GoalTile->GetAxialCoord();
+
+	auto CanTraverse = [&](AML_Tile* Tile) -> bool
+	{
+		if (!IsValid(Tile)) return false;
+
+		const EML_TileType TileType = Tile->GetCurrentType();
+
+		// Allow goal tile and start tile themselves,
+		// plus tiles of allowed path types
+		return Tile == StartTile
+			|| Tile == GoalTile
+			|| AllowedSet.Contains(TileType);
+	};
+
+	TQueue<FIntPoint> Queue;
+	TSet<FIntPoint> Visited;
+	TMap<FIntPoint, FIntPoint> Parent;
+
+	Visited.Reserve(Grid.Num());
+	Parent.Reserve(Grid.Num());
+
+	Visited.Add(Start);
+	Queue.Enqueue(Start);
+
+	bool bFound = false;
+
+	while (!Queue.IsEmpty() && !bFound)
+	{
+		FIntPoint Current;
+		Queue.Dequeue(Current);
+
+		for (const FIntPoint& Dir : Dirs)
+		{
+			const FIntPoint Next = Current + Dir;
+			if (Visited.Contains(Next)) continue;
+
+			AML_Tile* const* NextPtr = Grid.Find(Next);
+			if (!NextPtr) continue;
+
+			AML_Tile* NextTile = *NextPtr;
+			if (!CanTraverse(NextTile)) continue;
+
+			Visited.Add(Next);
+			Parent.Add(Next, Current);
+
+			if (Next == Goal)
+			{
+				bFound = true;
+				break;
+			}
+
+			Queue.Enqueue(Next);
+		}
+	}
+
+	if (!bFound && Start != Goal)
+	{
+		return;
+	}
+
+	// Reconstruct and clear only the final path
+	FIntPoint Current = Goal;
+
+	while (true)
+	{
+		AML_Tile* const* TilePtr = Grid.Find(Current);
+		if (TilePtr && IsValid(*TilePtr))
+		{
+			if ((*TilePtr)->GetCurrentType() == EML_TileType::Water)
+			{
+				(*TilePtr)->UpdateClassAtRuntime(EML_TileType::Grass,CurrentBoardSpawner->WaterChangeTile);
+			}
+		}
+
+		if (Current == Start)
+		{
+			break;
+		}
+
+		const FIntPoint* Prev = Parent.Find(Current);
+		if (!Prev)
+		{
+			return; // safety
+		}
+
+		Current = *Prev;
+	}
+}
