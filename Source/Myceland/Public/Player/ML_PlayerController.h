@@ -15,6 +15,7 @@ class AML_BoardSpawner;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnergyChanged, int32, NewEnergy);
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -22,6 +23,11 @@ class MYCELAND_API AML_PlayerController : public APlayerController
 	GENERATED_BODY()
 
 private:
+	
+	// ==================== Energy ====================
+	
+	UPROPERTY()
+	int CurrentEnergy = 0;
 
 	// ==================== References ====================
 
@@ -177,17 +183,27 @@ protected:
 
 public:
 	
-	// ==================== Grass Plant Delegate ====================
+	// ==================== Delegate ====================
 	
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
+	
+	// Called when the 'CurrentEnergy' value changes
+	UPROPERTY(BlueprintAssignable, Category="Myceland Controller|Energy")
+	FOnEnergyChanged OnEnergyChanged;
 
 	// ==================== Energy ====================
-
-	UPROPERTY(BlueprintReadWrite, Category = "Myceland Controller|Energy")
-	int CurrentEnergy = 0;
-
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	int32 GetCurrentEnergy() const { return CurrentEnergy; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	void SetCurrentEnergy(int32 NewEnergy);
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	void AddEnergy(int32 Delta);
+	
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void InitNumberOfEnergyForLevel(int32 Energy);
 	
