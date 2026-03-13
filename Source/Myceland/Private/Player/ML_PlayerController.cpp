@@ -441,7 +441,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
-	CurrentEnergy--;
+	AddEnergy(-1);
 
 	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
 	{
@@ -702,11 +702,12 @@ void AML_PlayerController::TickHoverPreview(float DeltaTime)
 		return;
 	}
     
-	if (bIsMoving)
-	{
-		ClearHoverPreview();
-		return;
-	}
+	// If we don't want the path preview to show when player is moving
+	// if (bIsMoving)
+	// {
+	// 	ClearHoverPreview();
+	// 	return;
+	// }
 
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
 	{
@@ -829,9 +830,25 @@ TArray<AML_Tile*> AML_PlayerController::BuildPreviewPath(const AML_Tile* TargetT
 
 // ==================== Energy ====================
 
+void AML_PlayerController::SetCurrentEnergy(int32 NewEnergy)
+{
+	NewEnergy = FMath::Clamp(NewEnergy, 0, INT32_MAX);
+	
+	if (CurrentEnergy == NewEnergy)
+		return;
+
+	CurrentEnergy = NewEnergy;
+	OnEnergyChanged.Broadcast(CurrentEnergy);
+}
+
+void AML_PlayerController::AddEnergy(int32 Delta)
+{
+	SetCurrentEnergy(CurrentEnergy + Delta);
+}
+
 void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
 {
-	CurrentEnergy = Energy;
+	SetCurrentEnergy(Energy);
 }
 
 
