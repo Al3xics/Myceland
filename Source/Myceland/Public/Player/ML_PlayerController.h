@@ -48,10 +48,14 @@ private:
 	// Exit hold
 	float ExitHoldTimer = 0.f;
 	bool bIsHoldingExitInput = false;
-	bool bIsHoldingFreeInput = false;
+	// bool bIsHoldingFreeInput = false;
+	bool bHasExitTargetWorld = false;
 
 	UPROPERTY(Transient)
 	AML_Tile* PendingExitTile = nullptr;
+	
+	UPROPERTY(Transient)
+	FVector PendingExitTargetWorld = FVector::ZeroVector;
 
 	// Board entry
 	bool bPendingFreeMovementOnArrival = false;
@@ -65,6 +69,12 @@ private:
 	AML_Tile* PendingPlantTargetTile = nullptr;
 	
 	bool bPendingPlantOnArrival = false;
+	
+	// Free movement target
+	UPROPERTY(Transient)
+	FVector PendingFreeMovementTarget = FVector::ZeroVector;
+	
+	bool bHasFreeMovementTarget = false;
 
 	// ==================== Undo ====================
 
@@ -137,9 +147,11 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
+	/*
 	// Bind to OnTriggered — every frame while held (continuous free movement)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
+	*/
 
 	// Bind to OnCompleted / OnCanceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
