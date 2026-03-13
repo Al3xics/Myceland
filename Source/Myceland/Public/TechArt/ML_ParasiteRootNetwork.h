@@ -1,11 +1,11 @@
 #pragma once
 
+#include "Tiles/ML_Tile.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/SplineMeshComponent.h"
 #include "ML_ParasiteRootNetwork.generated.h"
 
-class AML_Tile;
 class AML_TileParasite;
 class USceneComponent;
 class USplineComponent;
