@@ -24,13 +24,16 @@ namespace ML_GameplayTags
 	
 	
 	// ============================ UI ============================
-	// ========== Root ==========
-	UE_DEFINE_GAMEPLAY_TAG(UI_Root_Menu, "UI.Root.Menu");
-	UE_DEFINE_GAMEPLAY_TAG(UI_Root_Game, "UI.Root.Game");
+	// ========== Context ==========
+	UE_DEFINE_GAMEPLAY_TAG(UI_Context_Menu, "UI.Context.Menu");
+	UE_DEFINE_GAMEPLAY_TAG(UI_Context_Game, "UI.Context.Game");
 	
 	// ========== Widgets ==========
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_TitleScreen, "UI.Widget.TitleScreen");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_MainMenu, "UI.Widget.MainMenu");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Settings, "UI.Widget.Settings");
+	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Credits, "UI.Widget.Credits");
+	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_InGameHUD, "UI.Widget.InGameHUD");
+	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_PauseMenu, "UI.Widget.PauseMenu");
 }
 

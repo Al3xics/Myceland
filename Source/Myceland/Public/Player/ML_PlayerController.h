@@ -15,6 +15,7 @@ class AML_BoardSpawner;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnergyChanged, int32, NewEnergy);
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -22,6 +23,11 @@ class MYCELAND_API AML_PlayerController : public APlayerController
 	GENERATED_BODY()
 
 private:
+	
+	// ==================== Energy ====================
+	
+	UPROPERTY()
+	int CurrentEnergy = 0;
 
 	// ==================== References ====================
 
@@ -42,10 +48,14 @@ private:
 	// Exit hold
 	float ExitHoldTimer = 0.f;
 	bool bIsHoldingExitInput = false;
-	bool bIsHoldingFreeInput = false;
+	// bool bIsHoldingFreeInput = false;
+	bool bHasExitTargetWorld = false;
 
 	UPROPERTY(Transient)
 	AML_Tile* PendingExitTile = nullptr;
+	
+	UPROPERTY(Transient)
+	FVector PendingExitTargetWorld = FVector::ZeroVector;
 
 	// Board entry
 	bool bPendingFreeMovementOnArrival = false;
@@ -59,6 +69,12 @@ private:
 	AML_Tile* PendingPlantTargetTile = nullptr;
 	
 	bool bPendingPlantOnArrival = false;
+	
+	// Free movement target
+	UPROPERTY(Transient)
+	FVector PendingFreeMovementTarget = FVector::ZeroVector;
+	
+	bool bHasFreeMovementTarget = false;
 
 	// ==================== Undo ====================
 
@@ -131,9 +147,11 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
+	/*
 	// Bind to OnTriggered — every frame while held (continuous free movement)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
+	*/
 
 	// Bind to OnCompleted / OnCanceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
@@ -177,17 +195,27 @@ protected:
 
 public:
 	
-	// ==================== Grass Plant Delegate ====================
+	// ==================== Delegate ====================
 	
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
+	
+	// Called when the 'CurrentEnergy' value changes
+	UPROPERTY(BlueprintAssignable, Category="Myceland Controller|Energy")
+	FOnEnergyChanged OnEnergyChanged;
 
 	// ==================== Energy ====================
-
-	UPROPERTY(BlueprintReadWrite, Category = "Myceland Controller|Energy")
-	int CurrentEnergy = 0;
-
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	int32 GetCurrentEnergy() const { return CurrentEnergy; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	void SetCurrentEnergy(int32 NewEnergy);
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	void AddEnergy(int32 Delta);
+	
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void InitNumberOfEnergyForLevel(int32 Energy);
 	

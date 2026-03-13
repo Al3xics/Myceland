@@ -10,23 +10,23 @@
 
 void UML_UIManagerSubsystem::SwitchWidgetInternal(FGameplayTag InWidgetTag, bool bAddToStack)
 {
-	const FML_WidgetRegistryKey* Key = WidgetTagToRegistryKey.Find(InWidgetTag);
-	ensureMsgf(Key, TEXT("Widget not registered: %s"), *InWidgetTag.ToString());
-	if (!Key) return;
+	UUserWidget* ChildWidget = RegisteredWidgets.FindRef(InWidgetTag);
+	if (!ChildWidget)
+	{
+		ensureMsgf(false, TEXT("Widget not registered: %s"), *InWidgetTag.ToString());
+		return;
+	}
 
-	UUserWidget* ChildWidget = RegisteredWidgetsInRoot.FindRef(*Key);
-	UUserWidget* RootWidget = RegisteredRootWidgets.FindRef(Key->RootTag);
-
-	UML_RootWidgetBase* Root = Cast<UML_RootWidgetBase>(RootWidget);
-	ensureMsgf(Root, TEXT("Root widget is not UML_RootWidgetBase"));
+	UML_RootWidgetBase* Root = Cast<UML_RootWidgetBase>(CurrentContextRoot);
+	ensureMsgf(Root, TEXT("Context root widget is not UML_RootWidgetBase"));
 	if (!Root) return;
-	
+    
 	// Initialize
 	if (!CurrentWidgetTag.IsValid())
 		CurrentWidgetTag = InWidgetTag;
-	
+    
 	// Deactivate current widget
-	if (UML_WidgetBase* Current = Cast<UML_WidgetBase>(RegisteredWidgetsInRoot.FindRef(WidgetTagToRegistryKey.FindRef(CurrentWidgetTag))))
+	if (UML_WidgetBase* Current = Cast<UML_WidgetBase>(RegisteredWidgets.FindRef(CurrentWidgetTag)))
 		Current->OnDeactivated();
 
 	// Navigation stack
@@ -41,7 +41,7 @@ void UML_UIManagerSubsystem::SwitchWidgetInternal(FGameplayTag InWidgetTag, bool
 		Widget->OnActivated();
 		ApplyInputModeFromWidget(Widget);
 	}
-	
+    
 	CurrentWidgetTag = InWidgetTag;
 }
 
@@ -59,8 +59,9 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 		case EML_WidgetInputMode::GameOnly:
 			{
 				FInputModeGameOnly Mode;
+				Mode.SetConsumeCaptureMouseDown(false);
 				PC->SetInputMode(Mode);
-				PC->SetShowMouseCursor(false);
+				PC->SetShowMouseCursor(true);
 				break;
 			}
 
@@ -78,6 +79,8 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 			{
 				FInputModeGameAndUI Mode;
 				Mode.SetWidgetToFocus(Widget->TakeWidget());
+				Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+				Mode.SetHideCursorDuringCapture(false);
 				PC->SetInputMode(Mode);
 				PC->SetShowMouseCursor(true);
 				break;
@@ -90,49 +93,45 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 	Widget->SetFocus();
 }
 
-void UML_UIManagerSubsystem::RegisterRootWidget(UPARAM(meta=(Categories="UI.Root")) FGameplayTag InRootTag, UUserWidget* InWidget)
+void UML_UIManagerSubsystem::RegisterContextRoot(FGameplayTag InContextTag, UUserWidget* InWidget)
 {
-	ensureMsgf(InWidget, TEXT("Trying to register null root widget"));
+	ensureMsgf(InWidget, TEXT("Trying to register null context root widget"));
 	if (!InWidget) return;
-
-	if (!RegisteredRootWidgets.Contains(InRootTag))
-		RegisteredRootWidgets.Add(InRootTag, InWidget);
+    
+	// Clear previous context and widgets when switching contexts (e.g., Menu -> Game)
+	if (CurrentContextRoot && CurrentContextRoot != InWidget)
+		UnregisterAllWidgets();
+    
+	CurrentContextRoot = InWidget;
+	CurrentContextTag = InContextTag;
+	CurrentWidgetTag = FGameplayTag();
+    
+	UE_LOG(LogTemp, Log, TEXT("UI Manager: Registered context root '%s'"), *InContextTag.ToString());
 }
 
-void UML_UIManagerSubsystem::RegisterWidgetInRootWidget(UPARAM(meta=(Categories="UI.Root")) FGameplayTag InRootTag, UPARAM(meta=(Categories="UI.Widget")) FGameplayTag InWidgetTag, UUserWidget* InWidget)
+void UML_UIManagerSubsystem::RegisterWidget(FGameplayTag InWidgetTag, UUserWidget* InWidget)
 {
 	ensureMsgf(InWidget, TEXT("Trying to register null widget"));
 	if (!InWidget) return;
-	ensureMsgf(RegisteredRootWidgets.Contains(InRootTag), TEXT("Root widget %s is not registered"), *InRootTag.ToString());
-	if (!RegisteredRootWidgets.Contains(InRootTag)) return;
-
-	if (RegisteredRootWidgets.Contains(InRootTag))
-	{
-		const FML_WidgetRegistryKey Key{InRootTag, InWidgetTag};
-
-		RegisteredWidgetsInRoot.Add(Key, InWidget);
-		WidgetTagToRegistryKey.Add(InWidgetTag, Key);
-	}
+    
+	ensureMsgf(CurrentContextRoot, TEXT("No context root registered! Call RegisterContextRoot first."));
+	if (!CurrentContextRoot) return;
+    
+	RegisteredWidgets.Add(InWidgetTag, InWidget);
+    
+	UE_LOG(LogTemp, Log, TEXT("UI Manager: Registered widget '%s' in context '%s'"), *InWidgetTag.ToString(), *CurrentContextTag.ToString());
 }
 
-const UUserWidget* UML_UIManagerSubsystem::FindRootWidgetByTag(UPARAM(meta=(Categories="UI.Root")) FGameplayTag InRootTag)
+void UML_UIManagerSubsystem::UnregisterAllWidgets()
 {
-	const UUserWidget* Found = RegisteredRootWidgets.FindRef(InRootTag);
-	ensureMsgf(Found, TEXT("Root widget not found: %s"), *InRootTag.ToString());
-	if (!Found) return nullptr;
-	return Found;
+	RegisteredWidgets.Empty();
+	NavigationStack.Empty();
+	CurrentWidgetTag = FGameplayTag();
+    
+	UE_LOG(LogTemp, Log, TEXT("UI Manager: Unregistered all widgets"));
 }
 
-const UUserWidget* UML_UIManagerSubsystem::FindWidgetInRootByTag(UPARAM(meta=(Categories="UI.Root")) FGameplayTag InRootTag, UPARAM(meta=(Categories="UI.Widget")) FGameplayTag InWidgetTag)
-{
-	const FML_WidgetRegistryKey Key{InRootTag, InWidgetTag};
-	const UUserWidget* Found = RegisteredWidgetsInRoot.FindRef(Key);
-	ensureMsgf(Found, TEXT("Widget not found in root %s : %s"), *InRootTag.ToString(), *InWidgetTag.ToString());
-	if (!Found) return nullptr;
-	return Found;
-}
-
-void UML_UIManagerSubsystem::NavigateTo(UPARAM(meta=(Categories="UI.Widget")) FGameplayTag InWidgetTag)
+void UML_UIManagerSubsystem::NavigateTo(FGameplayTag InWidgetTag)
 {
 	SwitchWidgetInternal(InWidgetTag, true);
 }
@@ -141,11 +140,17 @@ void UML_UIManagerSubsystem::GoBack()
 {
 	ensureMsgf(NavigationStack.Num() > 0, TEXT("Navigation stack empty"));
 	if (NavigationStack.Num() <= 0) return;
+	
 	const FGameplayTag PreviousTag = NavigationStack.Pop();
 	SwitchWidgetInternal(PreviousTag, false);
 }
 
-void UML_UIManagerSubsystem::OpenLevelByTag(UPARAM(meta=(Categories="Level")) FGameplayTag Level, UObject* WorldContextObject)
+void UML_UIManagerSubsystem::ClearNavigationStack()
+{
+	NavigationStack.Empty();
+}
+
+void UML_UIManagerSubsystem::OpenLevelByTag(FGameplayTag Level, UObject* WorldContextObject)
 {
 	if (!WorldContextObject) return;
 
@@ -154,6 +159,9 @@ void UML_UIManagerSubsystem::OpenLevelByTag(UPARAM(meta=(Categories="Level")) FG
 
 	if (const TSoftObjectPtr<UWorld>* FoundLevel = Settings->Levels.Find(Level))
 	{
+		// Clear navigation before switching levels
+		ClearNavigationStack();
+        
 		if (const UWorld* WorldAsset = FoundLevel->LoadSynchronous())
 		{
 			UGameplayStatics::OpenLevel(WorldContextObject, WorldAsset->GetFName());

@@ -156,6 +156,34 @@ void AML_PlayerController::StartMoveToWorldLocation(const FVector& WorldLocation
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 {
+	// Free movement mode - move toward a single target
+	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement && bHasFreeMovementTarget)
+	{
+		if (!IsValid(MycelandCharacter))
+		{
+			bHasFreeMovementTarget = false;
+			return;
+		}
+
+		FVector CurrentLoc = MycelandCharacter->GetActorLocation();
+		FVector To = PendingFreeMovementTarget - CurrentLoc;
+		To.Z = 0.f;
+
+		// Check if arrived
+		if (To.Size() <= AcceptanceRadius)
+		{
+			bHasFreeMovementTarget = false;
+			bIsMoving = false;
+			return;
+		}
+
+		// Move toward target
+		To.Normalize();
+		MycelandCharacter->AddMovementInput(To, MoveSpeedScale);
+		return;
+	}
+	
+	/*
 	// In FreeMovement, stop as soon as the button is released
 	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement && !bIsHoldingFreeInput)
 	{
@@ -163,6 +191,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		CurrentPathIndex = 0;
 		bIsMoving = false;
 	}
+	*/
 
 	if (CurrentPathWorld.Num() == 0 || CurrentPathIndex >= CurrentPathWorld.Num()) return;
 
@@ -287,6 +316,16 @@ void AML_PlayerController::OnPathFinished()
 	{
 		bPendingFreeMovementOnArrival = false;
 		CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
+		
+		if (bHasExitTargetWorld)
+		{
+			PendingFreeMovementTarget = PendingExitTargetWorld;
+			PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z;
+			bHasFreeMovementTarget = true;
+			bIsMoving = true;
+			bHasExitTargetWorld = false;
+		}
+		
 		return;
 	}
 
@@ -364,6 +403,7 @@ void AML_PlayerController::TickExitHold(float DeltaTime)
 		ExitHoldTimer = 0.f;
 		CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
 		PendingExitTile = nullptr;
+		bHasExitTargetWorld = false;
 		return;
 	}
 
@@ -415,7 +455,8 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement && IsValid(NewTile))
 	{
 		// Stop free movement logic
-		bIsHoldingFreeInput = false;
+		// bIsHoldingFreeInput = false;
+		bHasFreeMovementTarget = false;
 
 		CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
 
@@ -441,7 +482,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
-	CurrentEnergy--;
+	AddEnergy(-1);
 
 	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
 	{
@@ -536,6 +577,8 @@ void AML_PlayerController::OnSetDestinationStarted()
 		if (!IsValid(NearestTile)) return;
 
 		PendingExitTile = NearestTile;
+		PendingExitTargetWorld = Hit.Location;
+		bHasExitTargetWorld = true;
 		CurrentMovementMode = EML_PlayerMovementMode::ExitingBoard;
 		bIsHoldingExitInput = true;
 		ExitHoldTimer = 0.f;
@@ -546,35 +589,51 @@ void AML_PlayerController::OnSetDestinationStarted()
 	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
 	{
 		AML_Tile* TargetTile = GetTileUnderCursor();
-		if (!IsValid(TargetTile)) return;
-
-		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
-		if (!IsValid(Board)) return;
-
-		// Find the nearest border/entry tile
-		const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-		AML_Tile* NearestBorderTile = FindNearestWalkableTile(MycelandCharacter->GetActorLocation(), GridMap);
-
-		// Setup board entry state
-		PendingBoardEntryTargetTile = TargetTile;
-		bPendingBoardEntryOnArrival = true;
-		CurrentMovementMode = EML_PlayerMovementMode::EnteringBoard;
-
-		if (!IsValid(NearestBorderTile))
+		if (IsValid(TargetTile))
 		{
-			// Fallback: go directly to target if no border tile found
-			StartMoveToWorldLocation(TargetTile->GetActorLocation());
+			AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
+			if (!IsValid(Board)) return;
+
+			// Find the nearest border/entry tile
+			const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+			AML_Tile* NearestBorderTile = FindNearestWalkableTile(MycelandCharacter->GetActorLocation(), GridMap);
+
+			// Setup board entry state
+			PendingBoardEntryTargetTile = TargetTile;
+			bPendingBoardEntryOnArrival = true;
+			CurrentMovementMode = EML_PlayerMovementMode::EnteringBoard;
+
+			if (!IsValid(NearestBorderTile))
+			{
+				// Fallback: go directly to target if no border tile found
+				StartMoveToWorldLocation(TargetTile->GetActorLocation());
+			}
+			else
+			{
+				// Move to the border tile first (not directly to target)
+				StartMoveToWorldLocation(NearestBorderTile->GetActorLocation());
+			}
+	    
+			bIsMoving = true;
+			return;
 		}
-		else
-		{
-			// Move to the border tile first (not directly to target)
-			StartMoveToWorldLocation(NearestBorderTile->GetActorLocation());
-		}
-    
+        
+		// Click outside board → move to that position (NEW BEHAVIOR)
+		FHitResult Hit;
+		if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+			return;
+        
+		// Set new target (or update existing target)
+		PendingFreeMovementTarget = Hit.Location;
+		PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z; // Keep same Z
+		bHasFreeMovementTarget = true;
 		bIsMoving = true;
+        
+		return;
 	}
 }
 
+/*
 // Bound to OnTriggered — fires every frame while held
 // Handles: continuous free movement toward cursor
 void AML_PlayerController::OnSetDestinationTriggered()
@@ -591,12 +650,13 @@ void AML_PlayerController::OnSetDestinationTriggered()
 	StartMoveToWorldLocation(Hit.Location);
 	bIsMoving = true;
 }
+*/
 
 // Bound to OnCompleted / OnCanceled
 void AML_PlayerController::OnSetDestinationReleased()
 {
 	bIsHoldingExitInput = false;
-	bIsHoldingFreeInput = false;
+	// bIsHoldingFreeInput = false;
 }
 
 void AML_PlayerController::OnMoveAndPlantStarted()
@@ -702,11 +762,12 @@ void AML_PlayerController::TickHoverPreview(float DeltaTime)
 		return;
 	}
     
-	if (bIsMoving)
-	{
-		ClearHoverPreview();
-		return;
-	}
+	// If we don't want the path preview to show when player is moving
+	// if (bIsMoving)
+	// {
+	// 	ClearHoverPreview();
+	// 	return;
+	// }
 
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
 	{
@@ -829,9 +890,25 @@ TArray<AML_Tile*> AML_PlayerController::BuildPreviewPath(const AML_Tile* TargetT
 
 // ==================== Energy ====================
 
+void AML_PlayerController::SetCurrentEnergy(int32 NewEnergy)
+{
+	NewEnergy = FMath::Clamp(NewEnergy, 0, INT32_MAX);
+	
+	if (CurrentEnergy == NewEnergy)
+		return;
+
+	CurrentEnergy = NewEnergy;
+	OnEnergyChanged.Broadcast(CurrentEnergy);
+}
+
+void AML_PlayerController::AddEnergy(int32 Delta)
+{
+	SetCurrentEnergy(CurrentEnergy + Delta);
+}
+
 void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
 {
-	CurrentEnergy = Energy;
+	SetCurrentEnergy(Energy);
 }
 
 

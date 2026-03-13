@@ -42,7 +42,7 @@ void UML_WavePropagationSubsystem::BeginTurnRecord_Internal(AML_Tile* OriginTile
 
 	bHasActiveTurnRecord = true;
 	CurrentTurnRecord = FML_TurnUndoRecord{};
-	CurrentTurnRecord.EnergyBefore = PlayerController->CurrentEnergy;
+	CurrentTurnRecord.EnergyBefore = PlayerController->GetCurrentEnergy();
 	CurrentTurnRecord.PlayerAxialBefore = PC->CurrentTileOn->GetAxialCoord();
 	CurrentTurnRecord.PlayerWorldBefore = PC->GetActorLocation();
 	CurrentTurnRecord.OriginTile = OriginTile;
@@ -368,7 +368,7 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 		ActiveUndoRecord = Action.Turn;
 
 		// Restore energy at turn start
-		PlayerController->CurrentEnergy = ActiveUndoRecord.EnergyBefore;
+		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
@@ -543,7 +543,7 @@ void UML_WavePropagationSubsystem::FinishUndoAnimation()
 	if (PlayerController)
 		PlayerController->EnableInput(PlayerController);
 
-	PlayerController->CurrentEnergy ++;
+	PlayerController->AddEnergy(+1);
 }
 
 void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
@@ -617,7 +617,7 @@ bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPo
 	Tile->SetHasCollectible(true);
 
 	// Give energy back to the world (player loses 1).
-	PlayerController->CurrentEnergy = FMath::Max(0, PlayerController->CurrentEnergy - 1);
+	PlayerController->AddEnergy(-1);
 
 	// Optional safety: avoid instant overlap in the same frame.
 	if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
