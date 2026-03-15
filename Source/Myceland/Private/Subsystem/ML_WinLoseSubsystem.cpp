@@ -1,17 +1,23 @@
 ﻿// Copyright Myceland Team, All Rights Reserved.
 
-
 #include "Subsystem/ML_WinLoseSubsystem.h"
 
+#include "Algo/Reverse.h"
 #include "Core/ML_CoreData.h"
-#include "Tiles/ML_TileBase.h"
-#include "Tiles/ML_Tile.h"
 #include "Kismet/GameplayStatics.h"
-#include "GameFramework/PlayerController.h"
-#include "GameFramework/Pawn.h"
 #include "Player/ML_PlayerCharacter.h"
-#include "Player/ML_PlayerController.h"
+#include "Tiles/ML_Tile.h"
+#include "Tiles/ML_TileBase.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
+
+const FIntPoint UML_WinLoseSubsystem::HexDirs[6] = {
+	FIntPoint(1, 0),
+	FIntPoint(1, -1),
+	FIntPoint(0, -1),
+	FIntPoint(-1, 0),
+	FIntPoint(-1, 1),
+	FIntPoint(0, 1)
+};
 
 FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 {
@@ -20,8 +26,11 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		CurrentBoardSpawner = FindBoardSpawner();
 	}
 
-	const bool bWin = AreAllGoalsConnectedByAllowedPaths(CurrentBoardSpawner, EML_TileType::Tree,
-	                                                     {EML_TileType::Grass, EML_TileType::Water});
+	const bool bWin = AreAllGoalsConnectedByAllowedPaths(
+		CurrentBoardSpawner,
+		EML_TileType::Tree,
+		{EML_TileType::Grass, EML_TileType::Water});
+
 	FML_GameResult GameResult;
 
 	if (bIsPlayerDead)
@@ -38,8 +47,13 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		GameResult.bIsGameOver = false;
 		OnWin.Broadcast();
-		ClearWinPath(CurrentBoardSpawner, GetPlayerCurrentTile(), CurrentBoardSpawner->ExitTile,
-		             {EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+
+		ClearWinPath(
+			CurrentBoardSpawner,
+			GetPlayerCurrentTile(),
+			CurrentBoardSpawner->ExitTile,
+			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 
@@ -48,16 +62,20 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 
 bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
 {
-	if (bIsPlayerDead) return false;
+	if (bIsPlayerDead || !IsValid(CurrentTileOn))
+	{
+		return false;
+	}
 
-	if (CurrentTileOn->GetCurrentType() == EML_TileType::Water || CurrentTileOn->GetCurrentType() ==
-		EML_TileType::Parasite)
+	const EML_TileType TileType = CurrentTileOn->GetCurrentType();
+	if (TileType == EML_TileType::Water || TileType == EML_TileType::Parasite)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You died"));
 		bIsPlayerDead = true;
 		OnDeath.Broadcast();
 		return true;
 	}
+
 	return false;
 }
 
@@ -68,131 +86,79 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(
 {
 	PathTiles.Reset();
 
-	if (!IsValid(Board)) return false;
+	if (!IsValid(Board))
+	{
+		return false;
+	}
 
 	const TMap<FIntPoint, AML_Tile*> Grid = Board->GetGridMap();
-	if (Grid.Num() == 0) return false;
-
-	TSet<EML_TileType> AllowedSet;
-	for (EML_TileType T : AllowedPathTypes) AllowedSet.Add(T);
-
-	// Gather goals
-	TArray<FIntPoint> GoalAxials;
-	for (const auto& Pair : Grid)
+	if (Grid.Num() == 0)
 	{
-		if (Pair.Value && Pair.Value->GetCurrentType() == GoalType)
-		{
-			GoalAxials.Add(Pair.Key);
-		}
+		return false;
 	}
+
+	const TSet<EML_TileType> AllowedSet = BuildAllowedSet(AllowedPathTypes);
+	const TArray<FIntPoint> GoalAxials = CollectGoalAxials(Grid, GoalType);
 
 	if (GoalAxials.Num() <= 1)
 	{
-		// 0/1 goal = trivially connected. Keep PathTiles empty or add the goal if you prefer.
 		return true;
 	}
 
 	auto CanTraverse = [&](AML_Tile* Tile) -> bool
 	{
-		if (!IsValid(Tile)) return false;
-		const EML_TileType Type = Tile->GetCurrentType();
-		return (Type == GoalType) || AllowedSet.Contains(Type);
-	};
+		if (!IsValid(Tile))
+		{
+			return false;
+		}
 
-	static const FIntPoint Dirs[6] = {
-		FIntPoint(1, 0),
-		FIntPoint(1, -1),
-		FIntPoint(0, -1),
-		FIntPoint(-1, 0),
-		FIntPoint(-1, 1),
-		FIntPoint(0, 1)
+		const EML_TileType TileType = Tile->GetCurrentType();
+		return TileType == GoalType || AllowedSet.Contains(TileType);
 	};
 
 	const FIntPoint Start = GoalAxials[0];
 
-	// BFS state
 	TSet<FIntPoint> Visited;
-	TQueue<FIntPoint> Queue;
+	TMap<FIntPoint, FIntPoint> Parent;
+	RunBFS(Grid, Start, CanTraverse, Visited, Parent);
 
-	// Parent links to reconstruct paths (BFS tree)
-	TMap<FIntPoint, FIntPoint> Parent; // child -> parent
-	Parent.Reserve(Grid.Num());
-
-	Visited.Add(Start);
-	Queue.Enqueue(Start);
-
-	// For goal checks
-	TSet<FIntPoint> GoalSet(GoalAxials);
-	TSet<FIntPoint> ReachedGoalSet;
-	ReachedGoalSet.Reserve(GoalAxials.Num());
-
-	while (!Queue.IsEmpty())
-	{
-		FIntPoint Current;
-		Queue.Dequeue(Current);
-
-		if (GoalSet.Contains(Current))
-		{
-			ReachedGoalSet.Add(Current);
-		}
-
-		for (const FIntPoint& Dir : Dirs)
-		{
-			const FIntPoint Next = Current + Dir;
-			if (Visited.Contains(Next)) continue;
-
-			AML_Tile* const* NextPtr = Grid.Find(Next);
-			if (!NextPtr) continue;
-
-			AML_Tile* NextTile = *NextPtr;
-			if (!CanTraverse(NextTile)) continue;
-
-			Visited.Add(Next);
-			Parent.Add(Next, Current);
-			Queue.Enqueue(Next);
-		}
-	}
-
-	// If not all goals reached, fail and clear
-	if (ReachedGoalSet.Num() != GoalAxials.Num())
-	{
-		PathTiles.Reset();
-		return false;
-	}
-
-	// Reconstruct union of paths from each goal back to Start using Parent
 	TSet<FIntPoint> PathAxials;
 	PathAxials.Reserve(Grid.Num());
-
 	PathAxials.Add(Start);
 
 	for (const FIntPoint& GoalAxial : GoalAxials)
 	{
+		if (!Visited.Contains(GoalAxial))
+		{
+			PathTiles.Reset();
+			return false;
+		}
+
 		FIntPoint Node = GoalAxial;
 		PathAxials.Add(Node);
 
-		// Walk back to Start
 		while (Node != Start)
 		{
-			const FIntPoint* P = Parent.Find(Node);
-			if (!P)
+			const FIntPoint* Prev = Parent.Find(Node);
+			if (!Prev)
 			{
-				// Shouldn't happen if connected, but safety
 				PathTiles.Reset();
 				return false;
 			}
-			Node = *P;
+
+			Node = *Prev;
 			PathAxials.Add(Node);
 		}
 	}
 
-	// Convert axial set to tile pointers
+	PathTiles.Reset();
 	PathTiles.Reserve(PathAxials.Num());
-	for (const FIntPoint& A : PathAxials)
+
+	for (const FIntPoint& Axial : PathAxials)
 	{
-		if (AML_Tile* const* T = Grid.Find(A))
+		if (AML_Tile* const* TilePtr = Grid.Find(Axial))
 		{
-			PathTiles.Add(*T);
+			PathTiles.Add(*TilePtr);
 		}
 	}
 
@@ -207,155 +173,84 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 	int32 MinGoalsInGroup)
 {
 	ConnectedGoalGroups.Reset();
-	if (!IsValid(Board)) return false;
+
+	if (!IsValid(Board))
+	{
+		return false;
+	}
 
 	const TMap<FIntPoint, AML_Tile*> Grid = Board->GetGridMap();
-	if (Grid.Num() == 0) return false;
-
-	// Build allowed set
-	TSet<EML_TileType> AllowedSet;
-	AllowedSet.Reserve(AllowedPathTypes.Num());
-	for (EML_TileType T : AllowedPathTypes)
+	if (Grid.Num() == 0)
 	{
-		AllowedSet.Add(T);
+		return false;
+	}
+
+	const TSet<EML_TileType> AllowedSet = BuildAllowedSet(AllowedPathTypes);
+	const TArray<FIntPoint> GoalAxials = CollectGoalAxials(Grid, GoalType, bDisallowBlocked);
+
+	const int32 RequiredGoalsPerPath = FMath::Max(2, MinGoalsInGroup);
+	if (GoalAxials.Num() < RequiredGoalsPerPath)
+	{
+		return false;
 	}
 
 	auto CanTraverse = [&](AML_Tile* Tile) -> bool
 	{
-		if (!IsValid(Tile)) return false;
-		if (bDisallowBlocked && Tile->IsBlocked()) return false;
-
-		const EML_TileType Type = Tile->GetCurrentType();
-		return (Type == GoalType) || AllowedSet.Contains(Type);
-	};
-
-	static const FIntPoint Dirs[6] = {
-		FIntPoint(1, 0),
-		FIntPoint(1, -1),
-		FIntPoint(0, -1),
-		FIntPoint(-1, 0),
-		FIntPoint(-1, 1),
-		FIntPoint(0, 1)
-	};
-
-	// Gather goals
-	TArray<FIntPoint> GoalAxials;
-	GoalAxials.Reserve(32);
-
-	for (const auto& Pair : Grid)
-	{
-		if (Pair.Value && Pair.Value->GetCurrentType() == GoalType)
+		if (!IsValid(Tile))
 		{
-			if (!bDisallowBlocked || !Pair.Value->IsBlocked())
-			{
-				GoalAxials.Add(Pair.Key);
-			}
-		}
-	}
-
-	// If you pass MinGoalsInGroup, for "path between 2 goals" it only makes sense as >= 2.
-	const int32 RequiredGoalsPerPath = FMath::Max(2, MinGoalsInGroup);
-	if (GoalAxials.Num() < RequiredGoalsPerPath) return false;
-
-	// For faster membership testing
-	TSet<FIntPoint> GoalSet;
-	GoalSet.Reserve(GoalAxials.Num());
-	for (const FIntPoint& A : GoalAxials) GoalSet.Add(A);
-
-	// Helper to reconstruct path from Parent map (Target -> Start)
-	auto ReconstructPath = [&](const FIntPoint& Start, const FIntPoint& Target,
-	                           const TMap<FIntPoint, FIntPoint>& Parent, TArray<AML_Tile*>& OutTiles) -> bool
-	{
-		OutTiles.Reset();
-
-		// Walk backwards Target -> Start
-		TArray<FIntPoint> Axials;
-		FIntPoint Node = Target;
-		Axials.Add(Node);
-
-		while (Node != Start)
-		{
-			const FIntPoint* P = Parent.Find(Node);
-			if (!P) return false;
-			Node = *P;
-			Axials.Add(Node);
+			return false;
 		}
 
-		Algo::Reverse(Axials);
-
-		OutTiles.Reserve(Axials.Num());
-		for (const FIntPoint& Ax : Axials)
+		if (bDisallowBlocked && Tile->IsBlocked())
 		{
-			if (AML_Tile* const* T = Grid.Find(Ax))
-			{
-				OutTiles.Add(*T);
-			}
+			return false;
 		}
 
-		return OutTiles.Num() > 0;
+		const EML_TileType TileType = Tile->GetCurrentType();
+		return TileType == GoalType || AllowedSet.Contains(TileType);
 	};
 
-	// Generate one shortest path group for each connected pair (i < j)
 	for (int32 i = 0; i < GoalAxials.Num(); ++i)
 	{
 		const FIntPoint Start = GoalAxials[i];
 
-		// BFS from this goal
-		TQueue<FIntPoint> Queue;
 		TSet<FIntPoint> Visited;
 		TMap<FIntPoint, FIntPoint> Parent;
+		RunBFS(Grid, Start, CanTraverse, Visited, Parent);
 
-		Visited.Reserve(Grid.Num());
-		Parent.Reserve(Grid.Num());
-
-		Visited.Add(Start);
-		Queue.Enqueue(Start);
-
-		while (!Queue.IsEmpty())
-		{
-			FIntPoint Current;
-			Queue.Dequeue(Current);
-
-			for (const FIntPoint& Dir : Dirs)
-			{
-				const FIntPoint Next = Current + Dir;
-				if (Visited.Contains(Next)) continue;
-
-				AML_Tile* const* NextPtr = Grid.Find(Next);
-				if (!NextPtr) continue;
-
-				AML_Tile* NextTile = *NextPtr;
-				if (!CanTraverse(NextTile)) continue;
-
-				Visited.Add(Next);
-				Parent.Add(Next, Current);
-				Queue.Enqueue(Next);
-			}
-		}
-
-		// For every other goal j > i, if reachable, add a distinct path group
 		for (int32 j = i + 1; j < GoalAxials.Num(); ++j)
 		{
 			const FIntPoint Target = GoalAxials[j];
-			if (Target == Start) continue;
+			if (!Visited.Contains(Target))
+			{
+				continue;
+			}
 
-			// If unreachable, Parent won't contain it (unless it's Start)
-			if (!Parent.Contains(Target)) continue;
+			TArray<FIntPoint> PathAxials;
+			if (!BuildPathAxialsFromParent(Start, Target, Parent, PathAxials))
+			{
+				continue;
+			}
 
-			TArray<AML_Tile*> Path;
-			if (!ReconstructPath(Start, Target, Parent, Path)) continue;
+			TArray<AML_Tile*> PathTilesLocal;
+			if (!ConvertAxialsToTiles(Grid, PathAxials, PathTilesLocal))
+			{
+				continue;
+			}
 
-			// Build one group = one path between 2 goals
 			FML_TileGroup Group;
-			Group.Tiles = MoveTemp(Path);
+			Group.Tiles = MoveTemp(PathTilesLocal);
 
-			AML_Tile* GoalA = Grid.FindRef(Start);
-			AML_Tile* GoalB = Grid.FindRef(Target);
+			if (AML_Tile* GoalA = Grid.FindRef(Start); IsValid(GoalA))
+			{
+				Group.Goals.Add(GoalA);
+			}
 
-			if (IsValid(GoalA)) Group.Goals.Add(GoalA);
-			if (IsValid(GoalB)) Group.Goals.Add(GoalB);
+			if (AML_Tile* GoalB = Grid.FindRef(Target); IsValid(GoalB))
+			{
+				Group.Goals.Add(GoalB);
+			}
 
-			// Enforce RequiredGoalsPerPath (usually 2)
 			if (Group.Goals.Num() >= RequiredGoalsPerPath)
 			{
 				ConnectedGoalGroups.Add(MoveTemp(Group));
@@ -368,153 +263,268 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 
 TArray<FML_TileGroup> UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 {
-	bool bHasConnectedGoals = FindConnectedGoalGroups(CurrentBoardSpawner, EML_TileType::Tree,
-	                                                  {EML_TileType::Grass, EML_TileType::Water}, false, 2);
+	FindConnectedGoalGroups(
+		CurrentBoardSpawner,
+		EML_TileType::Tree,
+		{EML_TileType::Grass, EML_TileType::Water},
+		false,
+		2);
+
 	return ConnectedGoalGroups;
 }
 
 AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
 {
 	UWorld* World = GetWorld();
-	if (!World) return nullptr;
+	if (!World)
+	{
+		return nullptr;
+	}
 
-	AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(UGameplayStatics::GetPlayerCharacter(World, 0));
-	if (!PlayerCharacter) return nullptr;
+	AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(
+		UGameplayStatics::GetPlayerCharacter(World, 0));
+
+	if (!PlayerCharacter)
+	{
+		return nullptr;
+	}
 
 	AML_Tile* PlayerCurrentTile = PlayerCharacter->CurrentTileOn;
-	if (!IsValid(PlayerCurrentTile)) return nullptr;
-	return PlayerCurrentTile;
+	return IsValid(PlayerCurrentTile) ? PlayerCurrentTile : nullptr;
 }
 
 AML_BoardSpawner* UML_WinLoseSubsystem::FindBoardSpawner() const
 {
 	AML_Tile* ChildTile = GetPlayerCurrentTile();
+	if (!IsValid(ChildTile))
+	{
+		return nullptr;
+	}
 
 	AActor* BoardActor = ChildTile->GetAttachParentActor();
-	if (!BoardActor) return nullptr;
+	if (!BoardActor)
+	{
+		return nullptr;
+	}
 
-	AML_BoardSpawner* RetrivedBoardSpawner = Cast<AML_BoardSpawner>(BoardActor);
-	if (!RetrivedBoardSpawner) return nullptr;
+	AML_BoardSpawner* RetrievedBoardSpawner = Cast<AML_BoardSpawner>(BoardActor);
+	if (!RetrievedBoardSpawner)
+	{
+		return nullptr;
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("Board found: %s at %s"),
-	       *RetrivedBoardSpawner->GetName(),
-	       *RetrivedBoardSpawner->GetActorLocation().ToString());
+		*RetrievedBoardSpawner->GetName(),
+		*RetrievedBoardSpawner->GetActorLocation().ToString());
 
-	return RetrivedBoardSpawner;
+	return RetrievedBoardSpawner;
 }
 
-void UML_WinLoseSubsystem::ClearWinPath(const AML_BoardSpawner* Board,
-                                        const AML_Tile* StartTile,
-                                        const AML_Tile* GoalTile,
-                                        const TArray<EML_TileType>& AllowedPathTypes) const
+void UML_WinLoseSubsystem::ClearWinPath(
+	const AML_BoardSpawner* Board,
+	const AML_Tile* StartTile,
+	const AML_Tile* GoalTile,
+	const TArray<EML_TileType>& AllowedPathTypes) const
 {
-	if (!IsValid(Board) || !IsValid(StartTile) || !IsValid(GoalTile)) return;
-
-	static const FIntPoint Dirs[6] = {
-		FIntPoint(1, 0),
-		FIntPoint(1, -1),
-		FIntPoint(0, -1),
-		FIntPoint(-1, 0),
-		FIntPoint(-1, 1),
-		FIntPoint(0, 1)
-	};
+	if (!IsValid(Board) || !IsValid(StartTile) || !IsValid(GoalTile))
+	{
+		return;
+	}
 
 	const TMap<FIntPoint, AML_Tile*> Grid = Board->GetGridMap();
-	if (Grid.Num() == 0) return;
-
-	TSet<EML_TileType> AllowedSet;
-	for (EML_TileType Type : AllowedPathTypes)
+	if (Grid.Num() == 0)
 	{
-		AllowedSet.Add(Type);
+		return;
 	}
+
+	const TSet<EML_TileType> AllowedSet = BuildAllowedSet(AllowedPathTypes);
 
 	const FIntPoint Start = StartTile->GetAxialCoord();
 	const FIntPoint Goal = GoalTile->GetAxialCoord();
 
 	auto CanTraverse = [&](AML_Tile* Tile) -> bool
 	{
-		if (!IsValid(Tile)) return false;
+		if (!IsValid(Tile))
+		{
+			return false;
+		}
 
-		const EML_TileType TileType = Tile->GetCurrentType();
-
-		// Allow goal tile and start tile themselves,
-		// plus tiles of allowed path types
 		return Tile == StartTile
 			|| Tile == GoalTile
-			|| AllowedSet.Contains(TileType);
+			|| AllowedSet.Contains(Tile->GetCurrentType());
 	};
 
-	TQueue<FIntPoint> Queue;
 	TSet<FIntPoint> Visited;
 	TMap<FIntPoint, FIntPoint> Parent;
+	RunBFS(Grid, Start, CanTraverse, Visited, Parent);
 
-	Visited.Reserve(Grid.Num());
-	Parent.Reserve(Grid.Num());
-
-	Visited.Add(Start);
-	Queue.Enqueue(Start);
-
-	bool bFound = false;
-
-	while (!Queue.IsEmpty() && !bFound)
-	{
-		FIntPoint Current;
-		Queue.Dequeue(Current);
-
-		for (const FIntPoint& Dir : Dirs)
-		{
-			const FIntPoint Next = Current + Dir;
-			if (Visited.Contains(Next)) continue;
-
-			AML_Tile* const* NextPtr = Grid.Find(Next);
-			if (!NextPtr) continue;
-
-			AML_Tile* NextTile = *NextPtr;
-			if (!CanTraverse(NextTile)) continue;
-
-			Visited.Add(Next);
-			Parent.Add(Next, Current);
-
-			if (Next == Goal)
-			{
-				bFound = true;
-				break;
-			}
-
-			Queue.Enqueue(Next);
-		}
-	}
-
-	if (!bFound && Start != Goal)
+	if (Start != Goal && !Visited.Contains(Goal))
 	{
 		return;
 	}
 
-	// Reconstruct and clear only the final path
-	FIntPoint Current = Goal;
-
-	while (true)
+	TArray<FIntPoint> PathAxials;
+	if (Start == Goal)
 	{
-		AML_Tile* const* TilePtr = Grid.Find(Current);
-		if (TilePtr && IsValid(*TilePtr))
+		PathAxials.Add(Start);
+	}
+	else if (!BuildPathAxialsFromParent(Start, Goal, Parent, PathAxials))
+	{
+		return;
+	}
+
+	for (const FIntPoint& Axial : PathAxials)
+	{
+		AML_Tile* const* TilePtr = Grid.Find(Axial);
+		if (!TilePtr || !IsValid(*TilePtr))
 		{
-			if ((*TilePtr)->GetCurrentType() == EML_TileType::Water)
+			continue;
+		}
+
+		if ((*TilePtr)->GetCurrentType() == EML_TileType::Water)
+		{
+			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::Grass, CurrentBoardSpawner->WaterChangeTile);
+		}
+	}
+}
+
+TSet<EML_TileType> UML_WinLoseSubsystem::BuildAllowedSet(
+	const TArray<EML_TileType>& AllowedPathTypes) const
+{
+	TSet<EML_TileType> AllowedSet;
+	AllowedSet.Reserve(AllowedPathTypes.Num());
+
+	for (const EML_TileType Type : AllowedPathTypes)
+	{
+		AllowedSet.Add(Type);
+	}
+
+	return AllowedSet;
+}
+
+TArray<FIntPoint> UML_WinLoseSubsystem::CollectGoalAxials(
+	const TMap<FIntPoint, AML_Tile*>& Grid,
+	EML_TileType GoalType,
+	bool bDisallowBlocked) const
+{
+	TArray<FIntPoint> GoalAxials;
+
+	for (const auto& Pair : Grid)
+	{
+		AML_Tile* Tile = Pair.Value;
+		if (!IsValid(Tile))
+		{
+			continue;
+		}
+
+		if (Tile->GetCurrentType() != GoalType)
+		{
+			continue;
+		}
+
+		if (bDisallowBlocked && Tile->IsBlocked())
+		{
+			continue;
+		}
+
+		GoalAxials.Add(Pair.Key);
+	}
+
+	return GoalAxials;
+}
+
+void UML_WinLoseSubsystem::RunBFS(
+	const TMap<FIntPoint, AML_Tile*>& Grid,
+	const FIntPoint& Start,
+	TFunctionRef<bool(AML_Tile*)> CanTraverse,
+	TSet<FIntPoint>& OutVisited,
+	TMap<FIntPoint, FIntPoint>& OutParent) const
+{
+	OutVisited.Reset();
+	OutParent.Reset();
+
+	TQueue<FIntPoint> Queue;
+
+	OutVisited.Reserve(Grid.Num());
+	OutParent.Reserve(Grid.Num());
+
+	OutVisited.Add(Start);
+	Queue.Enqueue(Start);
+
+	while (!Queue.IsEmpty())
+	{
+		FIntPoint Current;
+		Queue.Dequeue(Current);
+
+		for (const FIntPoint& Dir : HexDirs)
+		{
+			const FIntPoint Next = Current + Dir;
+			if (OutVisited.Contains(Next))
 			{
-				(*TilePtr)->UpdateClassAtRuntime(EML_TileType::Grass,CurrentBoardSpawner->WaterChangeTile);
+				continue;
 			}
-		}
 
-		if (Current == Start)
-		{
-			break;
-		}
+			AML_Tile* const* NextPtr = Grid.Find(Next);
+			if (!NextPtr)
+			{
+				continue;
+			}
 
-		const FIntPoint* Prev = Parent.Find(Current);
+			AML_Tile* NextTile = *NextPtr;
+			if (!CanTraverse(NextTile))
+			{
+				continue;
+			}
+
+			OutVisited.Add(Next);
+			OutParent.Add(Next, Current);
+			Queue.Enqueue(Next);
+		}
+	}
+}
+
+bool UML_WinLoseSubsystem::BuildPathAxialsFromParent(
+	const FIntPoint& Start,
+	const FIntPoint& Target,
+	const TMap<FIntPoint, FIntPoint>& Parent,
+	TArray<FIntPoint>& OutAxials) const
+{
+	OutAxials.Reset();
+
+	FIntPoint Node = Target;
+	OutAxials.Add(Node);
+
+	while (Node != Start)
+	{
+		const FIntPoint* Prev = Parent.Find(Node);
 		if (!Prev)
 		{
-			return; // safety
+			return false;
 		}
 
-		Current = *Prev;
+		Node = *Prev;
+		OutAxials.Add(Node);
 	}
+
+	Algo::Reverse(OutAxials);
+	return true;
+}
+
+bool UML_WinLoseSubsystem::ConvertAxialsToTiles(
+	const TMap<FIntPoint, AML_Tile*>& Grid,
+	const TArray<FIntPoint>& Axials,
+	TArray<AML_Tile*>& OutTiles) const
+{
+	OutTiles.Reset();
+	OutTiles.Reserve(Axials.Num());
+
+	for (const FIntPoint& Axial : Axials)
+	{
+		if (AML_Tile* const* TilePtr = Grid.Find(Axial))
+		{
+			OutTiles.Add(*TilePtr);
+		}
+	}
+
+	return OutTiles.Num() > 0;
 }
