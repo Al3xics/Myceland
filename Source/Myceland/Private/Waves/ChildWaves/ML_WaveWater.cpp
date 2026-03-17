@@ -9,6 +9,8 @@
 
 void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
+	GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Blue, TEXT("Water Wave"));
+	
 	if (!OriginTile) return;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();

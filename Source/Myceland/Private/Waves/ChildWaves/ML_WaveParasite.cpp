@@ -9,6 +9,8 @@
 
 void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
+	GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, TEXT("Parasite Wave"));
+	
 	if (!OriginTile) return;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();

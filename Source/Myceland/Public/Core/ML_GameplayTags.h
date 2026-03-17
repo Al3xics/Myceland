@@ -26,12 +26,15 @@ namespace ML_GameplayTags
 	
 	
 	// ============================ UI ============================
-	// ========== Root ==========
-	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Root_Menu);
-	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Root_Game);
+	// ========== Context ==========
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Context_Menu);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Context_Game);
 	
 	// ========== Widgets ==========
 	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Widget_TitleScreen);
 	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Widget_MainMenu);
 	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Widget_Settings);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Widget_Credits);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Widget_InGameHUD);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UI_Widget_PauseMenu);
 }

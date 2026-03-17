@@ -77,6 +77,15 @@ enum class EML_WidgetInputMode : uint8
 	GameAndUI
 };
 
+UENUM(BlueprintType)
+enum class EML_PlayerMovementMode : uint8
+{
+	InsideBoard,   // Tile-by-tile movement (current behavior)
+	EnteringBoard, // PLayer enter the board from exterior
+	ExitingBoard,  // Hold in progress to confirm exit
+	FreeMovement   // Free movement off the board
+};
+
 
 // ==================== STRUCT ====================
 
@@ -93,28 +102,6 @@ struct FML_GameResult
 };
 
 USTRUCT(BlueprintType)
-struct FML_WidgetRegistryKey
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FGameplayTag RootTag;
-
-	UPROPERTY()
-	FGameplayTag WidgetTag;
-
-	bool operator==(const FML_WidgetRegistryKey& Other) const
-	{
-		return RootTag == Other.RootTag && WidgetTag == Other.WidgetTag;
-	}
-
-	friend uint32 GetTypeHash(const FML_WidgetRegistryKey& Key)
-	{
-		return HashCombine(GetTypeHash(Key.RootTag), GetTypeHash(Key.WidgetTag));
-	}
-};
-
-USTRUCT(BlueprintType)
 struct FML_WaveChange
 {
 	GENERATED_BODY()
@@ -124,6 +111,9 @@ struct FML_WaveChange
 	
 	UPROPERTY()
 	EML_TileType TargetType = EML_TileType::Dirt; // Tile
+	
+	UPROPERTY()
+	AML_Tile* Neighbor = nullptr; // Collectible
 	
 	UPROPERTY()
 	FVector SpawnLocation = FVector::ZeroVector; // Collectible
@@ -149,4 +139,52 @@ struct FML_InputMappingEntry
 
 	UPROPERTY(EditAnywhere, config)
 	int32 Priority = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FML_TileGroup
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<AML_Tile*> Tiles;
+	
+	UPROPERTY(BlueprintReadOnly)
+	TArray<AML_Tile*> Goals;
+};
+
+USTRUCT(BlueprintType)
+struct FML_TabSlotSettings
+{
+	GENERATED_BODY()
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot")
+	TEnumAsByte<EHorizontalAlignment> HorizontalAlignment = HAlign_Fill;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot")
+	TEnumAsByte<EVerticalAlignment> VerticalAlignment = VAlign_Fill;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot")
+	FMargin Padding = FMargin(10.0f, 0.0f, 10.0f, 0.0f); // Left, Top, Right, Bottom
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot", meta=(Tooltip="TRUE = Automatic | FALSE = Fill"))
+	bool bAutoSize = false; // false = Fill, true = Auto
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot", meta=(EditCondition="!bAutoSize"))
+	float Size = 1.0f; // Used when bAutoSize is false (Fill mode)
+};
+
+USTRUCT(BlueprintType)
+struct FML_TabData
+{
+	GENERATED_BODY()
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tab")
+	FText TabName;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tab")
+	TSubclassOf<UUserWidget> ContentWidgetClass;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tab")
+	FML_TabSlotSettings SlotSettings;
 };

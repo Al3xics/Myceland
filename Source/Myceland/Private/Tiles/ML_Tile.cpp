@@ -134,6 +134,24 @@ void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubcl
 	OnTileTypeChanged(OldType, NewTileType);
 }
 
+void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const TSubclassOf<AML_TileBase> NewClass)
+{
+	if (!NewClass) return;
+
+	const EML_TileType OldType = CurrentType;
+	if (OldType == NewTileType) return;
+
+	// IMPORTANT: do NOT recompute bConsumedGrass here.
+	// Undo system will restore bConsumedGrass explicitly from its record.
+
+	CurrentType = NewTileType;
+
+	TileChildActor->SetChildActorClass(NewClass);
+	SetBlocked(IsTileTypeBlocking(NewTileType));
+
+	// NO OnTileTypeChanged(OldType, NewTileType) in silent mode
+}
+
 void AML_Tile::Initialize(UML_BiomeTileSet* InBiomeTileSet)
 {
 #if WITH_EDITOR

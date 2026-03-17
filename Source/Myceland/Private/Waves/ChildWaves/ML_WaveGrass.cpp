@@ -43,43 +43,82 @@ bool UML_WaveGrass::IsDirtLike(const AML_Tile* Tile)
 
 void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-    if (!OriginTile) return;
+    GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("Grass Wave"));
+    
+     if (!OriginTile) return;
 
     AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
-    ensureMsgf(Board, TEXT("Board is not set!"));
     if (!Board) return;
 
     TSet<AML_Tile*> Scheduled;
-
-    // If the origin is no longer Dirt, it means the grass was eaten
-    // or transformed during a previous cycle. Stop here.
-    if (OriginTile->GetCurrentType() != EML_TileType::Dirt)
-        return;
-
-    // Step 0: Transforms the origin if it's Dirt
-    OutChanges.Add(FML_WaveChange(OriginTile, EML_TileType::Grass, 0));
-    Scheduled.Add(OriginTile);
-
-    // Step 1: Build the connected water network from the origin
     TSet<AML_Tile*> WaterConnected;
-    ExpandWaterNetwork(Board, OriginTile, WaterConnected);
+    TArray<AML_Tile*> GrassSources;
 
-    // Step 2: Sequential propagation by continuity
+    // -------------------------------------------------
+    // CASE 1: FIRST WAVE (Origin = Dirt)
+    // -------------------------------------------------
+    if (OriginTile->GetCurrentType() == EML_TileType::Dirt)
+    {
+        OutChanges.Add(FML_WaveChange(OriginTile, EML_TileType::Grass, 0));
+        Scheduled.Add(OriginTile);
+        GrassSources.Add(OriginTile);
+
+        ExpandWaterNetwork(Board, OriginTile, WaterConnected);
+    }
+    else
+    {
+        // -------------------------------------------------
+        // CASE 2: RETURN AFTER WATER / PARASITE
+        // -------------------------------------------------
+
+        // We take all existing Grasses
+        for (AML_Tile* Tile : Board->GetGridTiles())
+        {
+            if (!Tile) continue;
+
+            if (Tile->GetCurrentType() == EML_TileType::Grass)
+            {
+                GrassSources.Add(Tile);
+                ExpandWaterNetwork(Board, Tile, WaterConnected);
+                Scheduled.Add(Tile);
+            }
+        }
+
+        if (GrassSources.Num() == 0)
+            return;
+    }
+
+    // -------------------------------------------------
+    // COMPLETE BFS PROPAGATION (STEP-BY-STEP via Distance)
+    // -------------------------------------------------
+
     TQueue<TPair<AML_Tile*, int32>> PropagationQueue;
 
-    // Initial: all the DirtLike neighboring the origin tile touching the water
-    for (AML_Tile* Neighbor : Board->GetNeighbors(OriginTile))
+    // Initialization
+    for (AML_Tile* Source : GrassSources)
     {
-        if (Neighbor && IsDirtLike(Neighbor) && !Scheduled.Contains(Neighbor))
+        for (AML_Tile* Neighbor : Board->GetNeighbors(Source))
         {
+            if (!Neighbor || Scheduled.Contains(Neighbor))
+                continue;
+
+            if (!IsDirtLike(Neighbor))
+                continue;
+
+            bool bTouchesWater = false;
             for (AML_Tile* Around : Board->GetNeighbors(Neighbor))
             {
                 if (Around && WaterConnected.Contains(Around))
                 {
-                    PropagationQueue.Enqueue({ Neighbor, 1 });
-                    Scheduled.Add(Neighbor);
+                    bTouchesWater = true;
                     break;
                 }
+            }
+
+            if (bTouchesWater)
+            {
+                PropagationQueue.Enqueue({ Neighbor, 1 });
+                Scheduled.Add(Neighbor);
             }
         }
     }
@@ -92,19 +131,18 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
         AML_Tile* CurrentTile = Current.Key;
         int32 StepDistance = Current.Value;
 
-        // Only add to OutChanges if it's real Dirt, not an Obstacle
         if (CurrentTile->GetCurrentType() == EML_TileType::Dirt)
         {
             OutChanges.Add(FML_WaveChange(CurrentTile, EML_TileType::Grass, StepDistance));
-
-            // This new Grass may touch a new lake — expand the water network from it
             ExpandWaterNetwork(Board, CurrentTile, WaterConnected);
         }
 
-        // Propagate to neighboring DirtLike tiles touching the water network
         for (AML_Tile* Neighbor : Board->GetNeighbors(CurrentTile))
         {
-            if (!Neighbor || Scheduled.Contains(Neighbor) || !IsDirtLike(Neighbor))
+            if (!Neighbor || Scheduled.Contains(Neighbor))
+                continue;
+
+            if (!IsDirtLike(Neighbor))
                 continue;
 
             bool bTouchesWater = false;
@@ -124,4 +162,10 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
             }
         }
     }
+
+    // We sort by distance to ensure the correct order
+    OutChanges.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+    {
+        return A.DistanceFromOrigin < B.DistanceFromOrigin;
+    });
 }
