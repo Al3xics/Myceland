@@ -123,6 +123,6 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
 
-	UPROPERTY(EditDefaultsOnly, Category="Tiles")
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	TSubclassOf<AML_TileBase> WaterChangeTile;
 };
