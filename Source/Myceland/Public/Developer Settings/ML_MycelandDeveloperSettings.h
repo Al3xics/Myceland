@@ -45,6 +45,9 @@ public:
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	float TimeSpeed = 3.0f;
 	
 	
 	

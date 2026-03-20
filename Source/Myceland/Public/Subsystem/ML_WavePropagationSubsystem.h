@@ -80,6 +80,18 @@ private:
 	// Removes the collectible actor currently associated with a tile (if any).
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
 
+	UPROPERTY(Transient)
+	bool bIsResetAllAnimating = false;
+
+	void StartNextResetUndoStep();
+	void ContinueResetAllIfNeeded();
+
+	void ApplyUndoTimeDilation();
+	void ClearUndoTimeDilation();
+
+	UPROPERTY(Transient)
+	bool bUndoTimeDilationApplied = false;
+
 public:
 	void EnsureInitialized();
 
@@ -113,4 +125,7 @@ public:
 		const FVector& EndWorld,
 		const TArray<FIntPoint>& PickedCollectibleAxials
 	);
+
+	UFUNCTION(BlueprintCallable, Category="Undo")
+	bool ResetAllActions_Animated();
 };
