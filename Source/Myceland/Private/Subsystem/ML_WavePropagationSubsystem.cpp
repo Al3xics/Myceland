@@ -354,16 +354,18 @@ bool UML_WavePropagationSubsystem::ResetAllActions_Animated()
 
 	CancelAllWaveTimers();
 	PlayerController->DisableInput(PlayerController);
-	ApplyUndoTimeDilation();
+	ApplyResetTimeDilation();
 
 
 	bIsResetAllAnimating = true;
+	OnResetAnimating.Broadcast(bIsResetAllAnimating);
 
 	const bool bStarted = UndoLastAction_Animated();
 	if (!bStarted)
 	{
 		bIsResetAllAnimating = false;
-		ClearUndoTimeDilation();
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
 		PlayerController->EnableInput(PlayerController);
 		return false;
 	}
@@ -383,7 +385,8 @@ void UML_WavePropagationSubsystem::StartNextResetUndoStep()
 	if (ActionUndoStack.Num() == 0)
 	{
 		bIsResetAllAnimating = false;
-		ClearUndoTimeDilation();
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
 
 		if (PlayerController)
 			PlayerController->EnableInput(PlayerController);
@@ -394,7 +397,8 @@ void UML_WavePropagationSubsystem::StartNextResetUndoStep()
 	if (!bStarted)
 	{
 		bIsResetAllAnimating = false;
-		ClearUndoTimeDilation();
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
 
 		if (PlayerController)
 			PlayerController->EnableInput(PlayerController);
@@ -413,7 +417,8 @@ void UML_WavePropagationSubsystem::ContinueResetAllIfNeeded()
 	if (ActionUndoStack.Num() == 0)
 	{
 		bIsResetAllAnimating = false;
-		ClearUndoTimeDilation();
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
 
 		if (PlayerController)
 			PlayerController->EnableInput(PlayerController);
@@ -423,7 +428,8 @@ void UML_WavePropagationSubsystem::ContinueResetAllIfNeeded()
 	if (!GetWorld())
 	{
 		bIsResetAllAnimating = false;
-		ClearUndoTimeDilation();
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
 
 		if (PlayerController)
 			PlayerController->EnableInput(PlayerController);
@@ -452,6 +458,11 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 	if (Action.Type == EML_UndoActionType::Move)
 	{
 		bIsUndoAnimating = true;
+		if (!bIsResetAllAnimating)
+		{
+			OnUndoAnimating.Broadcast(bIsUndoAnimating);
+		}
+		
 
 		TArray<FIntPoint> ReversePath = Action.Move.AxialPath;
 		Algo::Reverse(ReversePath);
@@ -464,6 +475,10 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 	if (Action.Type == EML_UndoActionType::PlantWaves)
 	{
 		bIsUndoAnimating = true;
+		if (!bIsResetAllAnimating)
+		{
+			OnUndoAnimating.Broadcast(bIsUndoAnimating);
+		}
 		ActiveUndoRecord = Action.Turn;
 
 		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore + 1);
@@ -496,7 +511,7 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 	}
 	else
 	{
-		ClearUndoTimeDilation();
+		ClearTimeDilation();
 
 		if (PlayerController)
 			PlayerController->EnableInput(PlayerController);
@@ -651,20 +666,8 @@ void UML_WavePropagationSubsystem::FinishUndoAnimation()
 
 	if (!bIsResetAllAnimating)
 	{
-		ClearUndoTimeDilation();
-	}
-
-	ContinueResetAllIfNeeded();
-}
-
-void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
-{
-	// End of undo MOVE playback
-	bIsUndoAnimating = false;
-
-	if (!bIsResetAllAnimating)
-	{
-		ClearUndoTimeDilation();
+		ClearTimeDilation();
+		OnUndoAnimating.Broadcast(bIsUndoAnimating);
 	}
 
 	ContinueResetAllIfNeeded();
@@ -776,14 +779,23 @@ void UML_WavePropagationSubsystem::ApplyUndoTimeDilation()
 {
 	if (!GetWorld() || bUndoTimeDilationApplied) return;
 
-	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->TimeSpeed);
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->UndoSpeed);
 	bUndoTimeDilationApplied = true;
 }
 
-void UML_WavePropagationSubsystem::ClearUndoTimeDilation()
+void UML_WavePropagationSubsystem::ApplyResetTimeDilation()
+{
+	if (!GetWorld() || bUndoTimeDilationApplied) return;
+
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->ResetSpeed);
+	bUndoTimeDilationApplied = true;
+}
+
+void UML_WavePropagationSubsystem::ClearTimeDilation()
 {
 	if (!GetWorld() || !bUndoTimeDilationApplied) return;
 
 	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
 	bUndoTimeDilationApplied = false;
 }
+

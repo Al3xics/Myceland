@@ -271,7 +271,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 					}
 					bUndoRestoreCollectibles = false;
 
-					S->NotifyUndoMoveFinished();
+					S->FinishUndoAnimation();
 				}
 				else if (bMoveInProgress && ActiveMoveAxialPath.Num() > 0)
 				{

@@ -71,7 +71,10 @@ public:
 	float IntraWaveDelay = 0.3f;
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
-	float TimeSpeed = 3.0f;
+	float UndoSpeed = 3.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	float ResetSpeed = 3.0f;
 	
 	
 	
