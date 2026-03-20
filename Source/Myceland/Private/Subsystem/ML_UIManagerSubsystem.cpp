@@ -162,14 +162,16 @@ void UML_UIManagerSubsystem::OpenLevelByTag(FGameplayTag Level, UObject* WorldCo
 		// Clear navigation before switching levels
 		ClearNavigationStack();
         
-		if (const UWorld* WorldAsset = FoundLevel->LoadSynchronous())
+		// Get the long package name (e.g., "/Game/Myceland/Level/LevelSelectionMenu")
+		FString PackageName = FoundLevel->GetLongPackageName();
+		if (PackageName.IsEmpty())
 		{
-			UGameplayStatics::OpenLevel(WorldContextObject, WorldAsset->GetFName());
+			UE_LOG(LogTemp, Warning, TEXT("Level '%s' has an empty package name"), *Level.ToString());
+			return;
 		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Level '%s' failed to load."), *Level.ToString());
-		}
+        
+		UE_LOG(LogTemp, Log, TEXT("Opening level package: %s"), *PackageName);
+		UGameplayStatics::OpenLevel(WorldContextObject, FName(*PackageName));
 	}
 	else
 	{

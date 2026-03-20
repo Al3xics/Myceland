@@ -76,6 +76,12 @@ private:
 	
 	bool bHasFreeMovementTarget = false;
 
+	// Rotate Tile
+	UPROPERTY(Transient)
+	const AML_Tile* RotateTargetTile = nullptr;
+	
+	bool bTurningToTile;
+
 	// ==================== Undo ====================
 
 	// ---- Move recording for Undo ----
@@ -118,6 +124,11 @@ private:
 	void StartMoveToWorldLocation(const FVector& WorldLocation);
 	void TickMoveAlongPath(float DeltaTime);
 	void OnPathFinished();
+
+	// ==================== Rotation ====================
+	
+	void RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed);
+	void TickTurnTowardPendingTile(float DeltaTime);
 
 	// ==================== Board Exit / Entry ====================
 
@@ -168,6 +179,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
 	float MoveSpeedScale = 1.f;
+
+	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
+	float RotateSpeed =10.f;
 
 	// 0 = strict center-to-center, 1 = maximum smoothing
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0", ClampMax = "1.0"))

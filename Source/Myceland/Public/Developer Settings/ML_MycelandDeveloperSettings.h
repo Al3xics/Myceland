@@ -7,6 +7,8 @@
 #include "Core/ML_CoreData.h"
 #include "Engine/DeveloperSettings.h"
 #include "InputMappingContext.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
 #include "ML_MycelandDeveloperSettings.generated.h"
 
 class AML_Collectible;
@@ -35,6 +37,28 @@ public:
 	
 	
 	
+	// ==================== Audio ====================
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> MasterSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> MusicSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> SFXSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> UISoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> VoiceSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Mix")
+	TSoftObjectPtr<USoundMix> GameSoundMix;
+	
+	
+	
 	// ==================== Wave Propagation ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
@@ -45,6 +69,12 @@ public:
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	float UndoSpeed = 3.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	float ResetSpeed = 3.0f;
 	
 	
 	
