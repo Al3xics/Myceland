@@ -7,6 +7,8 @@
 #include "Core/ML_CoreData.h"
 #include "Engine/DeveloperSettings.h"
 #include "InputMappingContext.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
 #include "ML_MycelandDeveloperSettings.generated.h"
 
 class AML_Collectible;
@@ -32,6 +34,28 @@ public:
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
 	TMap<FGameplayTag, TSoftObjectPtr<UWorld>> Levels;
+	
+	
+	
+	// ==================== Audio ====================
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> MasterSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> MusicSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> SFXSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> UISoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> VoiceSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Mix")
+	TSoftObjectPtr<USoundMix> GameSoundMix;
 	
 	
 	
