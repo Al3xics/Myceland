@@ -613,7 +613,15 @@ void UML_WavePropagationSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32
 				const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
 				if (TileSet)
 				{
-					Tile->UpdateClassAtRuntime_Silent(TD.OldType, TileSet->GetClassFromTileType(TD.OldType));
+					const EML_TileType PreviousType = Tile->GetCurrentType();
+					const EML_TileType NewType = TD.OldType;
+
+					Tile->UpdateClassAtRuntime_Silent(NewType, TileSet->GetClassFromTileType(NewType));
+
+					if (PreviousType != NewType)
+					{
+						Tile->OnTileTypeChanged(PreviousType, NewType);
+					}
 
 					// Important: if the tile should NOT have a collectible (pre-wave state),
 					// we must also remove any collectible that may exist now (including those restored by undo-move).
