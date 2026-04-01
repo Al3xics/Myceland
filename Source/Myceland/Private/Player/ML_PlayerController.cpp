@@ -513,8 +513,8 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 	Super::PlayerTick(DeltaTime);
 	TickMoveAlongPath(DeltaTime);
 	TickExitHold(DeltaTime);
-	TickCursorHoverPreview(DeltaTime);
 	TickHoverPreview(DeltaTime);
+	TickCursorHoverPreview(DeltaTime);
 	TickTurnTowardPendingTile(DeltaTime);
 }
 
@@ -750,7 +750,11 @@ void AML_PlayerController::TickCursorHoverPreview(float DeltaTime)
 	if (IsValid(LastCursorHoveredTile))
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
 
-	CursorHoveredTile->GlowCursorHovered();
+	// Suppress cursor glow when the tile is unreachable in board mode.
+	// TickHoverPreview already ran this frame and set bCurrentHoveredTileReachable.
+	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard || bCurrentHoveredTileReachable)
+		CursorHoveredTile->GlowCursorHovered();
+
 	LastCursorHoveredTile = CursorHoveredTile;
 }
 
@@ -765,19 +769,12 @@ void AML_PlayerController::ClearCursorHoverPreview()
 
 void AML_PlayerController::TickHoverPreview(float DeltaTime)
 {
-	// Only preview in board mode when not moving
+	// Only preview in board mode
 	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard)
 	{
 		ClearHoverPreview();
 		return;
 	}
-
-	// If we don't want the path preview to show when player is moving
-	// if (bIsMoving)
-	// {
-	// 	ClearHoverPreview();
-	// 	return;
-	// }
 
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
 	{
@@ -785,74 +782,63 @@ void AML_PlayerController::TickHoverPreview(float DeltaTime)
 		return;
 	}
 
-	// Get tile under cursor
 	AML_Tile* HoveredTile = GetTileUnderCursor();
 
 	// Same tile as before → no update needed
 	if (HoveredTile == LastHoveredTile)
 		return;
 
-	// Update last hovered
+	// Tile changed — clear old path visuals immediately
+	for (AML_Tile* Tile : CurrentPreviewPath)
+		if (IsValid(Tile)) Tile->StopGlowingPathWalk();
+	CurrentPreviewPath.Empty();
+
 	LastHoveredTile = HoveredTile;
 
-	// No valid tile under cursor → clear preview
 	if (!IsValid(HoveredTile))
 	{
-		ClearHoverPreview();
+		bCurrentHoveredTileReachable = false;
+		OnHoveredTileChanged.Broadcast(nullptr, false);
 		return;
 	}
 
-	// Tile is not on the same board → clear preview
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board) || HoveredTile->GetOwner() != Board)
+	if (!IsValid(Board) || HoveredTile->GetOwner() != Board || !IsTileWalkable(HoveredTile))
 	{
-		ClearHoverPreview();
+		bCurrentHoveredTileReachable = false;
+		OnHoveredTileChanged.Broadcast(HoveredTile, false);
 		return;
 	}
 
-	// Tile is not walkable → clear preview
-	if (!IsTileWalkable(HoveredTile))
-	{
-		ClearHoverPreview();
-		return;
-	}
-
-	// Build preview path
+	// Build preview path — empty result means the path is blocked by an obstacle
 	TArray<AML_Tile*> NewPath = BuildPreviewPath(HoveredTile);
+	const bool bReachable = NewPath.Num() > 0;
 
-	// Determine which tiles to unglow and glow
-	TSet<AML_Tile*> NewPathSet(NewPath);
-	TSet<AML_Tile*> OldPathSet(CurrentPreviewPath);
+	bCurrentHoveredTileReachable = bReachable;
+	OnHoveredTileChanged.Broadcast(HoveredTile, bReachable);
 
-	// Unglow tiles that are no longer in the path
-	for (AML_Tile* Tile : OldPathSet)
+	if (bReachable)
 	{
-		if (!NewPathSet.Contains(Tile))
-			Tile->StopGlowingPathWalk();
-	}
-
-	// Glow new tiles
-	for (AML_Tile* Tile : NewPathSet)
-	{
-		if (!OldPathSet.Contains(Tile))
+		for (AML_Tile* Tile : NewPath)
 			Tile->GlowPathWalk();
+		CurrentPreviewPath = NewPath;
 	}
-
-	// Update current preview path
-	CurrentPreviewPath = NewPath;
 }
 
 void AML_PlayerController::ClearHoverPreview()
 {
-	// Unglow all tiles
 	for (AML_Tile* Tile : CurrentPreviewPath)
+		if (IsValid(Tile)) Tile->StopGlowingPathWalk();
+	CurrentPreviewPath.Empty();
+
+	if (LastHoveredTile != nullptr)
 	{
-		if (IsValid(Tile))
-			Tile->StopGlowingPathWalk();
+		bCurrentHoveredTileReachable = false;
+		OnHoveredTileChanged.Broadcast(nullptr, false);
 	}
 
-	CurrentPreviewPath.Empty();
 	LastHoveredTile = nullptr;
+	bCurrentHoveredTileReachable = false;
 }
 
 TArray<AML_Tile*> AML_PlayerController::BuildPreviewPath(const AML_Tile* TargetTile) const
