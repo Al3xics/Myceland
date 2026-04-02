@@ -16,6 +16,7 @@ class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnergyChanged, int32, NewEnergy);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHoveredTileChanged, AML_Tile*, HoveredTile, bool, bIsReachable);
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -194,12 +195,14 @@ protected:
     
 	UPROPERTY(Transient)
 	AML_Tile* LastCursorHoveredTile = nullptr;
-    
+
 	UPROPERTY(Transient)
 	AML_Tile* LastHoveredTile = nullptr;
-    
+
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> CurrentPreviewPath;
+
+	bool bCurrentHoveredTileReachable = false;
     
 	void TickCursorHoverPreview(float DeltaTime);
 	void ClearCursorHoverPreview();
@@ -214,10 +217,16 @@ public:
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
-	
+
 	// Called when the 'CurrentEnergy' value changes
 	UPROPERTY(BlueprintAssignable, Category="Myceland Controller|Energy")
 	FOnEnergyChanged OnEnergyChanged;
+
+	// Called when the tile under the cursor changes or its reachability changes.
+	// HoveredTile is null when no tile is hovered. bIsReachable is false when an
+	// obstacle blocks the path from the player to the hovered tile.
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Hover")
+	FOnHoveredTileChanged OnHoveredTileChanged;
 
 	// ==================== Energy ====================
 	
