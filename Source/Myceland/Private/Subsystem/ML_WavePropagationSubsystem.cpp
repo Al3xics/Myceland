@@ -210,6 +210,7 @@ void UML_WavePropagationSubsystem::RunWave()
 			{
 				// Configure BEFORE the spawn
 				Collectible->SetOwningTile(Change.Neighbor);
+				Change.Neighbor->CollectibleActor = Collectible;
 
 				// Finish spawning
 				Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
