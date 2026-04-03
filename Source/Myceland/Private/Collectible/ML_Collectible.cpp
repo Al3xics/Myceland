@@ -27,7 +27,7 @@ void AML_Collectible::DestroyCollectible()
 {
 	BeforeDestroyCollectible(OwningTile);
 	
-	if (OwningTile->CollectibleActor == this)
+	if (OwningTile && OwningTile->CollectibleActor == this)
 		OwningTile->CollectibleActor = nullptr;
 	
 	Destroy();
