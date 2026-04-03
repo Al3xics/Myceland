@@ -23,6 +23,16 @@ AML_Collectible::AML_Collectible()
 	Collision->SetGenerateOverlapEvents(true);
 }
 
+void AML_Collectible::DestroyCollectible()
+{
+	BeforeDestroyCollectible(OwningTile);
+	
+	if (OwningTile->CollectibleActor == this)
+		OwningTile->CollectibleActor = nullptr;
+	
+	Destroy();
+}
+
 void AML_Collectible::BeginPlay()
 {
 	Super::BeginPlay();
@@ -55,7 +65,7 @@ void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_Pl
 		OwningTile->SetHasCollectible(false);
 		OwningTile = nullptr;
 	}
-	Destroy();
+	DestroyCollectible();
 }
 
 // bool AML_Collectible::CheckIsOwningTile(AML_PlayerCharacter* MycelandCharacter)

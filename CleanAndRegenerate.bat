@@ -1,6 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+:: Trap unexpected exits - keeps the window open so errors can be read
+if "%1"=="--trap" goto :eof
+
 :: ============================================================
 ::  Unreal Engine 5 - Clean & Regenerate Project Files
 ::  Supports: Rider, Visual Studio 2022, VSCode
@@ -145,7 +148,6 @@ echo ============================================================
 
 if "%IDE_NAME%"=="Rider" (
     echo   - .vs\
-    echo   - .idea\
     echo   - Binaries\
     echo   - DerivedDataCache\
     echo   - Intermediate\
@@ -199,7 +201,6 @@ call :delete_dir "Saved"
 :: IDE-specific cleanup
 if "%IDE_NAME%"=="Rider" (
     call :delete_dir ".vs"
-    call :delete_dir ".idea"
     call :delete_file ".vsconfig"
     call :delete_glob "*.sln"
 )
@@ -268,15 +269,20 @@ echo.
 :: No IDE flag passed - format is set via BuildConfiguration.xml
 if "!GENERATE_MODE!"=="GPF" (
     call "!GENERATE_CMD!" "%CD%\%UPROJECT_FILE%" -Game
+    set "REGEN_ERR=!errorlevel!"
 )
 if "!GENERATE_MODE!"=="UBT" (
     "!GENERATE_CMD!" -ProjectFiles "%CD%\%UPROJECT_FILE%" -Game
+    set "REGEN_ERR=!errorlevel!"
 )
 
-if errorlevel 1 (
+if "!REGEN_ERR!" neq "0" (
     echo.
-    echo [ERROR] Project file generation failed. See output above for details.
-    pause
+    echo [ERROR] Project file generation failed ^(exit code: !REGEN_ERR!^).
+    echo         See output above for details.
+    echo.
+    echo  Press any key to close...
+    pause >nul
     exit /b 1
 )
 
@@ -286,6 +292,17 @@ echo  Done! Project files regenerated successfully for %IDE_NAME%.
 echo ============================================================
 echo.
 exit /b 0
+
+:: Safety net - should never be reached, but keeps window open if something
+:: exits unexpectedly before reaching one of the explicit exit /b above.
+:unexpected_exit
+echo.
+echo [ERROR] The script exited unexpectedly.
+echo         See output above for details.
+echo.
+echo  Press any key to close...
+pause >nul
+exit /b 1
 
 :: ============================================================
 ::  Subroutine : detect_ides

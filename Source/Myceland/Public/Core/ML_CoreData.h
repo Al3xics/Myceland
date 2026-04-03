@@ -86,6 +86,15 @@ enum class EML_PlayerMovementMode : uint8
 	FreeMovement   // Free movement off the board
 };
 
+UENUM(BlueprintType)
+enum class ESettingValueType : uint8
+{
+	Float,
+	Bool,
+	Int32,
+	Unknown
+};
+
 
 // ==================== STRUCT ====================
 
