@@ -9,7 +9,6 @@
 class AML_Tile;
 class AML_PlayerCharacter;
 class AML_PlayerController;
-class AML_PlayerCharacter;
 class USphereComponent;
 
 UCLASS()
@@ -48,7 +47,11 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
 	void SetOwningTile(AML_Tile* InOwningTile) { OwningTile = InOwningTile; }
+	
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Collectible")
+	void BeforeDestroyCollectible(const AML_Tile* Tile);
 
 	void InitOwningAxial(const FIntPoint& InAxial) { OwningAxial = InAxial; }
 	const FIntPoint& GetOwningAxial() const { return OwningAxial; }
+	void DestroyCollectible();
 };

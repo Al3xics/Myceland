@@ -766,13 +766,8 @@ void UML_WavePropagationSubsystem::DestroyCollectibleActorOnTile(AML_Tile* Tile)
 	// Prefer the tile reference (O(1), deterministic).
 	if (AML_Collectible* C = Tile->CollectibleActor.Get())
 	{
-		if (IsValid(C))
-		{
-			C->Destroy();
-		}
+		if (IsValid(C)) C->DestroyCollectible();
 	}
-
-	Tile->CollectibleActor = nullptr;
 }
 
 void UML_WavePropagationSubsystem::ApplyUndoTimeDilation()
