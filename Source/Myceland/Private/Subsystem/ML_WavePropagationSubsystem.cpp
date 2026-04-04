@@ -176,6 +176,20 @@ void UML_WavePropagationSubsystem::RunWave()
 			else
 				Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
 
+			// Destroy collectible if the tile changed to something other than dirt or grass
+			// (because on dirt or grass it can stay)
+			if (Change.TargetType != EML_TileType::Dirt &&
+				Change.TargetType != EML_TileType::Grass)
+			{
+				if (Tile->HasCollectible())
+				{
+					if (AML_Collectible* Collectible = Tile->CollectibleActor.Get())
+						if (IsValid(Collectible)) Collectible->DestroyCollectible();
+					
+					Tile->SetHasCollectible(false);
+				}
+			}
+
 			// Parasite bookkeeping
 			if (Tile->GetCurrentType() == EML_TileType::Parasite && Tile->bConsumedGrass)
 			{
