@@ -39,6 +39,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.bIsGameOver = true;
 		OnLose.Broadcast();
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Lost!"));
+		bIsPlayerDead = false;
 		return GameResult;
 	}
 
@@ -56,7 +57,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
-
+	
 	return GameResult;
 }
 
@@ -291,6 +292,31 @@ AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
 
 	AML_Tile* PlayerCurrentTile = PlayerCharacter->CurrentTileOn;
 	return IsValid(PlayerCurrentTile) ? PlayerCurrentTile : nullptr;
+}
+
+void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
+{
+	Super::OnWorldBeginPlay(InWorld);
+
+	AML_PlayerCharacter* Player = Cast<AML_PlayerCharacter>(
+		UGameplayStatics::GetPlayerCharacter(&InWorld, 0));
+
+	if (Player)
+	{
+		BoundPlayer = Player;
+		Player->OnBoardChanged.AddDynamic(this, &UML_WinLoseSubsystem::HandleBoardChanged);
+	}
+}
+
+void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)
+{
+	if (!IsValid(NewTile))
+	{
+		CurrentBoardSpawner = nullptr;
+		return;
+	}
+
+	CurrentBoardSpawner = FindBoardSpawner();
 }
 
 AML_BoardSpawner* UML_WinLoseSubsystem::FindBoardSpawner() const

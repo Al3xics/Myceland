@@ -3,6 +3,7 @@
 #include "Player/ML_PlayerController.h"
 
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
@@ -225,8 +226,9 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 	// ---------- Move toward current waypoint ----------
 	FVector To = CurrentPathWorld[CurrentPathIndex] - Loc;
 	To.Z = 0.f;
+	const float Dist = To.Size();
 
-	if (To.Size() <= AcceptanceRadius)
+	if (Dist <= AcceptanceRadius)
 	{
 		const int32 ReachedIndex = CurrentPathIndex;
 		CurrentPathIndex++;
@@ -299,7 +301,14 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 			ActiveMoveAxialPath.Reset();
 			ActiveMovePickedCollectibles.Reset();
 
-			// end
+			// Snap to exact tile center and kill momentum so the character
+			// doesn't slide past due to CMC deceleration.
+			const FVector DestCenter = CurrentPathWorld[ReachedIndex];
+			const FVector SnappedLoc = FVector(DestCenter.X, DestCenter.Y, MycelandCharacter->GetActorLocation().Z);
+			MycelandCharacter->SetActorLocation(SnappedLoc, false, nullptr, ETeleportType::TeleportPhysics);
+			if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
+				MC->StopMovementImmediately();
+
 			CurrentPathWorld.Reset();
 			CurrentPathIndex = 0;
 			bIsMoving = false;
@@ -310,8 +319,28 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		return;
 	}
 
-	To.Normalize();
-	MycelandCharacter->AddMovementInput(To, MoveSpeedScale);
+	const bool bIsLastWaypoint = (CurrentPathIndex == CurrentPathWorld.Num() - 1);
+	if (bIsLastWaypoint)
+	{
+		// Direct position control for the final tile: cap the step to the remaining
+		// distance so CMC momentum can never carry the character past the center.
+		const FVector Dir = To / Dist;
+		const float Speed = MycelandCharacter->GetCharacterMovement()->MaxWalkSpeed * MoveSpeedScale;
+		const float Step = FMath::Min(Speed * DeltaTime, Dist);
+		const FVector NewLoc = FVector(Loc.X + Dir.X * Step, Loc.Y + Dir.Y * Step, Loc.Z);
+		MycelandCharacter->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+		MycelandCharacter->GetCharacterMovement()->StopMovementImmediately();
+
+		// CMC can't drive rotation without velocity, so rotate manually using the
+		// same RInterpTo approach as RotateCharacterTowardTile.
+		const FRotator DesiredRot = FRotator(0.f, Dir.Rotation().Yaw, 0.f);
+		const FRotator CurrentRot = MycelandCharacter->GetActorRotation();
+		MycelandCharacter->SetActorRotation(FMath::RInterpTo(CurrentRot, DesiredRot, DeltaTime, RotateSpeed));
+	}
+	else
+	{
+		MycelandCharacter->AddMovementInput(To / Dist, MoveSpeedScale);
+	}
 }
 
 void AML_PlayerController::OnPathFinished()
