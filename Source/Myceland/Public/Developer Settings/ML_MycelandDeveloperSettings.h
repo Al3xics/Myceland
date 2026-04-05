@@ -30,6 +30,13 @@ public:
 	
 	
 	
+	// ==================== UI ====================
+	
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
+	float TimeShowWinUI = 3.f;
+	
+	
+	
 	// ==================== Levels ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
