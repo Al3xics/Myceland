@@ -561,7 +561,14 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 	Super::OnPossess(aPawn);
 	MycelandCharacter = Cast<AML_PlayerCharacter>(aPawn);
 	if (MycelandCharacter)
+	{
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
+		
+		if (MycelandCharacter->CurrentTileOn)
+			CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
+		else
+			CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
+	}
 }
 
 
