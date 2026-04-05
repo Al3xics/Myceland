@@ -17,6 +17,7 @@ class AML_Tile;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnergyChanged, int32, NewEnergy);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHoveredTileChanged, AML_Tile*, HoveredTile, bool, bIsReachable);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -49,8 +50,9 @@ private:
 	// Exit hold
 	float ExitHoldTimer = 0.f;
 	bool bIsHoldingExitInput = false;
-	// bool bIsHoldingFreeInput = false;
 	bool bHasExitTargetWorld = false;
+	bool bWasExitingLastFrame = false;
+	float LastBroadcastProgress = -1.f;
 
 	UPROPERTY(Transient)
 	AML_Tile* PendingExitTile = nullptr;
@@ -227,6 +229,11 @@ public:
 	// obstacle blocks the path from the player to the hovered tile.
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Hover")
 	FOnHoveredTileChanged OnHoveredTileChanged;
+	
+	// Called when the player holds cursor to exit board
+	// The float is normalized between 0-1
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Exit")
+	FOnExitCursorHold OnExitCursorHold;
 
 	// ==================== Energy ====================
 	

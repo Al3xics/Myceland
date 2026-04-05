@@ -408,22 +408,53 @@ void AML_PlayerController::OnPathFinished()
 
 void AML_PlayerController::TickExitHold(float DeltaTime)
 {
-	if (CurrentMovementMode != EML_PlayerMovementMode::ExitingBoard) return;
-
-	if (!bIsHoldingExitInput)
+	const bool bIsCurrentlyExiting = (CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard && bIsHoldingExitInput);
+    
+	// Pas en train de sortir
+	if (!bIsCurrentlyExiting)
 	{
-		// Released too early → cancel
-		ExitHoldTimer = 0.f;
-		CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
-		PendingExitTile = nullptr;
-		bHasExitTargetWorld = false;
+		// Broadcast seulement si on ÉTAIT en train de sortir avant
+		if (bWasExitingLastFrame)
+		{
+			OnExitCursorHold.Broadcast(false, 0.0f);
+			bWasExitingLastFrame = false;
+			LastBroadcastProgress = -1.f;
+		}
+        
+		if (CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
+		{
+			ExitHoldTimer = 0.f;
+			CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
+			PendingExitTile = nullptr;
+			bHasExitTargetWorld = false;
+		}
 		return;
 	}
+    
+	// Calculate progress
+	const float Progress = FMath::Clamp(ExitHoldTimer / DevSettings->ExitBoardHoldDuration, 0.f, 1.f);
+    
+	// Broadcast seulement si :
+	// 1. On vient de commencer à exit (transition)
+	// 2. Le progrès a significativement changé (évite les micro-variations)
+	const bool bJustStartedExiting = !bWasExitingLastFrame;
+	const bool bProgressChanged = FMath::Abs(Progress - LastBroadcastProgress) > 0.01f; // 1% de différence
+    
+	if (bJustStartedExiting || bProgressChanged)
+	{
+		OnExitCursorHold.Broadcast(true, Progress);
+		LastBroadcastProgress = Progress;
+	}
+    
+	bWasExitingLastFrame = true;
 
 	ExitHoldTimer += DeltaTime;
 	if (ExitHoldTimer >= DevSettings->ExitBoardHoldDuration)
 	{
 		ExitHoldTimer = 0.f;
+		OnExitCursorHold.Broadcast(false, 1.0f); // Broadcast final avant de confirmer
+		bWasExitingLastFrame = false;
+		LastBroadcastProgress = -1.f;
 		ConfirmExitBoard();
 	}
 }
