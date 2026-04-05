@@ -39,6 +39,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.bIsGameOver = true;
 		OnLose.Broadcast();
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Lost!"));
+		bIsPlayerDead = false;
 		return GameResult;
 	}
 
@@ -56,7 +57,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
-
+	
 	return GameResult;
 }
 
