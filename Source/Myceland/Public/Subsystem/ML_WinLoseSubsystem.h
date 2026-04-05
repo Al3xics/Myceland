@@ -63,6 +63,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_BoardSpawner* FindBoardSpawner() const;
 
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void ClearWinPath(
 		const AML_BoardSpawner* Board,
@@ -83,6 +85,9 @@ public:
 	bool bIsPlayerDead = false;
 
 private:
+	UFUNCTION()
+	void HandleBoardChanged(const AML_Tile* NewTile);
+
 	static const FIntPoint HexDirs[6];
 
 	TSet<EML_TileType> BuildAllowedSet(const TArray<EML_TileType>& AllowedPathTypes) const;

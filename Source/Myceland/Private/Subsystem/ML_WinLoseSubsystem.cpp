@@ -293,6 +293,31 @@ AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
 	return IsValid(PlayerCurrentTile) ? PlayerCurrentTile : nullptr;
 }
 
+void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
+{
+	Super::OnWorldBeginPlay(InWorld);
+
+	AML_PlayerCharacter* Player = Cast<AML_PlayerCharacter>(
+		UGameplayStatics::GetPlayerCharacter(&InWorld, 0));
+
+	if (Player)
+	{
+		BoundPlayer = Player;
+		Player->OnBoardChanged.AddDynamic(this, &UML_WinLoseSubsystem::HandleBoardChanged);
+	}
+}
+
+void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)
+{
+	if (!IsValid(NewTile))
+	{
+		CurrentBoardSpawner = nullptr;
+		return;
+	}
+
+	CurrentBoardSpawner = FindBoardSpawner();
+}
+
 AML_BoardSpawner* UML_WinLoseSubsystem::FindBoardSpawner() const
 {
 	AML_Tile* ChildTile = GetPlayerCurrentTile();
