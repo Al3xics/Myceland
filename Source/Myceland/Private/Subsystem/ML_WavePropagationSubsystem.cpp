@@ -282,7 +282,9 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 		return;
 	}
 
-	UML_PropagationWaves* WaveLogic = DevSettings->WavesPriority[CurrentWaveIndex]->GetDefaultObject<UML_PropagationWaves>();
+	const FML_WavePriorityEntry& WaveEntry = DevSettings->WavesPriority[CurrentWaveIndex];
+	UML_PropagationWaves* WaveLogic = WaveEntry.WaveClass ? WaveEntry.WaveClass->GetDefaultObject<UML_PropagationWaves>() : nullptr;
+
 	if (!WaveLogic)
 	{
 		CurrentWaveIndex++;
@@ -291,6 +293,7 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 	}
 
 	CurrentPriorityIndexForRecording = CurrentWaveIndex;
+	const bool bCanStopIfNoChanges = WaveEntry.bCanStopHereIfNoChanges;
 	CurrentWaveIndex++;
 
 	PendingChanges.Empty();
@@ -308,9 +311,19 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 
 	if (PendingChanges.Num() == 0)
 	{
-		// No changes in this wave → STOP immediately
-		EndTileResolved();
-		return;
+		// No changes in this wave
+		if (bCanStopIfNoChanges)
+		{
+			// Stop immediately if this wave allows stopping
+			EndTileResolved();
+			return;
+		}
+		else
+		{
+			// Continue to the next wave
+			ScheduleNextPriority();
+			return;
+		}
 	}
 
 	PendingChanges.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
