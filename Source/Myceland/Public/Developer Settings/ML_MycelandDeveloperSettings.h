@@ -35,6 +35,9 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
 	float TimeShowWinUI = 3.f;
 	
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
+	float DelayBeforeShowLoseUI = 0.f;
+	
 	
 	
 	// ==================== Levels ====================
