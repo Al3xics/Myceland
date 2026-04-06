@@ -469,6 +469,24 @@ void AML_PlayerController::ConfirmExitBoard()
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
 	const FIntPoint GoalAxial = PendingExitTile->GetAxialCoord();
+	
+	if (StartAxial == GoalAxial)
+	{
+		// Direct exit, no path needed
+		CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
+
+		if (bHasExitTargetWorld)
+		{
+			PendingFreeMovementTarget = PendingExitTargetWorld;
+			PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z;
+			bHasFreeMovementTarget = true;
+			bIsMoving = true;
+			bHasExitTargetWorld = false;
+		}
+
+		PendingExitTile = nullptr;
+		return;
+	}
 
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
 
