@@ -197,3 +197,15 @@ struct FML_TabData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tab")
 	FML_TabSlotSettings SlotSettings;
 };
+
+USTRUCT(BlueprintType)
+struct FML_WavePriorityEntry
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
+	TSubclassOf<UML_PropagationWaves> WaveClass;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="If true and this wave has no changes, the propagation will stop entirely. If false, continues to next wave."))
+	bool bCanStopHereIfNoChanges = true;
+};

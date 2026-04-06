@@ -69,7 +69,7 @@ public:
 	// ==================== Wave Propagation ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
-	TArray<TSubclassOf<UML_PropagationWaves>> WavesPriority;
+	TArray<FML_WavePriorityEntry> WavesPriority;
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each global waves (grass, DELAY, parasite, DELAY, water, DELAY, etc..."))
 	float InterWaveDelay = 1.f;
