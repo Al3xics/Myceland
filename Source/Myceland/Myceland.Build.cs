@@ -22,7 +22,8 @@ public class Myceland : ModuleRules
 			"UMG",
 			"Json",
 			"DeveloperSettings",
-			"GameplayTags"
+            "ProceduralMeshComponent",
+            "GameplayTags"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
