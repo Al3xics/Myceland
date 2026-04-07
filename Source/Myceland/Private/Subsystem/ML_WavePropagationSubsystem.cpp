@@ -377,6 +377,8 @@ bool UML_WavePropagationSubsystem::ResetAllActions_Animated()
 {
 	EnsureInitialized();
 	if (!PlayerController || !DevSettings) return false;
+	AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(PlayerController->GetPawn());
+	if (!PC->CurrentTileOn) return false;
 	if (bIsResolvingTiles || bIsUndoAnimating || bIsResetAllAnimating) return false;
 	if (ActionUndoStack.Num() == 0) return false;
 
