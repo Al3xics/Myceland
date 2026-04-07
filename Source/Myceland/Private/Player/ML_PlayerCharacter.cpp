@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Player/ML_PlayerController.h"
+#include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
 
@@ -102,9 +103,22 @@ void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const A
 	const bool bWasNull = (OldTile == nullptr);
 	const bool bIsNull  = (NewTile == nullptr);
 
-	// Only trigger on null <-> non-null transition
 	if (bWasNull != bIsNull)
+	{
 		OnBoardChanged.Broadcast(CurrentTileOn);
+
+		// Le joueur vient de quitter le board → reset les PlantWaves sans toucher aux Move
+		if (bIsNull)
+		{
+			if (UWorld* World = GetWorld())
+			{
+				if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
+				{
+					WaveSubsystem->ResetAllActions_ExcludingMoves_Animated();
+				}
+			}
+		}
+	}
 }
 
 void AML_PlayerCharacter::BeginPlay()
