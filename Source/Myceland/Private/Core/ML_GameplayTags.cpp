@@ -7,20 +7,9 @@ namespace ML_GameplayTags
 {
 	// ============================ Levels ============================
 	UE_DEFINE_GAMEPLAY_TAG(Level_Menu, "Level.Menu");
-	UE_DEFINE_GAMEPLAY_TAG(Level_LevelSelectionMenu, "Level.LevelSelectionMenu");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Tuto_1, "Level.Tuto.1");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Tuto_2, "Level.Tuto.2");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Tuto_3, "Level.Tuto.3");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Tuto_4, "Level.Tuto.4");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Easy_1, "Level.Easy.1");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Easy_2, "Level.Easy.2");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Easy_3, "Level.Easy.3");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Easy_4, "Level.Easy.4");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Middle_1, "Level.Middle.1");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Middle_2, "Level.Middle.2");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Middle_3, "Level.Middle.3");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Hard_1, "Level.Hard.1");
-	UE_DEFINE_GAMEPLAY_TAG(Level_Hard_2, "Level.Hard.2");
+	UE_DEFINE_GAMEPLAY_TAG(Level_WorldMap, "Level.WorldMap");
+	UE_DEFINE_GAMEPLAY_TAG(Level_TutoShowcase, "Level.TutoShowcase");
+	UE_DEFINE_GAMEPLAY_TAG(Level_LevelShowcase, "Level.LevelShowcase");
 	
 	
 	// ============================ UI ============================
