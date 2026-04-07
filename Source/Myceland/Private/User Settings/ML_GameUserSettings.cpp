@@ -286,11 +286,7 @@ void UML_GameUserSettings::ApplyAudioSettings()
 		return;
 
 	const UWorld* World = GetWorld();
-	if (!World)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to get World for audio settings"));
-		return;
-	}
+	if (!World) return;
 
 	// Load Sound Classes and Mix from Developer Settings
 	USoundClass* MasterClass = DevSettings->MasterSoundClass.LoadSynchronous();
