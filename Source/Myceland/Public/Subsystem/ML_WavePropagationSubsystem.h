@@ -65,6 +65,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Reset")
 	bool ResetAllActions_Animated();
 
+	bool ResetAllActions_ExcludingMoves_Animated();
+
 	UPROPERTY(BlueprintAssignable, Category="Undo")
 	FOnUndoAnimating OnUndoAnimating;
 
