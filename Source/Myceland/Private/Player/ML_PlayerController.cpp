@@ -69,6 +69,26 @@ AML_Tile* AML_PlayerController::FindNearestWalkableTile(const FVector& WorldLoca
 	return Best;
 }
 
+void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
+{
+	// Update internal state
+	bIsMoving = bNewIsMoving;
+	
+	//Only broadcast when inside the board
+	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard)
+	{
+		bWasMovingInBoard = false;
+		return;
+	}
+	
+	// Only broadcast if the state actually changed (avoid spam)
+	if (bIsMoving != bWasMovingInBoard)
+	{
+		OnBoardMovementStateChanged.Broadcast(bIsMoving);
+		bWasMovingInBoard = bIsMoving;
+	}
+}
+
 
 // ==================== Pathfinding ====================
 
@@ -145,11 +165,30 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 		if (AML_Tile* const* TilePtr = GridMap.Find(Axial))
 			if (IsValid(*TilePtr))
 				CurrentPathWorld.Add((*TilePtr)->GetActorLocation());
+	
+	// If no valid path → not moving
+	if (CurrentPathWorld.Num() == 0)
+	{
+		SetIsMoving(false);
+		return;
+	}
 
+	// Skip first point if already there
 	if (APawn* P = GetPawn())
-		if (CurrentPathWorld.Num() > 0)
-			if (FVector::DistSquared2D(P->GetActorLocation(), CurrentPathWorld[0]) <= FMath::Square(AcceptanceRadius))
-				CurrentPathIndex = 1;
+		if (FVector::DistSquared2D(P->GetActorLocation(), CurrentPathWorld[0]) <= FMath::Square(AcceptanceRadius))
+			CurrentPathIndex = 1;
+
+	// If already at destination
+	if (CurrentPathIndex >= CurrentPathWorld.Num())
+	{
+		CurrentPathWorld.Reset();
+		CurrentPathIndex = 0;
+		SetIsMoving(false);
+		OnPathFinished();
+		return;
+	}
+	
+	SetIsMoving(true);
 }
 
 void AML_PlayerController::StartMoveToWorldLocation(const FVector& WorldLocation)
@@ -157,6 +196,8 @@ void AML_PlayerController::StartMoveToWorldLocation(const FVector& WorldLocation
 	CurrentPathWorld.Reset();
 	CurrentPathIndex = 0;
 	CurrentPathWorld.Add(WorldLocation);
+	
+	SetIsMoving(true);
 }
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
@@ -178,7 +219,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		if (To.Size() <= AcceptanceRadius)
 		{
 			bHasFreeMovementTarget = false;
-			bIsMoving = false;
+			SetIsMoving(false);
 			return;
 		}
 
@@ -194,7 +235,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 	{
 		CurrentPathWorld.Reset();
 		CurrentPathIndex = 0;
-		bIsMoving = false;
+		SetIsMoving(false);
 	}
 	*/
 
@@ -311,7 +352,7 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 
 			CurrentPathWorld.Reset();
 			CurrentPathIndex = 0;
-			bIsMoving = false;
+			SetIsMoving(false);
 			OnPathFinished();
 
 			// return;
@@ -334,7 +375,7 @@ void AML_PlayerController::OnPathFinished()
 			PendingFreeMovementTarget = PendingExitTargetWorld;
 			PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z;
 			bHasFreeMovementTarget = true;
-			bIsMoving = true;
+			SetIsMoving(true);
 			bHasExitTargetWorld = false;
 		}
 
@@ -368,7 +409,6 @@ void AML_PlayerController::OnPathFinished()
 		if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
 
 		StartMoveAlongPath(AxialPath, GridMap);
-		bIsMoving = true;
 	}
 
 	if (bPendingPlantOnArrival)
@@ -480,7 +520,7 @@ void AML_PlayerController::ConfirmExitBoard()
 			PendingFreeMovementTarget = PendingExitTargetWorld;
 			PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z;
 			bHasFreeMovementTarget = true;
-			bIsMoving = true;
+			SetIsMoving(true);
 			bHasExitTargetWorld = false;
 		}
 
@@ -499,7 +539,6 @@ void AML_PlayerController::ConfirmExitBoard()
 	PendingExitTile = nullptr;
 
 	StartMoveAlongPath(AxialPath, GridMap);
-	bIsMoving = true;
 }
 
 
@@ -535,7 +574,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 
 		CurrentPathWorld.Add(TileCenter);
 		CurrentPathIndex = 0;
-		bIsMoving = true;
+		SetIsMoving(true);
 	}
 }
 
@@ -636,7 +675,6 @@ void AML_PlayerController::OnSetDestinationStarted()
 			// ---------------------------------------------
 
 			StartMoveAlongPath(AxialPath, GridMap);
-			bIsMoving = true;
 			return;
 		}
 
@@ -684,8 +722,6 @@ void AML_PlayerController::OnSetDestinationStarted()
 				// Move to the border tile first (not directly to target)
 				StartMoveToWorldLocation(NearestBorderTile->GetActorLocation());
 			}
-
-			bIsMoving = true;
 			return;
 		}
 
@@ -698,7 +734,7 @@ void AML_PlayerController::OnSetDestinationStarted()
 		PendingFreeMovementTarget = Hit.Location;
 		PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z; // Keep same Z
 		bHasFreeMovementTarget = true;
-		bIsMoving = true;
+		SetIsMoving(true);
 
 		return;
 	}
@@ -719,7 +755,6 @@ void AML_PlayerController::OnSetDestinationTriggered()
 
 	// Always follow the mouse in free mode
 	StartMoveToWorldLocation(Hit.Location);
-	bIsMoving = true;
 }
 */
 
@@ -790,7 +825,6 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 	bPendingPlantOnArrival = true;
 
 	StartMoveAlongPath(FullPath, GridMap);
-	bIsMoving = true;
 }
 
 

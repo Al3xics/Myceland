@@ -18,6 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedT
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnergyChanged, int32, NewEnergy);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHoveredTileChanged, AML_Tile*, HoveredTile, bool, bIsReachable);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardMovementStateChanged, bool, bIsMoving);
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -45,6 +46,7 @@ private:
 	int32 CurrentPathIndex = 0;
 
 	bool bIsMoving = false;
+	bool bWasMovingInBoard = false;
 	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
 
 	// Exit hold
@@ -116,6 +118,7 @@ private:
 	AML_Tile* GetTileUnderCursor() const;
 	bool IsTileWalkable(const AML_Tile* Tile) const;
 	AML_Tile* FindNearestWalkableTile(const FVector& WorldLocation, const TMap<FIntPoint, AML_Tile*>& GridMap) const;
+	void SetIsMoving(bool bNewIsMoving);
 
 	// ==================== Pathfinding ====================
 
@@ -234,6 +237,11 @@ public:
 	// The float is normalized between 0-1
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Exit")
 	FOnExitCursorHold OnExitCursorHold;
+	
+	// Whenever the player starts and stops moving INSIDE a board.
+	// Will not be broadcasted when OUTSIDE the board.
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller")
+	FOnBoardMovementStateChanged OnBoardMovementStateChanged;
 
 	// ==================== Energy ====================
 	
