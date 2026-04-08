@@ -7,6 +7,8 @@
 #include "Core/ML_CoreData.h"
 #include "Engine/DeveloperSettings.h"
 #include "InputMappingContext.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
 #include "ML_MycelandDeveloperSettings.generated.h"
 
 class AML_Collectible;
@@ -28,6 +30,16 @@ public:
 	
 	
 	
+	// ==================== UI ====================
+	
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
+	float TimeShowWinUI = 3.f;
+	
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
+	float DelayBeforeShowLoseUI = 0.f;
+	
+	
+	
 	// ==================== Levels ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
@@ -35,16 +47,44 @@ public:
 	
 	
 	
+	// ==================== Audio ====================
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> MasterSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> MusicSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> SFXSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> UISoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
+	TSoftObjectPtr<USoundClass> VoiceSoundClass;
+    
+	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Mix")
+	TSoftObjectPtr<USoundMix> GameSoundMix;
+	
+	
+	
 	// ==================== Wave Propagation ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
-	TArray<TSubclassOf<UML_PropagationWaves>> WavesPriority;
+	TArray<FML_WavePriorityEntry> WavesPriority;
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each global waves (grass, DELAY, parasite, DELAY, water, DELAY, etc..."))
 	float InterWaveDelay = 1.f;
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	float UndoSpeed = 3.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	float ResetSpeed = 3.0f;
 	
 	
 	

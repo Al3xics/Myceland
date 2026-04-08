@@ -90,7 +90,8 @@ public:
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
 	
-	
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	AML_Tile* ExitTile;
 	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
 	void UpdateCurrentGrid();
@@ -121,4 +122,7 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
+
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	TSubclassOf<AML_TileBase> WaterChangeTile;
 };

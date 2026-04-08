@@ -16,7 +16,7 @@ AML_TileBase::AML_TileBase()
 	GroundBase->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GroundBase->SetCollisionObjectType(ECC_WorldStatic);
 	GroundBase->SetCollisionResponseToAllChannels(ECR_Block);
-	GroundBase->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	GroundBase->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 	GroundBase->SetGenerateOverlapEvents(false);
 }
 	

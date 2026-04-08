@@ -8,6 +8,7 @@
 #include "Subsystem/ML_WinLoseSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_BoardSpawner.h"
+#include "Kismet/GameplayStatics.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Waves/ML_PropagationWaves.h"
 #include "Waves/ChildWaves/ML_WaveCollectible.h"
@@ -42,7 +43,7 @@ void UML_WavePropagationSubsystem::BeginTurnRecord_Internal(AML_Tile* OriginTile
 
 	bHasActiveTurnRecord = true;
 	CurrentTurnRecord = FML_TurnUndoRecord{};
-	CurrentTurnRecord.EnergyBefore = PlayerController->CurrentEnergy;
+	CurrentTurnRecord.EnergyBefore = PlayerController->GetCurrentEnergy();
 	CurrentTurnRecord.PlayerAxialBefore = PC->CurrentTileOn->GetAxialCoord();
 	CurrentTurnRecord.PlayerWorldBefore = PC->GetActorLocation();
 	CurrentTurnRecord.OriginTile = OriginTile;
@@ -104,7 +105,7 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	WinLoseSubsystem->CheckWinLose();
 	WinLoseSubsystem->OnCheckPaths.Broadcast();
 	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
-	
+
 	bIsResolvingTiles = false;
 
 	CommitTurnRecord_Internal();
@@ -175,18 +176,32 @@ void UML_WavePropagationSubsystem::RunWave()
 			else
 				Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
 
+			// Destroy collectible if the tile changed to something other than dirt or grass
+			// (because on dirt or grass it can stay)
+			if (Change.TargetType != EML_TileType::Dirt &&
+				Change.TargetType != EML_TileType::Grass)
+			{
+				if (Tile->HasCollectible())
+				{
+					if (AML_Collectible* Collectible = Tile->CollectibleActor.Get())
+						if (IsValid(Collectible)) Collectible->DestroyCollectible();
+					
+					Tile->SetHasCollectible(false);
+				}
+			}
+
 			// Parasite bookkeeping
 			if (Tile->GetCurrentType() == EML_TileType::Parasite && Tile->bConsumedGrass)
 			{
 				ParasitesThatAteGrass.Add(Tile);
 				Tile->bConsumedGrass = false;
 			}
-			
+
 			if (Change.Tile == WinLoseSubsystem->GetPlayerCurrentTile())
 			{
 				WinLoseSubsystem->CheckPlayerKilled(Change.Tile);
 			}
-			
+
 			if (OldType != Change.TargetType) bCycleHasChanges = true;
 		}
 		// Collectible spawn
@@ -195,19 +210,27 @@ void UML_WavePropagationSubsystem::RunWave()
 			// Collectible wave - Deferred Spawn
 			FActorSpawnParameters Params;
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			
+
 			// Create the actor WITHOUT the spawn (deferred)
-			AML_Collectible* Collectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(Change.CollectibleClass, FTransform(FRotator::ZeroRotator, Change.SpawnLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			AML_Collectible* Collectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(
+				Change.CollectibleClass,
+				FTransform(FRotator::ZeroRotator, Change.SpawnLocation),
+				nullptr,
+				nullptr,
+				ESpawnActorCollisionHandlingMethod::AlwaysSpawn
+			);
+
 			if (Collectible)
 			{
 				// Configure BEFORE the spawn
 				Collectible->SetOwningTile(Change.Neighbor);
-        
+				Change.Neighbor->CollectibleActor = Collectible;
+
 				// Finish spawning
 				Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
 
 				RecordSpawnedActor(Collectible, Change.DistanceFromOrigin);
-        
+
 				bCycleHasChanges = true;
 			}
 		}
@@ -259,7 +282,9 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 		return;
 	}
 
-	UML_PropagationWaves* WaveLogic = DevSettings->WavesPriority[CurrentWaveIndex]->GetDefaultObject<UML_PropagationWaves>();
+	const FML_WavePriorityEntry& WaveEntry = DevSettings->WavesPriority[CurrentWaveIndex];
+	UML_PropagationWaves* WaveLogic = WaveEntry.WaveClass ? WaveEntry.WaveClass->GetDefaultObject<UML_PropagationWaves>() : nullptr;
+
 	if (!WaveLogic)
 	{
 		CurrentWaveIndex++;
@@ -268,6 +293,7 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 	}
 
 	CurrentPriorityIndexForRecording = CurrentWaveIndex;
+	const bool bCanStopIfNoChanges = WaveEntry.bCanStopHereIfNoChanges;
 	CurrentWaveIndex++;
 
 	PendingChanges.Empty();
@@ -285,9 +311,19 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 
 	if (PendingChanges.Num() == 0)
 	{
-		// No changes in this wave → STOP immediately
-		EndTileResolved();
-		return;
+		// No changes in this wave
+		if (bCanStopIfNoChanges)
+		{
+			// Stop immediately if this wave allows stopping
+			EndTileResolved();
+			return;
+		}
+		else
+		{
+			// Continue to the next wave
+			ScheduleNextPriority();
+			return;
+		}
 	}
 
 	PendingChanges.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
@@ -316,9 +352,9 @@ void UML_WavePropagationSubsystem::NotifyMoveCompleted(
 	EnsureInitialized();
 
 	UE_LOG(LogTemp, Warning, TEXT("[MOVE RECORD] Picked=%d Start=(%d,%d) End=(%d,%d)"), PickedCollectibleAxials.Num(), StartAxial.X, StartAxial.Y, EndAxial.X, EndAxial.Y);
-	
+
 	if (!PlayerController) return;
-	if (bIsResolvingTiles || bIsUndoAnimating) return;
+	if (bIsResolvingTiles || bIsUndoAnimating || bIsResetAllAnimating) return;
 
 	if (AxialPath.Num() < 2) return;
 	if (StartAxial == EndAxial) return;
@@ -335,6 +371,102 @@ void UML_WavePropagationSubsystem::NotifyMoveCompleted(
 	ActionUndoStack.Add(A);
 }
 
+// -------------------- Reset all / chain undo --------------------
+
+bool UML_WavePropagationSubsystem::ResetAllActions_Animated()
+{
+	EnsureInitialized();
+	if (!PlayerController || !DevSettings) return false;
+	if (bIsResolvingTiles || bIsUndoAnimating || bIsResetAllAnimating) return false;
+	if (ActionUndoStack.Num() == 0) return false;
+
+	CancelAllWaveTimers();
+	PlayerController->DisableInput(PlayerController);
+	ApplyResetTimeDilation();
+
+
+	bIsResetAllAnimating = true;
+	OnResetAnimating.Broadcast(bIsResetAllAnimating);
+
+	const bool bStarted = UndoLastAction_Animated();
+	if (!bStarted)
+	{
+		bIsResetAllAnimating = false;
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
+		PlayerController->EnableInput(PlayerController);
+		return false;
+	}
+
+	return true;
+}
+
+void UML_WavePropagationSubsystem::StartNextResetUndoStep()
+{
+	if (!bIsResetAllAnimating) return;
+
+	if (bIsResolvingTiles || bIsUndoAnimating)
+	{
+		return;
+	}
+
+	if (ActionUndoStack.Num() == 0)
+	{
+		bIsResetAllAnimating = false;
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
+
+		if (PlayerController)
+			PlayerController->EnableInput(PlayerController);
+		return;
+	}
+
+	const bool bStarted = UndoLastAction_Animated();
+	if (!bStarted)
+	{
+		bIsResetAllAnimating = false;
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
+
+		if (PlayerController)
+			PlayerController->EnableInput(PlayerController);
+	}
+}
+
+void UML_WavePropagationSubsystem::ContinueResetAllIfNeeded()
+{
+	if (!bIsResetAllAnimating)
+	{
+		if (PlayerController)
+			PlayerController->EnableInput(PlayerController);
+		return;
+	}
+
+	if (ActionUndoStack.Num() == 0)
+	{
+		bIsResetAllAnimating = false;
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
+
+		if (PlayerController)
+			PlayerController->EnableInput(PlayerController);
+		return;
+	}
+
+	if (!GetWorld())
+	{
+		bIsResetAllAnimating = false;
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
+
+		if (PlayerController)
+			PlayerController->EnableInput(PlayerController);
+		return;
+	}
+
+	GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UML_WavePropagationSubsystem::StartNextResetUndoStep);
+}
+
 // -------------------- Undo animated (Move + Plant/Waves) --------------------
 
 bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
@@ -346,6 +478,7 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 
 	CancelAllWaveTimers();
 	PlayerController->DisableInput(PlayerController);
+	ApplyUndoTimeDilation();
 
 	const FML_ActionUndoRecord Action = ActionUndoStack.Pop();
 
@@ -353,6 +486,11 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 	if (Action.Type == EML_UndoActionType::Move)
 	{
 		bIsUndoAnimating = true;
+		if (!bIsResetAllAnimating)
+		{
+			OnUndoAnimating.Broadcast(bIsUndoAnimating);
+		}
+		
 
 		TArray<FIntPoint> ReversePath = Action.Move.AxialPath;
 		Algo::Reverse(ReversePath);
@@ -365,10 +503,13 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 	if (Action.Type == EML_UndoActionType::PlantWaves)
 	{
 		bIsUndoAnimating = true;
+		if (!bIsResetAllAnimating)
+		{
+			OnUndoAnimating.Broadcast(bIsUndoAnimating);
+		}
 		ActiveUndoRecord = Action.Turn;
 
-		// Restore energy at turn start
-		PlayerController->CurrentEnergy = ActiveUndoRecord.EnergyBefore;
+		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore + 1);
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
@@ -392,7 +533,18 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 		return true;
 	}
 
-	PlayerController->EnableInput(PlayerController);
+	if (bIsResetAllAnimating)
+	{
+		ContinueResetAllIfNeeded();
+	}
+	else
+	{
+		ClearTimeDilation();
+
+		if (PlayerController)
+			PlayerController->EnableInput(PlayerController);
+	}
+
 	return false;
 }
 
@@ -489,7 +641,15 @@ void UML_WavePropagationSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32
 				const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
 				if (TileSet)
 				{
-					Tile->UpdateClassAtRuntime_Silent(TD.OldType, TileSet->GetClassFromTileType(TD.OldType));
+					const EML_TileType PreviousType = Tile->GetCurrentType();
+					const EML_TileType NewType = TD.OldType;
+
+					Tile->UpdateClassAtRuntime_Silent(NewType, TileSet->GetClassFromTileType(NewType));
+
+					if (PreviousType != NewType)
+					{
+						Tile->OnTileTypeChanged(PreviousType, NewType);
+					}
 
 					// Important: if the tile should NOT have a collectible (pre-wave state),
 					// we must also remove any collectible that may exist now (including those restored by undo-move).
@@ -540,19 +700,13 @@ void UML_WavePropagationSubsystem::FinishUndoAnimation()
 	PendingUndoSpawnDeltas.Reset();
 	ActiveUndoRecord = FML_TurnUndoRecord{};
 
-	if (PlayerController)
-		PlayerController->EnableInput(PlayerController);
+	if (!bIsResetAllAnimating)
+	{
+		ClearTimeDilation();
+		OnUndoAnimating.Broadcast(bIsUndoAnimating);
+	}
 
-	PlayerController->CurrentEnergy ++;
-}
-
-void UML_WavePropagationSubsystem::NotifyUndoMoveFinished()
-{
-	// End of undo MOVE playback
-	bIsUndoAnimating = false;
-
-	if (PlayerController)
-		PlayerController->EnableInput(PlayerController);
+	ContinueResetAllIfNeeded();
 }
 
 bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Axial)
@@ -593,17 +747,21 @@ bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPo
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	AML_Collectible* SpawnedCollectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(CollectibleClass, FTransform(FRotator::ZeroRotator, SpawnLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	AML_Collectible* SpawnedCollectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(
+		CollectibleClass,
+		FTransform(FRotator::ZeroRotator, SpawnLocation),
+		nullptr,
+		nullptr,
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn
+	);
+
 	if (SpawnedCollectible)
 	{
 		// Configure BEFORE the spawn
 		SpawnedCollectible->SetOwningTile(*TilePtr);
-        
+
 		// Finish spawning
 		SpawnedCollectible->FinishSpawning(FTransform(FRotator::ZeroRotator, SpawnLocation));
-
-		//RecordSpawnedActor(SpawnedCollectible, DistanceFromOrigin);
-        
 	}
 
 	if (!IsValid(SpawnedCollectible))
@@ -617,7 +775,7 @@ bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPo
 	Tile->SetHasCollectible(true);
 
 	// Give energy back to the world (player loses 1).
-	PlayerController->CurrentEnergy = FMath::Max(0, PlayerController->CurrentEnergy - 1);
+	PlayerController->AddEnergy(-1);
 
 	// Optional safety: avoid instant overlap in the same frame.
 	if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
@@ -644,11 +802,31 @@ void UML_WavePropagationSubsystem::DestroyCollectibleActorOnTile(AML_Tile* Tile)
 	// Prefer the tile reference (O(1), deterministic).
 	if (AML_Collectible* C = Tile->CollectibleActor.Get())
 	{
-		if (IsValid(C))
-		{
-			C->Destroy();
-		}
+		if (IsValid(C)) C->DestroyCollectible();
 	}
-
-	Tile->CollectibleActor = nullptr;
 }
+
+void UML_WavePropagationSubsystem::ApplyUndoTimeDilation()
+{
+	if (!GetWorld() || bUndoTimeDilationApplied) return;
+
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->UndoSpeed);
+	bUndoTimeDilationApplied = true;
+}
+
+void UML_WavePropagationSubsystem::ApplyResetTimeDilation()
+{
+	if (!GetWorld() || bUndoTimeDilationApplied) return;
+
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->ResetSpeed);
+	bUndoTimeDilationApplied = true;
+}
+
+void UML_WavePropagationSubsystem::ClearTimeDilation()
+{
+	if (!GetWorld() || !bUndoTimeDilationApplied) return;
+
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
+	bUndoTimeDilationApplied = false;
+}
+

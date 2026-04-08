@@ -14,12 +14,22 @@ class AML_PlayerCharacter;
 class AML_BoardSpawner;
 class AML_Tile;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnergyChanged, int32, NewEnergy);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHoveredTileChanged, AML_Tile*, HoveredTile, bool, bIsReachable);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
+
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
 private:
+	
+	// ==================== Energy ====================
+	
+	UPROPERTY()
+	int CurrentEnergy = 0;
 
 	// ==================== References ====================
 
@@ -40,10 +50,15 @@ private:
 	// Exit hold
 	float ExitHoldTimer = 0.f;
 	bool bIsHoldingExitInput = false;
-	bool bIsHoldingFreeInput = false;
+	bool bHasExitTargetWorld = false;
+	bool bWasExitingLastFrame = false;
+	float LastBroadcastProgress = -1.f;
 
 	UPROPERTY(Transient)
 	AML_Tile* PendingExitTile = nullptr;
+	
+	UPROPERTY(Transient)
+	FVector PendingExitTargetWorld = FVector::ZeroVector;
 
 	// Board entry
 	bool bPendingFreeMovementOnArrival = false;
@@ -57,6 +72,18 @@ private:
 	AML_Tile* PendingPlantTargetTile = nullptr;
 	
 	bool bPendingPlantOnArrival = false;
+	
+	// Free movement target
+	UPROPERTY(Transient)
+	FVector PendingFreeMovementTarget = FVector::ZeroVector;
+	
+	bool bHasFreeMovementTarget = false;
+
+	// Rotate Tile
+	UPROPERTY(Transient)
+	const AML_Tile* RotateTargetTile = nullptr;
+	
+	bool bTurningToTile;
 
 	// ==================== Undo ====================
 
@@ -101,6 +128,11 @@ private:
 	void TickMoveAlongPath(float DeltaTime);
 	void OnPathFinished();
 
+	// ==================== Rotation ====================
+	
+	void RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed);
+	void TickTurnTowardPendingTile(float DeltaTime);
+
 	// ==================== Board Exit / Entry ====================
 
 	void TickExitHold(float DeltaTime);
@@ -110,6 +142,10 @@ private:
 
 	UFUNCTION()
 	void HandleBoardStateChanged(const AML_Tile* NewTile);
+
+	// ==================== Actions ====================
+
+	void ConfirmTurn(AML_Tile* HitTile);
 
 protected:
 
@@ -121,13 +157,15 @@ protected:
 
 	// ==================== Input ====================
 
-	// Bind to OnStarted  — one shot per click (BFS, exit hold trigger, board re-entry)
+	// Bind to OnStarted — one shot per click (BFS, exit hold trigger, board re-entry)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
+	/*
 	// Bind to OnTriggered — every frame while held (continuous free movement)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
+	*/
 
 	// Bind to OnCompleted / OnCanceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
@@ -145,6 +183,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
 	float MoveSpeedScale = 1.f;
 
+	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
+	float RotateSpeed =10.f;
+
 	// 0 = strict center-to-center, 1 = maximum smoothing
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float CornerCutStrength = 0.5f;
@@ -155,22 +196,56 @@ protected:
 	// ==================== Hover Preview ====================
     
 	UPROPERTY(Transient)
+	AML_Tile* LastCursorHoveredTile = nullptr;
+
+	UPROPERTY(Transient)
 	AML_Tile* LastHoveredTile = nullptr;
-    
+
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> CurrentPreviewPath;
+
+	bool bCurrentHoveredTileReachable = false;
     
+	void TickCursorHoverPreview(float DeltaTime);
+	void ClearCursorHoverPreview();
 	void TickHoverPreview(float DeltaTime);
 	void ClearHoverPreview();
 	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
 
 public:
+	
+	// ==================== Delegate ====================
+	
+	// Called when grass is successfully planted on a tile
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
+	FOnGrassPlanted OnGrassPlanted;
+
+	// Called when the 'CurrentEnergy' value changes
+	UPROPERTY(BlueprintAssignable, Category="Myceland Controller|Energy")
+	FOnEnergyChanged OnEnergyChanged;
+
+	// Called when the tile under the cursor changes or its reachability changes.
+	// HoveredTile is null when no tile is hovered. bIsReachable is false when an
+	// obstacle blocks the path from the player to the hovered tile.
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Hover")
+	FOnHoveredTileChanged OnHoveredTileChanged;
+	
+	// Called when the player holds cursor to exit board
+	// The float is normalized between 0-1
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Exit")
+	FOnExitCursorHold OnExitCursorHold;
 
 	// ==================== Energy ====================
-
-	UPROPERTY(BlueprintReadWrite, Category = "Myceland Controller|Energy")
-	int CurrentEnergy = 0;
-
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	int32 GetCurrentEnergy() const { return CurrentEnergy; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	void SetCurrentEnergy(int32 NewEnergy);
+	
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
+	void AddEnergy(int32 Delta);
+	
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void InitNumberOfEnergyForLevel(int32 Energy);
 	
@@ -185,17 +260,11 @@ public:
 	void OnHoverPathCleared();
 
 	// ==================== Actions ====================
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void TryPlantGrass(FHitResult HitResult, bool& CanPlantGrass, AML_Tile*& HitTile);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void ConfirmTurn(AML_Tile* HitTile);
 	
-	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Movement")
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller")
 	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
 
-	UFUNCTION(BlueprintCallable, Category="Myceland|Undo")
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Undo")
 	void StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath, const TArray<FIntPoint>& PickedCollectibleAxials);
 
 	void NotifyCollectiblePickedOnAxial(const FIntPoint& Axial);
