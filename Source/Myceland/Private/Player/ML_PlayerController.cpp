@@ -280,7 +280,8 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 					if (!bSuppressMoveRecording)
 					{
 						const TArray<FIntPoint> Picked = ActiveMovePickedCollectibles.Array();
-
+						AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(GetPawn());
+						if (!PC->CurrentTileOn) return;
 						S->NotifyMoveCompleted(
 							MoveStartAxial,
 							MoveEndAxial,

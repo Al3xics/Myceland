@@ -377,6 +377,8 @@ bool UML_WavePropagationSubsystem::ResetAllActions_Animated()
 {
 	EnsureInitialized();
 	if (!PlayerController || !DevSettings) return false;
+	AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(PlayerController->GetPawn());
+	if (!PC->CurrentTileOn) return false;
 	if (bIsResolvingTiles || bIsUndoAnimating || bIsResetAllAnimating) return false;
 	if (ActionUndoStack.Num() == 0) return false;
 
@@ -830,3 +832,36 @@ void UML_WavePropagationSubsystem::ClearTimeDilation()
 	bUndoTimeDilationApplied = false;
 }
 
+bool UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Animated()
+{
+	EnsureInitialized();
+	if (!PlayerController || !DevSettings) return false;
+	if (bIsResolvingTiles || bIsUndoAnimating || bIsResetAllAnimating) return false;
+
+	// Remove all Move types from the stack, keep PlantWaves types
+	ActionUndoStack.RemoveAll([](const FML_ActionUndoRecord& A)
+	{
+		return A.Type == EML_UndoActionType::Move;
+	});
+
+	if (ActionUndoStack.Num() == 0) return false;
+
+	CancelAllWaveTimers();
+	PlayerController->DisableInput(PlayerController);
+	ApplyResetTimeDilation();
+
+	bIsResetAllAnimating = true;
+	OnResetAnimating.Broadcast(bIsResetAllAnimating);
+
+	const bool bStarted = UndoLastAction_Animated();
+	if (!bStarted)
+	{
+		bIsResetAllAnimating = false;
+		ClearTimeDilation();
+		OnResetAnimating.Broadcast(bIsResetAllAnimating);
+		PlayerController->EnableInput(PlayerController);
+		return false;
+	}
+
+	return true;
+}
