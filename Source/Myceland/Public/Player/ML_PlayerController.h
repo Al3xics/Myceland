@@ -125,6 +125,9 @@ private:
 	bool IsTileWalkable(const AML_Tile* Tile) const;
 	AML_Tile* FindNearestWalkableTile(const FVector& WorldLocation, const TMap<FIntPoint, AML_Tile*>& GridMap) const;
 	void SetIsMoving(bool bNewIsMoving);
+	
+	// Movement mode state machine
+	void SetMovementMode(EML_PlayerMovementMode NewMode);
 
 	// ==================== Pathfinding ====================
 

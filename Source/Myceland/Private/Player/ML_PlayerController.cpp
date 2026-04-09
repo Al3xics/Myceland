@@ -77,7 +77,7 @@ void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
 	// Update internal state
 	bIsMoving = bNewIsMoving;
 	
-	//Only broadcast when inside the board
+	// Only broadcast when inside the board
 	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard)
 	{
 		bWasMovingInBoard = false;
@@ -89,6 +89,66 @@ void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
 	{
 		OnBoardMovementStateChanged.Broadcast(bIsMoving);
 		bWasMovingInBoard = bIsMoving;
+	}
+}
+
+void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
+{
+	if (CurrentMovementMode == NewMode)
+		return;
+	
+	const EML_PlayerMovementMode OldMode = CurrentMovementMode;
+	CurrentMovementMode = NewMode;
+	
+	// Handle transitions OUT of old mode
+	switch (OldMode)
+	{
+	case EML_PlayerMovementMode::FreeMovement:
+		// Leaving free movement
+		StopNavMeshMovement();
+		break;
+		
+	case EML_PlayerMovementMode::InsideBoard:
+		// Leaving board - clear path preview but keep cursor glow
+		ClearHoverPreview();
+		break;
+		
+	case EML_PlayerMovementMode::ExitingBoard:
+		// Only clean up if we're CANCELLING the exit (going back to InsideBoard)
+		// Don't clean up if we're confirming the exit (going to FreeMovement or staying in InsideBoard for pathing)
+		if (NewMode == EML_PlayerMovementMode::InsideBoard && !bPendingFreeMovementOnArrival)
+		{
+			// Cancelled exit - clean up
+			PendingExitTile = nullptr;
+			bHasExitTargetWorld = false;
+		}
+		// Otherwise, let ConfirmExitBoard handle the cleanup
+		break;
+		
+	case EML_PlayerMovementMode::EnteringBoard:
+		// Nothing special needed
+		break;
+	}
+	
+	// Handle transitions INTO new mode
+	switch (NewMode)
+	{
+	case EML_PlayerMovementMode::FreeMovement:
+		// Entering free movement - nav mesh will be started separately
+		break;
+		
+	case EML_PlayerMovementMode::InsideBoard:
+		// Entering board - tile-by-tile movement
+		break;
+		
+	case EML_PlayerMovementMode::ExitingBoard:
+		// Starting to exit
+		break;
+		
+	case EML_PlayerMovementMode::EnteringBoard:
+		// Starting to enter
+		ClearHoverPreview();
+		break;
 	}
 }
 
@@ -401,17 +461,26 @@ void AML_PlayerController::OnPathFinished()
 	// Arrived at the border tile → switch to free movement
 	if (bPendingFreeMovementOnArrival)
 	{
-		bPendingFreeMovementOnArrival = false;
-		CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
+		UE_LOG(LogTemp, Warning, TEXT("[EXIT] OnPathFinished: bPendingFreeMovementOnArrival=true"));
+		UE_LOG(LogTemp, Warning, TEXT("[EXIT] bHasExitTargetWorld=%d, PendingExitTargetWorld=%s"), 
+			bHasExitTargetWorld, *PendingExitTargetWorld.ToString());
 		
-		// Clear path preview but keep cursor glow active
-		ClearHoverPreview();
+		bPendingFreeMovementOnArrival = false;
+		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 
 		if (bHasExitTargetWorld)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("[EXIT] Calling StartNavMeshMovement to %s"), *PendingExitTargetWorld.ToString());
 			StartNavMeshMovement(PendingExitTargetWorld);
 			bHasExitTargetWorld = false;
 		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[EXIT] ERROR: bHasExitTargetWorld is FALSE!"));
+		}
+		
+		// Clean up exit state now that we're done with it
+		PendingExitTile = nullptr;
 
 		return;
 	}
@@ -420,9 +489,7 @@ void AML_PlayerController::OnPathFinished()
 	if (bPendingBoardEntryOnArrival)
 	{
 		bPendingBoardEntryOnArrival = false;
-		CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
-		
-		// Hover preview timer is already running
+		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
 		if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
 
@@ -519,7 +586,7 @@ void AML_PlayerController::TickExitHold()
 {
 	const bool bIsCurrentlyExiting = (CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard && bIsHoldingExitInput);
     
-	// Pas en train de sortir - annulation
+	// Not exiting anymore - cancellation
 	if (!bIsCurrentlyExiting)
 	{
 		// Only clean up if we were actually in ExitingBoard mode
@@ -534,10 +601,8 @@ void AML_PlayerController::TickExitHold()
 			bWasExitingLastFrame = false;
 			LastBroadcastProgress = -1.f;
 			
-			// Return to InsideBoard mode
-			CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
-			PendingExitTile = nullptr;
-			bHasExitTargetWorld = false;
+			// Return to InsideBoard mode (this will clean up exit state via SetMovementMode)
+			SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 		}
 		return;
 	}
@@ -545,11 +610,11 @@ void AML_PlayerController::TickExitHold()
 	// Calculate progress
 	const float Progress = FMath::Clamp(ExitHoldTimer / DevSettings->ExitBoardHoldDuration, 0.f, 1.f);
     
-	// Broadcast seulement si :
-	// 1. On vient de commencer à exit (transition)
-	// 2. Le progrès a significativement changé (évite les micro-variations)
+	// Only broadcast if:
+	// 1. We just started exiting (transition)
+	// 2. The progress has changed significantly (avoids micro-variations)
 	const bool bJustStartedExiting = !bWasExitingLastFrame;
-	const bool bProgressChanged = FMath::Abs(Progress - LastBroadcastProgress) > 0.01f; // 1% de différence
+	const bool bProgressChanged = FMath::Abs(Progress - LastBroadcastProgress) > 0.01f; // 1% difference
     
 	if (bJustStartedExiting || bProgressChanged)
 	{
@@ -578,6 +643,8 @@ void AML_PlayerController::TickExitHold()
 
 void AML_PlayerController::ConfirmExitBoard()
 {
+	UE_LOG(LogTemp, Warning, TEXT("[EXIT] ConfirmExitBoard called"));
+	
 	if (!IsValid(PendingExitTile) || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
@@ -587,10 +654,13 @@ void AML_PlayerController::ConfirmExitBoard()
 	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
 	const FIntPoint GoalAxial = PendingExitTile->GetAxialCoord();
 	
+	UE_LOG(LogTemp, Warning, TEXT("[EXIT] StartAxial=%s, GoalAxial=%s"), *StartAxial.ToString(), *GoalAxial.ToString());
+	
 	if (StartAxial == GoalAxial)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[EXIT] Direct exit (already on border tile)"));
 		// Direct exit, no path needed
-		CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
+		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 
 		if (bHasExitTargetWorld)
 		{
@@ -607,10 +677,14 @@ void AML_PlayerController::ConfirmExitBoard()
 	TArray<FIntPoint> AxialPath;
 	if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
 
-	// Still in board mode during this walk; FreeMovement triggers on arrival
-	CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
+	UE_LOG(LogTemp, Warning, TEXT("[EXIT] Need to path to border tile. Path length=%d"), AxialPath.Num());
+	UE_LOG(LogTemp, Warning, TEXT("[EXIT] Setting bPendingFreeMovementOnArrival=true, bHasExitTargetWorld=%d"), bHasExitTargetWorld);
+	
 	bPendingFreeMovementOnArrival = true;
-	PendingExitTile = nullptr;
+	// Still in board mode during this walk; FreeMovement triggers on arrival
+	SetMovementMode(EML_PlayerMovementMode::InsideBoard);
+	// Don't clear PendingExitTile yet - OnPathFinished needs bHasExitTargetWorld
+	// PendingExitTile will be cleared in OnPathFinished
 
 	StartMoveAlongPath(AxialPath, GridMap);
 }
@@ -626,15 +700,15 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 	else
 		InitNumberOfEnergyForLevel(0);
 
-	// ---------- Transition: Free -> InsideBoard ----------
-	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement && IsValid(NewTile))
+	// ---------- Automatic transition: Free ↔ InsideBoard ----------
+	// This is the ONLY place where we auto-switch based on tile presence
+	const bool bShouldBeInBoard = IsValid(NewTile);
+	const bool bCurrentlyInFreeMovement = (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement);
+	
+	if (bShouldBeInBoard && bCurrentlyInFreeMovement)
 	{
-		// Stop nav mesh movement
-		StopNavMeshMovement();
-
-		CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
-		
-		// Hover preview timer is already running, no need to restart
+		// Entering a board from free movement
+		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
 		// Clear any previous path
 		CurrentPathWorld.Reset();
@@ -643,13 +717,18 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 		if (!IsValid(MycelandCharacter))
 			return;
 
-		// Smoothly move to a tile center instead of teleport
+		// Smoothly move to tile center
 		FVector TileCenter = NewTile->GetActorLocation();
 		TileCenter.Z = MycelandCharacter->GetActorLocation().Z;
 
 		CurrentPathWorld.Add(TileCenter);
 		CurrentPathIndex = 0;
 		SetIsMoving(true);
+	}
+	else if (!bShouldBeInBoard && !bCurrentlyInFreeMovement)
+	{
+		// Left a board - switch to free movement
+		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 	}
 }
 
@@ -682,7 +761,7 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 	
-	// Seulement si en mouvement
+	// Only tick if moving
 	if (bIsMoving)
 		TickMoveAlongPath(DeltaTime);
 }
@@ -769,7 +848,7 @@ void AML_PlayerController::OnSetDestinationStarted()
 		PendingExitTile = NearestTile;
 		PendingExitTargetWorld = Hit.Location;
 		bHasExitTargetWorld = true;
-		CurrentMovementMode = EML_PlayerMovementMode::ExitingBoard;
+		SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
 		bIsHoldingExitInput = true;
 		StartExitHoldTimer();
 		// Keep hover preview timer running in ExitingBoard mode
@@ -792,10 +871,7 @@ void AML_PlayerController::OnSetDestinationStarted()
 			// Setup board entry state
 			PendingBoardEntryTargetTile = TargetTile;
 			bPendingBoardEntryOnArrival = true;
-			CurrentMovementMode = EML_PlayerMovementMode::EnteringBoard;
-			
-			// Clear path preview while entering board (cursor glow stays active)
-			ClearHoverPreview();
+			SetMovementMode(EML_PlayerMovementMode::EnteringBoard);
 
 			if (!IsValid(NearestBorderTile))
 			{
