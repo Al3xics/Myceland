@@ -6,7 +6,7 @@
 
 AML_TileBase::AML_TileBase()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 	
 	SceneRoot = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SceneRoot"));
 	RootComponent = SceneRoot;
@@ -25,8 +25,4 @@ void AML_TileBase::BeginPlay()
 	Super::BeginPlay();
 }
 
-void AML_TileBase::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-}
 
