@@ -29,8 +29,6 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 	FML_GameResult NoResult;
     if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
 
-	FML_GameResult NoResult;
-	if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
 	
 	const bool bWin = AreAllGoalsConnectedByAllowedPaths(
 		CurrentBoardSpawner,
