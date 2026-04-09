@@ -87,6 +87,11 @@ private:
 	const AML_Tile* RotateTargetTile = nullptr;
 	
 	bool bTurningToTile;
+	
+	// Timers
+	FTimerHandle ExitHoldTimerHandle;
+	FTimerHandle TurnTowardTileTimerHandle;
+	FTimerHandle HoverPreviewTimerHandle;
 
 	// ==================== Undo ====================
 
@@ -141,8 +146,10 @@ private:
 
 	// ==================== Board Exit / Entry ====================
 
-	void TickExitHold(float DeltaTime);
+	void TickExitHold();
 	void ConfirmExitBoard();
+	void StartExitHoldTimer();
+	void StopExitHoldTimer();
 
 	// ==================== Delegates ====================
 
@@ -152,6 +159,18 @@ private:
 	// ==================== Actions ====================
 
 	void ConfirmTurn(AML_Tile* HitTile);
+	
+	// ==================== Hover (Event-driven) ====================
+	
+	void UpdateHoverPreview();
+	void StartHoverPreviewTimer();
+	void StopHoverPreviewTimer();
+	
+	// ==================== Turn Toward Tile (Event-driven) ====================
+	
+	void UpdateTurnTowardPendingTile();
+	void StartTurnTowardTileTimer();
+	void StopTurnTowardTileTimer();
 
 protected:
 
@@ -210,9 +229,9 @@ protected:
 
 	bool bCurrentHoveredTileReachable = false;
     
-	void TickCursorHoverPreview(float DeltaTime);
+	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();
-	void TickHoverPreview(float DeltaTime);
+	void TickHoverPreview();
 	void ClearHoverPreview();
 	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
 
