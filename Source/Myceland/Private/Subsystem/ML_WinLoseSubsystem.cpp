@@ -26,6 +26,9 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		CurrentBoardSpawner = FindBoardSpawner();
 	}
 
+	FML_GameResult NoResult;
+	if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
+	
 	const bool bWin = AreAllGoalsConnectedByAllowedPaths(
 		CurrentBoardSpawner,
 		EML_TileType::Tree,
@@ -47,6 +50,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 	{
 		GameResult.Result = EML_WinLose::Win;
 		GameResult.bIsGameOver = false;
+		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		OnWin.Broadcast();
 
 		ClearWinPath(
