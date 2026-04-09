@@ -918,11 +918,16 @@ void AML_PlayerController::TickHoverPreview(float DeltaTime)
 
 	bCurrentHoveredTileReachable = bReachable;
 	OnHoveredTileChanged.Broadcast(HoveredTile, bReachable);
+	
+	const bool bIsOnPlayerTile = IsValid(MycelandCharacter) &&
+							 IsValid(MycelandCharacter->CurrentTileOn) &&
+							 HoveredTile == MycelandCharacter->CurrentTileOn;
 
 	if (bReachable)
 	{
 		for (AML_Tile* Tile : NewPath)
-			Tile->GlowPathWalk();
+			if (!bIsOnPlayerTile)
+				Tile->GlowPathWalk();
 		CurrentPreviewPath = NewPath;
 	}
 }
