@@ -125,7 +125,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	TSubclassOf<AML_TileBase> WaterChangeTile;
-
+	
 	UPROPERTY(BlueprintReadWrite)
-	bool bIsPuzzleSolved; 
+    bool bIsPuzzleSolved; 
 };

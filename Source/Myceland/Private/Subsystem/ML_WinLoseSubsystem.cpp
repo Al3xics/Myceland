@@ -25,6 +25,9 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 	{
 		CurrentBoardSpawner = FindBoardSpawner();
 	}
+	
+	FML_GameResult NoResult;
+    if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
 
 	FML_GameResult NoResult;
 	if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
