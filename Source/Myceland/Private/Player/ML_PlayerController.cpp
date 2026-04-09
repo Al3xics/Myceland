@@ -2,6 +2,7 @@
 
 #include "Player/ML_PlayerController.h"
 
+#include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -157,6 +158,9 @@ bool AML_PlayerController::BuildPath_AxialBFS(const FIntPoint& StartAxial, const
 void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath,
                                               const TMap<FIntPoint, AML_Tile*>& GridMap)
 {
+	// Stop any nav mesh movement when starting tile-by-tile movement
+	StopNavMeshMovement();
+	
 	CurrentPathWorld.Reset();
 	CurrentPathIndex = 0;
 	CurrentPathWorld.Reserve(AxialPath.Num());
@@ -191,54 +195,71 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 	SetIsMoving(true);
 }
 
-void AML_PlayerController::StartMoveToWorldLocation(const FVector& WorldLocation)
+void AML_PlayerController::StartNavMeshMovement(const FVector& WorldLocation)
 {
-	CurrentPathWorld.Reset();
-	CurrentPathIndex = 0;
-	CurrentPathWorld.Add(WorldLocation);
+	if (!IsValid(MycelandCharacter))
+		return;
+
+	// Use SimpleMoveToLocation for nav mesh movement
+	UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, WorldLocation);
 	
+	PendingFreeMovementTarget = WorldLocation;
+	bHasFreeMovementTarget = true;
+	bIsUsingNavMeshMovement = true;
 	SetIsMoving(true);
+}
+
+void AML_PlayerController::StopNavMeshMovement()
+{
+	if (bIsUsingNavMeshMovement)
+	{
+		// Stop the AI movement
+		if (IsValid(MycelandCharacter))
+			if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
+				MC->StopMovementImmediately();
+		
+		bIsUsingNavMeshMovement = false;
+		bHasFreeMovementTarget = false;
+	}
+}
+
+void AML_PlayerController::TickNavMeshMovement(float DeltaTime)
+{
+	if (!bIsUsingNavMeshMovement || !bHasFreeMovementTarget)
+		return;
+
+	if (!IsValid(MycelandCharacter))
+	{
+		StopNavMeshMovement();
+		return;
+	}
+
+	// Check if we've reached the destination
+	const FVector CurrentLoc = MycelandCharacter->GetActorLocation();
+	const float DistSq = FVector::DistSquared2D(CurrentLoc, PendingFreeMovementTarget);
+
+	if (DistSq <= FMath::Square(NavMeshAcceptanceRadius))
+	{
+		StopNavMeshMovement();
+		SetIsMoving(false);
+		
+		// Trigger OnPathFinished for board entry transitions
+		if (bPendingBoardEntryOnArrival)
+			OnPathFinished();
+	}
 }
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 {
-	// Free movement mode - move toward a single target
-	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement && bHasFreeMovementTarget)
+	// Handle nav mesh movement (FreeMovement and EnteringBoard modes)
+	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement || 
+	    CurrentMovementMode == EML_PlayerMovementMode::EnteringBoard)
 	{
-		if (!IsValid(MycelandCharacter))
-		{
-			bHasFreeMovementTarget = false;
-			return;
-		}
-
-		FVector CurrentLoc = MycelandCharacter->GetActorLocation();
-		FVector To = PendingFreeMovementTarget - CurrentLoc;
-		To.Z = 0.f;
-
-		// Check if arrived
-		if (To.Size() <= AcceptanceRadius)
-		{
-			bHasFreeMovementTarget = false;
-			SetIsMoving(false);
-			return;
-		}
-
-		// Move toward target
-		To.Normalize();
-		MycelandCharacter->AddMovementInput(To, MoveSpeedScale);
+		TickNavMeshMovement(DeltaTime);
 		return;
 	}
 
-	/*
-	// In FreeMovement, stop as soon as the button is released
-	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement && !bIsHoldingFreeInput)
-	{
-		CurrentPathWorld.Reset();
-		CurrentPathIndex = 0;
-		SetIsMoving(false);
-	}
-	*/
-
+	// Tile-by-tile movement (InsideBoard and ExitingBoard modes)
 	if (CurrentPathWorld.Num() == 0 || CurrentPathIndex >= CurrentPathWorld.Num()) return;
 
 	ensureMsgf(MycelandCharacter, TEXT("Player Character is not set!"));
@@ -355,11 +376,12 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 			SetIsMoving(false);
 			OnPathFinished();
 
-			// return;
+			return;
 		}
 		return;
 	}
-		MycelandCharacter->AddMovementInput(To / Dist, MoveSpeedScale);
+	
+	MycelandCharacter->AddMovementInput(To / Dist, MoveSpeedScale);
 }
 
 void AML_PlayerController::OnPathFinished()
@@ -372,10 +394,7 @@ void AML_PlayerController::OnPathFinished()
 
 		if (bHasExitTargetWorld)
 		{
-			PendingFreeMovementTarget = PendingExitTargetWorld;
-			PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z;
-			bHasFreeMovementTarget = true;
-			SetIsMoving(true);
+			StartNavMeshMovement(PendingExitTargetWorld);
 			bHasExitTargetWorld = false;
 		}
 
@@ -517,10 +536,7 @@ void AML_PlayerController::ConfirmExitBoard()
 
 		if (bHasExitTargetWorld)
 		{
-			PendingFreeMovementTarget = PendingExitTargetWorld;
-			PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z;
-			bHasFreeMovementTarget = true;
-			SetIsMoving(true);
+			StartNavMeshMovement(PendingExitTargetWorld);
 			bHasExitTargetWorld = false;
 		}
 
@@ -555,9 +571,8 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 	// ---------- Transition: Free -> InsideBoard ----------
 	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement && IsValid(NewTile))
 	{
-		// Stop free movement logic
-		// bIsHoldingFreeInput = false;
-		bHasFreeMovementTarget = false;
+		// Stop nav mesh movement
+		StopNavMeshMovement();
 
 		CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
 
@@ -715,54 +730,32 @@ void AML_PlayerController::OnSetDestinationStarted()
 			if (!IsValid(NearestBorderTile))
 			{
 				// Fallback: go directly to target if no border tile found
-				StartMoveToWorldLocation(TargetTile->GetActorLocation());
+				StartNavMeshMovement(TargetTile->GetActorLocation());
 			}
 			else
 			{
 				// Move to the border tile first (not directly to target)
-				StartMoveToWorldLocation(NearestBorderTile->GetActorLocation());
+				StartNavMeshMovement(NearestBorderTile->GetActorLocation());
 			}
 			return;
 		}
 
-		// Click outside board → move to that position (NEW BEHAVIOR)
+		// Click outside board → move to that position using nav mesh
 		FHitResult Hit;
 		if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
 			return;
 
-		// Set new target (or update existing target)
-		PendingFreeMovementTarget = Hit.Location;
-		PendingFreeMovementTarget.Z = MycelandCharacter->GetActorLocation().Z; // Keep same Z
-		bHasFreeMovementTarget = true;
-		SetIsMoving(true);
+		// Start nav mesh movement to clicked location
+		StartNavMeshMovement(Hit.Location);
 
 		return;
 	}
 }
 
-/*
-// Bound to OnTriggered — fires every frame while held
-// Handles: continuous free movement toward cursor
-void AML_PlayerController::OnSetDestinationTriggered()
-{
-	if (CurrentMovementMode != EML_PlayerMovementMode::FreeMovement) return;
-
-	bIsHoldingFreeInput = true;
-
-	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
-		return;
-
-	// Always follow the mouse in free mode
-	StartMoveToWorldLocation(Hit.Location);
-}
-*/
-
 // Bound to OnCompleted / OnCanceled
 void AML_PlayerController::OnSetDestinationReleased()
 {
 	bIsHoldingExitInput = false;
-	// bIsHoldingFreeInput = false;
 }
 
 void AML_PlayerController::OnMoveAndPlantStarted()
@@ -854,7 +847,10 @@ void AML_PlayerController::TickCursorHoverPreview(float DeltaTime)
 	// Suppress cursor glow when the tile is unreachable in board mode.
 	// TickHoverPreview already ran this frame and set bCurrentHoveredTileReachable.
 	// Also suppress if hovering the player's current tile.
-	if (!bIsOnPlayerTile && (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard || bCurrentHoveredTileReachable))
+	const bool bIsInBoardMode = (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || 
+	                             CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard);
+	
+	if (!bIsOnPlayerTile && (!bIsInBoardMode || bCurrentHoveredTileReachable))
 		CursorHoveredTile->GlowCursorHovered();
 
 	LastCursorHoveredTile = CursorHoveredTile;
@@ -871,8 +867,9 @@ void AML_PlayerController::ClearCursorHoverPreview()
 
 void AML_PlayerController::TickHoverPreview(float DeltaTime)
 {
-	// Only preview in board mode
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard)
+	// Only preview in board mode (InsideBoard or ExitingBoard)
+	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard && 
+	    CurrentMovementMode != EML_PlayerMovementMode::ExitingBoard)
 	{
 		ClearHoverPreview();
 		return;

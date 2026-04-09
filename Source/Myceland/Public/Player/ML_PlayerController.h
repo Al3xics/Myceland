@@ -75,11 +75,12 @@ private:
 	
 	bool bPendingPlantOnArrival = false;
 	
-	// Free movement target
+	// Free movement target (SimpleMoveToLocation)
 	UPROPERTY(Transient)
 	FVector PendingFreeMovementTarget = FVector::ZeroVector;
 	
 	bool bHasFreeMovementTarget = false;
+	bool bIsUsingNavMeshMovement = false;
 
 	// Rotate Tile
 	UPROPERTY(Transient)
@@ -127,9 +128,11 @@ private:
 	// ==================== Movement ====================
 
 	void StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap);
-	void StartMoveToWorldLocation(const FVector& WorldLocation);
+	void StartNavMeshMovement(const FVector& WorldLocation);
 	void TickMoveAlongPath(float DeltaTime);
+	void TickNavMeshMovement(float DeltaTime);
 	void OnPathFinished();
+	void StopNavMeshMovement();
 
 	// ==================== Rotation ====================
 	
@@ -164,12 +167,6 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
-	/*
-	// Bind to OnTriggered — every frame while held (continuous free movement)
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void OnSetDestinationTriggered();
-	*/
-
 	// Bind to OnCompleted / OnCanceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationReleased();
@@ -187,7 +184,7 @@ protected:
 	float MoveSpeedScale = 1.f;
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
-	float RotateSpeed =10.f;
+	float RotateSpeed = 10.f;
 
 	// 0 = strict center-to-center, 1 = maximum smoothing
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0", ClampMax = "1.0"))
@@ -195,6 +192,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0"))
 	float BaseCornerCutDistance = 80.f;
+	
+	// Nav Mesh Movement
+	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|NavMesh")
+	float NavMeshAcceptanceRadius = 50.f;
 	
 	// ==================== Hover Preview ====================
     
