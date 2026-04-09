@@ -846,10 +846,15 @@ void AML_PlayerController::TickCursorHoverPreview(float DeltaTime)
 
 	if (IsValid(LastCursorHoveredTile))
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
+	
+	const bool bIsOnPlayerTile = IsValid(MycelandCharacter) &&
+								 IsValid(MycelandCharacter->CurrentTileOn) &&
+								 CursorHoveredTile == MycelandCharacter->CurrentTileOn;
 
 	// Suppress cursor glow when the tile is unreachable in board mode.
 	// TickHoverPreview already ran this frame and set bCurrentHoveredTileReachable.
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard || bCurrentHoveredTileReachable)
+	// Also suppress if hovering the player's current tile.
+	if (!bIsOnPlayerTile && (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard || bCurrentHoveredTileReachable))
 		CursorHoveredTile->GlowCursorHovered();
 
 	LastCursorHoveredTile = CursorHoveredTile;
