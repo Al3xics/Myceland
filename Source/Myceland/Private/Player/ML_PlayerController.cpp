@@ -679,7 +679,7 @@ void AML_PlayerController::ConfirmExitBoard()
 
 	UE_LOG(LogTemp, Warning, TEXT("[EXIT] Need to path to border tile. Path length=%d"), AxialPath.Num());
 	UE_LOG(LogTemp, Warning, TEXT("[EXIT] Setting bPendingFreeMovementOnArrival=true, bHasExitTargetWorld=%d"), bHasExitTargetWorld);
-	
+
 	bPendingFreeMovementOnArrival = true;
 	// Still in board mode during this walk; FreeMovement triggers on arrival
 	SetMovementMode(EML_PlayerMovementMode::InsideBoard);
@@ -791,10 +791,14 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 
 // ==================== Input ====================
 
-// Bound to OnStarted — fires once per click
-// Handles: board BFS movement, exit hold trigger, board re-entry
+// Bound to OnStarted — fires once per click.
+// Handles: board BFS movement, exit hold trigger, board re-entry.
+// For hold-to-move in free movement, see OnSetDestinationTriggered.
 void AML_PlayerController::OnSetDestinationStarted()
 {
+	// Reset follow time on every new press
+	FollowTime = 0.f;
+
 	// --- INSIDE BOARD ---
 	if (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard)
 	{
@@ -856,6 +860,8 @@ void AML_PlayerController::OnSetDestinationStarted()
 	}
 
 	// --- FREE MOVEMENT — click on a board tile → re-enter ---
+	// Note: hold-to-move on open ground is handled by OnSetDestinationTriggered.
+	// Here we only handle the board re-entry case (single-fire on Started).
 	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
 	{
 		AML_Tile* TargetTile = GetTileUnderCursor();
@@ -886,23 +892,64 @@ void AML_PlayerController::OnSetDestinationStarted()
 			return;
 		}
 
-		// Click outside board → move to that position using nav mesh
+		// Click on open ground in free movement → the initial destination is cached here;
+		// continuous movement while held is handled by OnSetDestinationTriggered.
 		FHitResult Hit;
 		if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
 			return;
 
-		// Start nav mesh movement to clicked location
-		StartNavMeshMovement(Hit.Location);
-
+		HoldMoveCachedDestination = Hit.Location;
 		return;
 	}
+}
+
+// Bound to OnTriggered — fires every frame while the button is held.
+// In FreeMovement only: continuously moves the character toward the cursor (hold-to-move).
+// In board modes the existing tile-by-tile logic drives movement; this function is a no-op there.
+void AML_PlayerController::OnSetDestinationTriggered()
+{
+	// Accumulate hold time every frame the input is held
+	FollowTime += GetWorld()->GetDeltaSeconds();
+
+	// Hold-to-move is only active in free movement
+	if (CurrentMovementMode != EML_PlayerMovementMode::FreeMovement)
+		return;
+
+	if (!IsValid(MycelandCharacter))
+		return;
+
+	// Update the cached destination to the current cursor position every frame
+	FHitResult Hit;
+	if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	{
+		// Only follow the cursor on open ground — ignore board tiles so that
+		// clicking on a board still triggers the re-entry logic on release.
+		if (!Cast<AML_Tile>(Hit.GetActor()))
+			HoldMoveCachedDestination = Hit.Location;
+	}
+
+	// Push the character toward the cached destination every frame
+	const FVector WorldDirection = (HoldMoveCachedDestination - MycelandCharacter->GetActorLocation()).GetSafeNormal();
+	MycelandCharacter->AddMovementInput(WorldDirection, MoveSpeedScale);
 }
 
 // Bound to OnCompleted / OnCanceled
 void AML_PlayerController::OnSetDestinationReleased()
 {
 	bIsHoldingExitInput = false;
-	// TickExitHold will handle the cleanup on next tick
+	// TickExitHold will handle the cleanup on next tick for board-exit cancellation.
+
+	// In free movement, if this was a short tap (not a hold), use SimpleMoveToLocation
+	// so the character navigates precisely to the clicked point via the nav mesh.
+	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
+	{
+		if (FollowTime <= ShortPressThreshold)
+			StartNavMeshMovement(HoldMoveCachedDestination);
+		
+		// If it was a long hold, movement was already applied frame-by-frame; nothing extra needed.
+	}
+
+	FollowTime = 0.f;
 }
 
 void AML_PlayerController::OnMoveAndPlantStarted()

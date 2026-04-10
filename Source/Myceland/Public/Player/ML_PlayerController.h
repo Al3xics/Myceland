@@ -81,6 +81,8 @@ private:
 	
 	bool bHasFreeMovementTarget = false;
 	bool bIsUsingNavMeshMovement = false;
+	float FollowTime = 0.f;
+	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
 	// Rotate Tile
 	UPROPERTY(Transient)
@@ -188,6 +190,10 @@ protected:
 	// Bind to OnStarted — one shot per click (BFS, exit hold trigger, board re-entry)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
+	
+	// Bind to OnTriggered - maintain click when outside the board to move
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnSetDestinationTriggered();
 
 	// Bind to OnCompleted / OnCanceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
@@ -218,6 +224,9 @@ protected:
 	// Nav Mesh Movement
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|NavMesh")
 	float NavMeshAcceptanceRadius = 50.f;
+	
+	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
+	float ShortPressThreshold = 0.5f;
 	
 	// ==================== Hover Preview ====================
     
