@@ -29,7 +29,9 @@ void AML_BoardSpawner::BeginPlay()
 	ensureMsgf(BiomeTileSet, TEXT("BiomeTileSet is not set for board : %s"), *GetName());
 	if (!BiomeTileSet) return;
 	
-	UpdateCurrentGrid();
+	// At runtime, only initialize tiles that already exist in the level.
+	// Never spawn new ones — the designer may have intentionally deleted some tiles.
+	UpdateCurrentGrid(false);
 }
 
 void AML_BoardSpawner::RebuildGrid()
@@ -43,7 +45,7 @@ void AML_BoardSpawner::RebuildGrid()
 	}
 }
 
-void AML_BoardSpawner::UpdateCurrentGrid()
+void AML_BoardSpawner::UpdateCurrentGrid(bool bAllowSpawn)
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
@@ -142,7 +144,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 	{
 		AML_Tile* Tile = nullptr;
 		
-		// Tile exists
+		// Tile exists in the level → reattach and reinitialize it
 		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(Axial))
 		{
 			Tile = Found->Get();
@@ -154,8 +156,8 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 
 			Tile->Initialize(BiomeTileSet);
 		}
-		// New tile
-		else if (TileClass)
+		// Tile was deleted by the designer — only spawn if explicitly allowed (editor operations)
+		else if (bAllowSpawn && TileClass)
 		{
 			const FVector Location = AxialToWorld(Axial.X, Axial.Y);
 			const FTransform SpawnTransform(FRotator::ZeroRotator, Location, TileScale);
@@ -249,7 +251,6 @@ TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
 
 FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
 {
-	// Axial -> 2D (x,y), puis -> UE (X,Y)
 	const float Sqrt3 = 1.73205080757f;
 
 	float X2D = 0.f;
@@ -257,20 +258,15 @@ FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
 
 	if (Orientation == EML_HexOrientation::FlatTop)
 	{
-		// x = size * (3/2 q)
-		// y = size * (sqrt(3) * (r + q/2))
 		X2D = TileSize * (1.5f * Q);
 		Y2D = TileSize * (Sqrt3 * (R + 0.5f * Q));
 	}
 	else // PointyTop
 	{
-		// x = size * (sqrt(3) * (q + r/2))
-		// y = size * (3/2 r)
 		X2D = TileSize * (Sqrt3 * (Q + 0.5f * R));
 		Y2D = TileSize * (1.5f * R);
 	}
 
-	// Dans UE: X,Y sur le plan, Z=0
 	return GetActorLocation() + FVector(X2D, Y2D, 0.f);
 }
 
@@ -331,9 +327,6 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 	Params.Owner = this;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	// Generates a "hexagon" of radius N in the axial direction:
-	// q ∈ [-N, N]
-	// r ∈ [max(-N, -q-N), min(N, -q+N)]
 	for (int32 Q = -Radius; Q <= Radius; ++Q)
 	{
 		const int32 RMin = FMath::Max(-Radius, -Q - Radius);
@@ -359,31 +352,26 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 
 FIntPoint AML_BoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
 {
-	// Returns (q,r) in FIntPoint(q,r)
 	switch (OffsetLayout)
 	{
 	case EML_HexOffsetLayout::OddR:
 		{
-			// q = col - (row - (row&1))/2 ; r = row
 			const int32 Q = Col - ((Row - (Row & 1)) / 2);
 			return FIntPoint(Q, Row);
 		}
 	case EML_HexOffsetLayout::EvenR:
 		{
-			// q = col - (row + (row&1))/2 ; r = row
 			const int32 Q = Col - ((Row + (Row & 1)) / 2);
 			return FIntPoint(Q, Row);
 		}
 	case EML_HexOffsetLayout::OddQ:
 		{
-			// q = col ; r = row - (col - (col&1))/2
 			const int32 R = Row - ((Col - (Col & 1)) / 2);
 			return FIntPoint(Col, R);
 		}
 	case EML_HexOffsetLayout::EvenQ:
 	default:
 		{
-			// q = col ; r = row - (col + (col&1))/2
 			const int32 R = Row - ((Col + (Col & 1)) / 2);
 			return FIntPoint(Col, R);
 		}
@@ -404,7 +392,7 @@ void AML_BoardSpawner::SpawnRectangleWH()
 	{
 		for (int32 Col = 0; Col < GridWidth; ++Col)
 		{
-			const FIntPoint Axial = OffsetToAxial(Col, Row); // (q,r)
+			const FIntPoint Axial = OffsetToAxial(Col, Row);
 			const int32 Q = Axial.X;
 			const int32 R = Axial.Y;
 

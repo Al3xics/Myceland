@@ -856,6 +856,48 @@ void AML_PlayerController::OnSetDestinationStarted()
 		return;
 	}
 
+	// // --- FREE MOVEMENT — click on a board tile → re-enter ---
+	// if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
+	// {
+	// 	AML_Tile* TargetTile = GetTileUnderCursor();
+	// 	if (IsValid(TargetTile))
+	// 	{
+	// 		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
+	// 		if (!IsValid(Board)) return;
+	//
+	// 		// Find the nearest border/entry tile
+	// 		const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	// 		AML_Tile* NearestBorderTile = FindNearestWalkableTile(MycelandCharacter->GetActorLocation(), GridMap);
+	//
+	// 		// Setup board entry state
+	// 		PendingBoardEntryTargetTile = TargetTile;
+	// 		bPendingBoardEntryOnArrival = true;
+	// 		SetMovementMode(EML_PlayerMovementMode::EnteringBoard);
+	//
+	// 		if (!IsValid(NearestBorderTile))
+	// 		{
+	// 			// Fallback: go directly to target if no border tile found
+	// 			StartNavMeshMovement(TargetTile->GetActorLocation());
+	// 		}
+	// 		else
+	// 		{
+	// 			// Move to the border tile first (not directly to target)
+	// 			StartNavMeshMovement(NearestBorderTile->GetActorLocation());
+	// 		}
+	// 		return;
+	// 	}
+	//
+	// 	// Click outside board → move to that position using nav mesh
+	// 	FHitResult Hit;
+	// 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	// 		return;
+	//
+	// 	// Start nav mesh movement to clicked location
+	// 	StartNavMeshMovement(Hit.Location);
+	//
+	// 	return;
+	// }
+	
 	// --- FREE MOVEMENT — click on a board tile → re-enter ---
 	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
 	{
@@ -865,25 +907,16 @@ void AML_PlayerController::OnSetDestinationStarted()
 			AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 			if (!IsValid(Board)) return;
 
-			// Find the nearest border/entry tile
-			const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-			AML_Tile* NearestBorderTile = FindNearestWalkableTile(MycelandCharacter->GetActorLocation(), GridMap);
+			// Use the board's EntryTile instead of nearest walkable tile
+			AML_Tile* EntryTile = Board->EntryTile;
+			if (!IsValid(EntryTile)) return;
 
 			// Setup board entry state
 			PendingBoardEntryTargetTile = TargetTile;
 			bPendingBoardEntryOnArrival = true;
 			SetMovementMode(EML_PlayerMovementMode::EnteringBoard);
 
-			if (!IsValid(NearestBorderTile))
-			{
-				// Fallback: go directly to target if no border tile found
-				StartNavMeshMovement(TargetTile->GetActorLocation());
-			}
-			else
-			{
-				// Move to the border tile first (not directly to target)
-				StartNavMeshMovement(NearestBorderTile->GetActorLocation());
-			}
+			StartNavMeshMovement(EntryTile->GetActorLocation());
 			return;
 		}
 
@@ -892,9 +925,7 @@ void AML_PlayerController::OnSetDestinationStarted()
 		if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
 			return;
 
-		// Start nav mesh movement to clicked location
 		StartNavMeshMovement(Hit.Location);
-
 		return;
 	}
 }

@@ -89,12 +89,15 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
+
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	AML_Tile* EntryTile;
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	AML_Tile* ExitTile;
 	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
-	void UpdateCurrentGrid();
+	void UpdateCurrentGrid(bool bAllowSpawn = true);
 
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Clear & Rebuild Grid"))
 	void RebuildGrid();
