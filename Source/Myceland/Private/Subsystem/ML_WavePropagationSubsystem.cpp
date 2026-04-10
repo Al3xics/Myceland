@@ -43,7 +43,7 @@ void UML_WavePropagationSubsystem::BeginTurnRecord_Internal(AML_Tile* OriginTile
 
 	bHasActiveTurnRecord = true;
 	CurrentTurnRecord = FML_TurnUndoRecord{};
-	CurrentTurnRecord.EnergyBefore = PlayerController->GetCurrentEnergy();
+	CurrentTurnRecord.EnergyBefore = PlayerController->GetCurrentEnergy() + 1; // +1 to account for the energy already spent in ConfirmTurn before BeginTileResolved is called
 	CurrentTurnRecord.PlayerAxialBefore = PC->CurrentTileOn->GetAxialCoord();
 	CurrentTurnRecord.PlayerWorldBefore = PC->GetActorLocation();
 	CurrentTurnRecord.OriginTile = OriginTile;
@@ -866,7 +866,7 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 			OnUndoAnimating.Broadcast(bIsUndoAnimating);
 
 		ActiveUndoRecord = Action.Turn;
-		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore + 1);
+		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
@@ -946,15 +946,50 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 	EnsureInitialized();
 	if (!PlayerController || !IsValid(Board)) return;
 
+	if (bIsResolvingTiles && bHasActiveTurnRecord)
+		CommitTurnRecord_Internal();
+	else
+		DiscardTurnRecord_Internal();
+
 	TArray<FML_ActionUndoRecord>* Stack = BoardUndoStacks.Find(Board);
+
+	UE_LOG(LogTemp, Warning, TEXT("[RESET INSTANT] Stack num: %d | bIsResolvingTiles: %d | bHasActiveTurnRecord: %d"),
+		Stack ? Stack->Num() : -1, bIsResolvingTiles, bHasActiveTurnRecord);
+
+	if (Stack)
+	{
+		for (int32 i = 0; i < Stack->Num(); ++i)
+		{
+			const FML_ActionUndoRecord& A = (*Stack)[i];
+			if (A.Type == EML_UndoActionType::PlantWaves)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[RESET INSTANT] Record[%d] PlantWaves | TileDeltas: %d | SpawnDeltas: %d | EnergyBefore: %d"),
+					i, A.Turn.TileDeltas.Num(), A.Turn.SpawnDeltas.Num(), A.Turn.EnergyBefore);
+
+				for (int32 j = 0; j < A.Turn.TileDeltas.Num(); ++j)
+				{
+					const FML_TileUndoDelta& TD = A.Turn.TileDeltas[j];
+					AML_Tile* Tile = TD.Tile.Get();
+					UE_LOG(LogTemp, Warning, TEXT("[RESET INSTANT]   TileDelta[%d] OldType: %d | CurrentType: %d | TileValid: %d"),
+						j, (int32)TD.OldType, Tile ? (int32)Tile->GetCurrentType() : -1, IsValid(Tile));
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[RESET INSTANT] Record[%d] Move"), i);
+			}
+		}
+	}
+
 	if (!Stack)
 	{
-		// No stack for this board — still reset flags in case we were mid-animation
 		bIsResolvingTiles = false;
 		bIsResetAllAnimating = false;
 		bIsUndoAnimating = false;
 		bUndoInProgress = false;
 		CancelAllWaveTimers();
+		ParasitesThatAteGrass.Empty();
+		PendingChanges.Empty();
 		ClearTimeDilation();
 		PendingUndoTileDeltas.Reset();
 		PendingUndoSpawnDeltas.Reset();
@@ -969,7 +1004,17 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 		return A.Type == EML_UndoActionType::Move;
 	});
 
-	// Apply all PlantWaves in reverse order
+	// Restore energy to the state before the oldest PlantWaves record
+	for (int32 i = 0; i < Stack->Num(); ++i)
+	{
+		if ((*Stack)[i].Type == EML_UndoActionType::PlantWaves)
+		{
+			PlayerController->SetCurrentEnergy((*Stack)[i].Turn.EnergyBefore);
+			break;
+		}
+	}
+
+	// Apply tile/spawn reverts in reverse order (newest first)
 	for (int32 i = Stack->Num() - 1; i >= 0; --i)
 	{
 		const FML_ActionUndoRecord& Action = (*Stack)[i];
@@ -977,16 +1022,22 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 
 		const FML_TurnUndoRecord& Turn = Action.Turn;
 
-		PlayerController->SetCurrentEnergy(Turn.EnergyBefore);
-
+		// Destroy spawned actors
 		for (const FML_SpawnUndoDelta& SD : Turn.SpawnDeltas)
 			if (AActor* A = SD.SpawnedActor.Get())
 				if (IsValid(A)) A->Destroy();
+
+		// Revert tiles — deduplicate per tile, keeping only the first occurrence
+		// (which holds the true original state before any change this turn)
+		TSet<AML_Tile*> AlreadyReverted;
 
 		for (const FML_TileUndoDelta& TD : Turn.TileDeltas)
 		{
 			AML_Tile* Tile = TD.Tile.Get();
 			if (!IsValid(Tile)) continue;
+			if (AlreadyReverted.Contains(Tile)) continue;
+
+			AlreadyReverted.Add(Tile);
 
 			const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
 			if (!TileSet) continue;
@@ -1016,15 +1067,15 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 		}
 	}
 
-	// Remove the entire stack entry for this board
 	BoardUndoStacks.Remove(Board);
 
-	// Reset all animation/state flags
 	bIsResolvingTiles = false;
 	bIsResetAllAnimating = false;
 	bIsUndoAnimating = false;
 	bUndoInProgress = false;
 	CancelAllWaveTimers();
+	ParasitesThatAteGrass.Empty();
+	PendingChanges.Empty();
 	ClearTimeDilation();
 	PendingUndoTileDeltas.Reset();
 	PendingUndoSpawnDeltas.Reset();
