@@ -811,6 +811,9 @@ void AML_PlayerController::OnSetDestinationStarted()
 		const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 		AML_Tile* TargetTile = GetTileUnderCursor();
 
+		// Block movement while turning to plant 
+		if (bTurningToTile) return;
+
 		// Click inside the board → BFS
 		if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
 		{
