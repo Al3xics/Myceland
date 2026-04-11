@@ -951,8 +951,29 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 {
 	// Only works in board mode
 	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard) return;
+	// Turning has begun — propagation is imminent, block re-entry entirely
+	if (bTurningToTile) return;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
 	if (CurrentEnergy <= 0) return; // Need energy to plant
+
+	// If already mid move-and-plant, cancel it and snap to CurrentTileOn so the
+	// adjacency check below runs from a clean, known tile position.
+	if (bPendingPlantOnArrival)
+	{
+		bPendingPlantOnArrival = false;
+		PendingPlantTargetTile = nullptr;
+		CurrentPathWorld.Reset();
+		CurrentPathIndex = 0;
+		SetIsMoving(false);
+
+		// Snap to tile center so the new right-click evaluates from the correct position
+		const FVector TileCenter = MycelandCharacter->CurrentTileOn->GetActorLocation();
+		MycelandCharacter->SetActorLocation(
+			FVector(TileCenter.X, TileCenter.Y, MycelandCharacter->GetActorLocation().Z),
+			false, nullptr, ETeleportType::TeleportPhysics);
+		if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
+			MC->StopMovementImmediately();
+	}
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return;
