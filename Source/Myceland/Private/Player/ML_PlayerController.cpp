@@ -512,17 +512,17 @@ void AML_PlayerController::OnPathFinished()
 		TArray<FIntPoint> AxialPath;
 		if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
 
+		BoardActionState = EML_PlayerBoardActionState::Moving;
 		StartMoveAlongPath(AxialPath, GridMap);
 	}
 
-	if (bPendingPlantOnArrival)
+	if (BoardActionState == EML_PlayerBoardActionState::MovingToPlant)
 	{
-		bPendingPlantOnArrival = false;
-
 		if (!IsValid(PendingPlantTargetTile) || !IsValid(MycelandCharacter) || !IsValid(
 			MycelandCharacter->CurrentTileOn))
 		{
 			PendingPlantTargetTile = nullptr;
+			BoardActionState = EML_PlayerBoardActionState::Idle;
 			return;
 		}
 
@@ -530,6 +530,7 @@ void AML_PlayerController::OnPathFinished()
 		if (!IsValid(Board))
 		{
 			PendingPlantTargetTile = nullptr;
+			BoardActionState = EML_PlayerBoardActionState::Idle;
 			return;
 		}
 
@@ -539,13 +540,17 @@ void AML_PlayerController::OnPathFinished()
 			PendingPlantTargetTile->GetCurrentType() == EML_TileType::Dirt &&
 			CurrentEnergy > 0)
 		{
-			bTurningToTile = true;
+			BoardActionState = EML_PlayerBoardActionState::TurningToPlant;
 			StartTurnTowardTileTimer();
 			return; // planting will happen after turn completes
 		}
 
 		PendingPlantTargetTile = nullptr;
+		BoardActionState = EML_PlayerBoardActionState::Idle;
+		return;
 	}
+
+	BoardActionState = EML_PlayerBoardActionState::Idle;
 }
 
 
@@ -811,8 +816,8 @@ void AML_PlayerController::OnSetDestinationStarted()
 		const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 		AML_Tile* TargetTile = GetTileUnderCursor();
 
-		// Block movement while turning to plant 
-		if (bTurningToTile) return;
+		// TurningToPlant locks all input — propagation is imminent
+		if (BoardActionState == EML_PlayerBoardActionState::TurningToPlant) return;
 
 		// Click inside the board → BFS
 		if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
@@ -825,6 +830,10 @@ void AML_PlayerController::OnSetDestinationStarted()
 
 			TArray<FIntPoint> AxialPath;
 			if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
+
+			// Cancelling a move-and-plant: clear the plant intent
+			if (BoardActionState == EML_PlayerBoardActionState::MovingToPlant)
+				PendingPlantTargetTile = nullptr;
 
 			// --- Arm move recording (NORMAL board move) ---
 			bMoveInProgress = true;
@@ -842,6 +851,7 @@ void AML_PlayerController::OnSetDestinationStarted()
 			ActiveMovePickedCollectibles.Reset();
 			// ---------------------------------------------
 
+			BoardActionState = EML_PlayerBoardActionState::Moving;
 			StartMoveAlongPath(AxialPath, GridMap);
 			return;
 		}
@@ -951,26 +961,18 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 {
 	// Only works in board mode
 	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard) return;
-	// Turning has begun — propagation is imminent, block re-entry entirely
-	if (bTurningToTile) return;
+	// TurningToPlant locks all input — propagation is imminent
+	if (BoardActionState == EML_PlayerBoardActionState::TurningToPlant) return;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
 	if (CurrentEnergy <= 0) return; // Need energy to plant
 
-	// If already mid move-and-plant, cancel it and snap to CurrentTileOn so the
-	// adjacency check below runs from a clean, known tile position.
-	if (bPendingPlantOnArrival)
+	// Redirecting mid move-and-plant: stop cleanly so the new path starts from CurrentTileOn
+	if (BoardActionState == EML_PlayerBoardActionState::MovingToPlant)
 	{
-		bPendingPlantOnArrival = false;
 		PendingPlantTargetTile = nullptr;
 		CurrentPathWorld.Reset();
 		CurrentPathIndex = 0;
 		SetIsMoving(false);
-
-		// Snap to tile center so the new right-click evaluates from the correct position
-		const FVector TileCenter = MycelandCharacter->CurrentTileOn->GetActorLocation();
-		MycelandCharacter->SetActorLocation(
-			FVector(TileCenter.X, TileCenter.Y, MycelandCharacter->GetActorLocation().Z),
-			false, nullptr, ETeleportType::TeleportPhysics);
 		if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
 			MC->StopMovementImmediately();
 	}
@@ -996,15 +998,14 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
 	if (CurrentNeighbors.Contains(TargetTile))
 	{
-		// Already adjacent → just plant immediately (like right-click behavior)
+		// Already adjacent → turn and plant immediately
 		PendingPlantTargetTile = TargetTile;
-		bTurningToTile = true;
+		BoardActionState = EML_PlayerBoardActionState::TurningToPlant;
 		StartTurnTowardTileTimer();
 		return;
 	}
 
-	// Target is NOT adjacent → need to path there
-	// Build full path to target
+	// Target is NOT adjacent → need to path there first
 	TArray<FIntPoint> FullPath;
 	if (!BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return;
 
@@ -1023,11 +1024,9 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
 	if (!StopNeighbors.Contains(TargetTile)) return;
 
-	// All checks passed → move and plant!
+	// All checks passed → move then plant
 	PendingPlantTargetTile = TargetTile;
-
-	bPendingPlantOnArrival = true;
-
+	BoardActionState = EML_PlayerBoardActionState::MovingToPlant;
 	StartMoveAlongPath(FullPath, GridMap);
 }
 
@@ -1355,19 +1354,16 @@ void AML_PlayerController::NotifyCollectiblePickedOnAxial(const FIntPoint& Axial
 	ActiveMovePickedCollectibles.Add(Axial);
 }
 
-void AML_PlayerController::RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed)
+bool AML_PlayerController::RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed)
 {
 	AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(GetCharacter());
-	if (!IsValid(PlayerCharacter) || !IsValid(HitTileActor)) return;
+	if (!IsValid(PlayerCharacter) || !IsValid(HitTileActor)) return false;
 
 	FVector Dir = HitTileActor->GetActorLocation() - PlayerCharacter->GetActorLocation();
 	Dir.Z = 0.f;
 
 	if (Dir.IsNearlyZero())
-	{
-		bTurningToTile = false;
-		return;
-	}
+		return false;
 
 	const float DesiredYaw = Dir.Rotation().Yaw;
 	const FRotator CurrentRot = PlayerCharacter->GetActorRotation();
@@ -1377,7 +1373,7 @@ void AML_PlayerController::RotateCharacterTowardTile(const AML_Tile* HitTileActo
 	PlayerCharacter->SetActorRotation(NewRot);
 
 	const float YawError = FMath::Abs(FMath::FindDeltaAngleDegrees(NewRot.Yaw, DesiredYaw));
-	bTurningToTile = (YawError > 1.0f);
+	return YawError > 1.0f; // true = still turning
 }
 
 void AML_PlayerController::StartTurnTowardTileTimer()
@@ -1401,22 +1397,24 @@ void AML_PlayerController::StopTurnTowardTileTimer()
 
 void AML_PlayerController::UpdateTurnTowardPendingTile()
 {
-	if (!bTurningToTile || !IsValid(PendingPlantTargetTile) || !IsValid(MycelandCharacter))
+	if (BoardActionState != EML_PlayerBoardActionState::TurningToPlant ||
+		!IsValid(PendingPlantTargetTile) || !IsValid(MycelandCharacter))
 	{
 		StopTurnTowardTileTimer();
+		BoardActionState = EML_PlayerBoardActionState::Idle;
 		return;
 	}
 
-	RotateCharacterTowardTile(PendingPlantTargetTile, 1.f / 60.f, RotateSpeed);
+	const bool bStillTurning = RotateCharacterTowardTile(PendingPlantTargetTile, 1.f / 60.f, RotateSpeed);
 
-	if (!bTurningToTile)
+	if (!bStillTurning)
 	{
 		StopTurnTowardTileTimer();
-		
+		BoardActionState = EML_PlayerBoardActionState::Idle;
+
 		if (CurrentEnergy > 0)
-		{
 			ConfirmTurn(PendingPlantTargetTile);
-		}
+
 		PendingPlantTargetTile = nullptr;
 	}
 }

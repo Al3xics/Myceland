@@ -72,9 +72,10 @@ private:
 	// Move and Plant
 	UPROPERTY(Transient)
 	AML_Tile* PendingPlantTargetTile = nullptr;
-	
-	bool bPendingPlantOnArrival = false;
-	
+
+	// Board action state machine
+	EML_PlayerBoardActionState BoardActionState = EML_PlayerBoardActionState::Idle;
+
 	// Free movement target (SimpleMoveToLocation)
 	UPROPERTY(Transient)
 	FVector PendingFreeMovementTarget = FVector::ZeroVector;
@@ -87,8 +88,6 @@ private:
 	// Rotate Tile
 	UPROPERTY(Transient)
 	const AML_Tile* RotateTargetTile = nullptr;
-	
-	bool bTurningToTile;
 	
 	// Timers
 	FTimerHandle ExitHoldTimerHandle;
@@ -146,7 +145,8 @@ private:
 
 	// ==================== Rotation ====================
 	
-	void RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed);
+	// Returns true while still rotating, false when facing the tile
+	bool RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed);
 	void TickTurnTowardPendingTile(float DeltaTime);
 
 	// ==================== Board Exit / Entry ====================
