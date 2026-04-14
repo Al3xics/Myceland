@@ -3,9 +3,13 @@
 
 #include "Tiles/ML_BoardSpawner.h"
 #include "Tiles/ML_Tile.h"
+#include "Data Asset/ML_BiomeTileSet.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Save System/ML_SaveSubsystem.h"
+#include "Subsystem/ML_WinLoseSubsystem.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
 #include "Tiles/TileBase/ML_TileParasite.h"
 #include "Tiles/TileBase/ML_TileWater.h"
@@ -25,13 +29,53 @@ void AML_BoardSpawner::Destroyed()
 void AML_BoardSpawner::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	ensureMsgf(BiomeTileSet, TEXT("BiomeTileSet is not set for board : %s"), *GetName());
 	if (!BiomeTileSet) return;
-	
+
 	// At runtime, only initialize tiles that already exist in the level.
 	// Never spawn new ones — the designer may have intentionally deleted some tiles.
 	UpdateCurrentGrid(false);
+
+	// ---- Save / Load integration ----
+	if (PuzzleID.IsNone()) return;
+
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	// Capture the authored tile layout and store it the first time this puzzle is seen.
+	const TArray<FML_TileSaveEntry> Snapshot = SnapshotGrid();
+	SaveSys->EnsureInitialGridSaved(PuzzleID, Snapshot);
+
+	// If this puzzle was already solved, restore the solved grid so the player sees it.
+	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID);
+	if (Record.bIsSolved && Record.SolvedGrid.Num() > 0)
+	{
+		int32 Applied = 0;
+		for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)
+		{
+			if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
+			{
+				Tile->UpdateClassAtRuntime_Silent(Entry.TileType,
+					BiomeTileSet->GetClassFromTileType(Entry.TileType));
+				++Applied;
+			}
+		}
+		bIsPuzzleSolved = true;
+		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — solved state loaded (%d/%d tiles restored)."),
+			*PuzzleID.ToString(), Applied, Record.SolvedGrid.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — not yet solved, loading fresh."),
+			*PuzzleID.ToString());
+	}
+
+	// Subscribe to the win event so we can capture and save the solvOked grid.
+	if (UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
+	{
+		WinLose->OnWin.AddDynamic(this, &AML_BoardSpawner::HandlePuzzleWon);
+	}
 }
 
 void AML_BoardSpawner::RebuildGrid()
@@ -410,4 +454,65 @@ void AML_BoardSpawner::SpawnRectangleWH()
 			GridMap.Add(AxialQR, Tile);
 		}
 	}
+}
+
+// ==================== Save / Load ====================
+
+TArray<FML_TileSaveEntry> AML_BoardSpawner::SnapshotGrid() const
+{
+	TArray<FML_TileSaveEntry> Entries;
+	Entries.Reserve(GridMap.Num());
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		if (!Pair.Value) continue;
+		FML_TileSaveEntry Entry;
+		Entry.Axial    = Pair.Key;
+		Entry.TileType = Pair.Value->GetCurrentType();
+		Entries.Add(Entry);
+	}
+	return Entries;
+}
+
+UML_SaveSubsystem* AML_BoardSpawner::GetSaveSubsystem() const
+{
+	const UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	return GI ? GI->GetSubsystem<UML_SaveSubsystem>() : nullptr;
+}
+
+void AML_BoardSpawner::HandlePuzzleWon()
+{
+	// Only save for the board that actually triggered the win.
+	if (const UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
+	{
+		if (WinLose->CurrentBoardSpawner != this) return;
+	}
+
+	if (PuzzleID.IsNone()) return;
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	SaveSys->MarkPuzzleSolved(PuzzleID, SnapshotGrid());
+}
+
+void AML_BoardSpawner::ReplayPuzzle()
+{
+	if (PuzzleID.IsNone()) return;
+
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID);
+	if (Record.InitialGrid.IsEmpty()) return;
+
+	for (const FML_TileSaveEntry& Entry : Record.InitialGrid)
+	{
+		if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
+		{
+			Tile->UpdateClassAtRuntime_Silent(Entry.TileType,
+				BiomeTileSet->GetClassFromTileType(Entry.TileType));
+		}
+	}
+
+	bIsPuzzleSolved = false;
+	SaveSys->ResetPuzzle(PuzzleID);
 }

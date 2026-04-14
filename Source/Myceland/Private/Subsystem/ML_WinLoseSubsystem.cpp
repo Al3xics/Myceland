@@ -52,7 +52,6 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		GameResult.bIsGameOver = false;
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
-		OnWin.Broadcast();
 
 		ClearWinPath(
 			CurrentBoardSpawner,
@@ -60,6 +59,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 			CurrentBoardSpawner->ExitTile,
 			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
 
+		OnWin.Broadcast();
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 	

@@ -5,9 +5,11 @@
 #include "CoreMinimal.h"
 #include "Core/ML_CoreData.h"
 #include "GameFramework/Actor.h"
+#include "Save System/ML_GameSaveData.h"
 #include "ML_BoardSpawner.generated.h"
 
 class UML_BiomeTileSet;
+class UML_SaveSubsystem;
 class AML_Collectible;
 class AML_TileBase;
 class AML_TileWater;
@@ -90,6 +92,11 @@ public:
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
 
+	// Unique identifier for this puzzle used to key save data.
+	// Must be set by the designer; boards with PuzzleID = None are not saved.
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	FName PuzzleID;
+
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	AML_Tile* EntryTile;
 	
@@ -128,7 +135,24 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	TSubclassOf<AML_TileBase> WaterChangeTile;
-	
+
 	UPROPERTY(BlueprintReadWrite)
-    bool bIsPuzzleSolved; 
+	bool bIsPuzzleSolved;
+
+	// Resets all tiles to their original authored state so the player can replay.
+	UFUNCTION(CallInEditor, BlueprintCallable, Category="Myceland Hex Grid", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
+	void ReplayPuzzle();
+
+private:
+	// ==================== Save / Load Helpers ====================
+
+	// Returns a snapshot of the current GridMap as a flat array of tile entries.
+	TArray<FML_TileSaveEntry> SnapshotGrid() const;
+
+	// Fetches the SaveSubsystem from the owning GameInstance. Returns null if unavailable.
+	UML_SaveSubsystem* GetSaveSubsystem() const;
+
+	// Bound to UML_WinLoseSubsystem::OnWin; captures the solved grid and saves to disk.
+	UFUNCTION()
+	void HandlePuzzleWon();
 };
