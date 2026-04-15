@@ -77,7 +77,7 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 	// Notify hover system
 	HoverPreviewComponent->NotifyMovementModeChanged(NewMode);
 
-	// Controller-side reaction: stop NavMesh when leaving free movement
+	// Controller-side reaction: stop NavMesh when entering the board
 	if (OldMode == EML_PlayerMovementMode::FreeMovement)
 		StopNavMeshMovement();
 }
@@ -438,14 +438,20 @@ void AML_PlayerController::HandleInsideBoardClick()
 		return;
 	}
 
-	// Click outside the board → start exit hold toward the nearest border tile
+	// Click outside the board → hold to exit toward the closest gate tile (EntryTile or ExitTile)
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
 
-	AML_Tile* NearestTile = UML_HexPathfinder::FindNearestWalkableTile(Hit.Location, GridMap);
-	if (!IsValid(NearestTile)) return;
+	AML_Tile* ExitGate = Board->GetClosestGateTile(Hit.Location);
+	if (!IsValid(ExitGate)) return;
 
-	TransitionComponent->RequestExitHold(NearestTile, Hit.Location);
+	// If the path to the gate is blocked (e.g. obstacles in the way), don't start the hold
+	const FIntPoint CurrentAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint ExitAxial    = ExitGate->GetAxialCoord();
+	TArray<FIntPoint> TestPath;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(CurrentAxial, ExitAxial, GridMap, TestPath)) return;
+
+	TransitionComponent->RequestExitHold(ExitGate, Hit.Location);
 }
 
 // Called when the player clicks while in free movement.
@@ -458,11 +464,12 @@ void AML_PlayerController::HandleFreeMovementClick()
 		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) return;
 
-		AML_Tile* EntryTile = Board->EntryTile;
-		if (!IsValid(EntryTile)) return;
+		if (!IsValid(MycelandCharacter)) return;
+		AML_Tile* GateTile = Board->GetClosestGateTile(MycelandCharacter->GetActorLocation());
+		if (!IsValid(GateTile)) return;
 
 		TransitionComponent->RequestBoardEntry(TargetTile);
-		StartNavMeshMovement(EntryTile->GetActorLocation());
+		StartNavMeshMovement(GateTile->GetActorLocation());
 		return;
 	}
 

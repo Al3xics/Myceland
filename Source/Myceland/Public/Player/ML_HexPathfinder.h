@@ -29,11 +29,4 @@ public:
 	static bool BuildPath_AxialBFS(const FIntPoint& StartAxial, const FIntPoint& GoalAxial,
 	                               const TMap<FIntPoint, AML_Tile*>& GridMap,
 	                               TArray<FIntPoint>& OutAxialPath);
-
-	/**
-	 * Returns the nearest walkable tile in GridMap to WorldLocation (2D distance),
-	 * or nullptr if none exists.
-	 */
-	static AML_Tile* FindNearestWalkableTile(const FVector& WorldLocation,
-	                                          const TMap<FIntPoint, AML_Tile*>& GridMap);
 };

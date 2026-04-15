@@ -113,6 +113,13 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AML_Tile*> GetGridTiles();
+
+	/**
+	 * Returns whichever of EntryTile / ExitTile is closer (2D) to WorldLocation.
+	 * Returns nullptr if both are invalid.
+	 */
+	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	AML_Tile* GetClosestGateTile(const FVector& WorldLocation) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }

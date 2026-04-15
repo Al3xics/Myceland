@@ -73,24 +73,3 @@ bool UML_HexPathfinder::BuildPath_AxialBFS(const FIntPoint& StartAxial, const FI
 	return false;
 }
 
-AML_Tile* UML_HexPathfinder::FindNearestWalkableTile(const FVector& WorldLocation,
-                                                      const TMap<FIntPoint, AML_Tile*>& GridMap)
-{
-	AML_Tile* Best = nullptr;
-	float BestDistSq = FLT_MAX;
-
-	for (const TPair<FIntPoint, AML_Tile*>& Pair : GridMap)
-	{
-		AML_Tile* Tile = Pair.Value;
-		if (!IsValid(Tile) || !IsTileWalkable(Tile))
-			continue;
-
-		const float DistSq = FVector::DistSquared2D(WorldLocation, Tile->GetActorLocation());
-		if (DistSq < BestDistSq)
-		{
-			BestDistSq = DistSq;
-			Best = Tile;
-		}
-	}
-	return Best;
-}
