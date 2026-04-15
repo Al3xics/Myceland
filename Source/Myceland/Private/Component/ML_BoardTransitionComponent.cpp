@@ -1,6 +1,6 @@
 // Copyright Myceland Team, All Rights Reserved.
 
-#include "Player/ML_BoardTransitionComponent.h"
+#include "Component/ML_BoardTransitionComponent.h"
 
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_HexPathfinder.h"

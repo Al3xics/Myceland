@@ -6,11 +6,11 @@
 #include "Core/ML_CoreData.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/PlayerController.h"
-#include "Player/ML_EnergyComponent.h"
-#include "Player/ML_HoverPreviewComponent.h"
-#include "Player/ML_MoveRecordingComponent.h"
+#include "Component/ML_EnergyComponent.h"
+#include "Component/ML_HoverPreviewComponent.h"
+#include "Component/ML_MoveRecordingComponent.h"
 #include "Player/ML_HexPathfinder.h"
-#include "Player/ML_BoardTransitionComponent.h"
+#include "Component/ML_BoardTransitionComponent.h"
 #include "ML_PlayerController.generated.h"
 
 class UML_MycelandDeveloperSettings;
@@ -21,8 +21,7 @@ class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
 // FOnHoveredTileChanged is declared in ML_HoverPreviewComponent.h (included above)
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardMovementStateChanged, bool, bIsMoving);
+// FOnExitCursorHold and FOnBoardMovementStateChanged are declared in ML_BoardTransitionComponent.h (included above)
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController

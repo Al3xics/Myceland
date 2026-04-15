@@ -13,6 +13,9 @@ class AML_BoardSpawner;
 class AML_Tile;
 class UML_MycelandDeveloperSettings;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardMovementStateChanged, bool, bIsMoving);
+
 /**
  * Result returned by HandlePathFinished / HandleBoardPresenceChanged so the controller
  * can react without creating a circular include dependency.

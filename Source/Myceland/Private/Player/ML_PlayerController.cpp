@@ -2,11 +2,11 @@
 
 #include "Player/ML_PlayerController.h"
 
-#include "Player/ML_EnergyComponent.h"
-#include "Player/ML_HoverPreviewComponent.h"
-#include "Player/ML_MoveRecordingComponent.h"
+#include "Component/ML_EnergyComponent.h"
+#include "Component/ML_HoverPreviewComponent.h"
+#include "Component/ML_MoveRecordingComponent.h"
 #include "Player/ML_HexPathfinder.h"
-#include "Player/ML_BoardTransitionComponent.h"
+#include "Component/ML_BoardTransitionComponent.h"
 #include "AIController.h"
 #include "NavigationSystem.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"

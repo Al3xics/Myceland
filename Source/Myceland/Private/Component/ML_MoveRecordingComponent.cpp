@@ -1,6 +1,6 @@
 // Copyright Myceland Team, All Rights Reserved.
 
-#include "Player/ML_MoveRecordingComponent.h"
+#include "Component/ML_MoveRecordingComponent.h"
 
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"

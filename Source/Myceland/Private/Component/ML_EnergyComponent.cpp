@@ -1,6 +1,6 @@
 // Copyright Myceland Team, All Rights Reserved.
 
-#include "Player/ML_EnergyComponent.h"
+#include "Component/ML_EnergyComponent.h"
 
 void UML_EnergyComponent::SetCurrentEnergy(int32 NewEnergy)
 {
