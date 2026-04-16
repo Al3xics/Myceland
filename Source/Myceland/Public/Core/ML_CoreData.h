@@ -87,6 +87,15 @@ enum class EML_PlayerMovementMode : uint8
 };
 
 UENUM(BlueprintType)
+enum class EML_PlayerBoardActionState : uint8
+{
+	Idle,           // Standing still — all board input accepted
+	Moving,         // Walking to a tile (left-click)
+	MovingToPlant,  // Walking to plant position (right-click move-and-plant)
+	TurningToPlant, // Facing the target tile before planting — no input accepted
+};
+
+UENUM(BlueprintType)
 enum class ESettingValueType : uint8
 {
 	Float,

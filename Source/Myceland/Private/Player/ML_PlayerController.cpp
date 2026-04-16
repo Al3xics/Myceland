@@ -2,6 +2,11 @@
 
 #include "Player/ML_PlayerController.h"
 
+#include "Component/ML_EnergyComponent.h"
+#include "Component/ML_HoverPreviewComponent.h"
+#include "Component/ML_MoveRecordingComponent.h"
+#include "Player/ML_HexPathfinder.h"
+#include "Component/ML_BoardTransitionComponent.h"
 #include "AIController.h"
 #include "NavigationSystem.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
@@ -12,6 +17,16 @@
 #include "Tiles/ML_Tile.h"
 
 class UML_WavePropagationSubsystem;
+
+// ==================== Constructor ====================
+
+AML_PlayerController::AML_PlayerController()
+{
+	EnergyComponent = CreateDefaultSubobject<UML_EnergyComponent>(TEXT("EnergyComponent"));
+	HoverPreviewComponent = CreateDefaultSubobject<UML_HoverPreviewComponent>(TEXT("HoverPreviewComponent"));
+	MoveRecordingComponent = CreateDefaultSubobject<UML_MoveRecordingComponent>(TEXT("MoveRecordingComponent"));
+	TransitionComponent = CreateDefaultSubobject<UML_BoardTransitionComponent>(TEXT("TransitionComponent"));
+}
 
 // ==================== Helpers ====================
 
@@ -42,177 +57,32 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 	return nullptr;
 }
 
-bool AML_PlayerController::IsTileWalkable(const AML_Tile* Tile) const
-{
-	if (!IsValid(Tile)) return false;
-
-	const EML_TileType Type = Tile->GetCurrentType();
-	return (Type == EML_TileType::Dirt || Type == EML_TileType::Grass) && !Tile->IsBlocked();
-}
-
-AML_Tile* AML_PlayerController::FindNearestWalkableTile(const FVector& WorldLocation,
-                                                        const TMap<FIntPoint, AML_Tile*>& GridMap) const
-{
-	AML_Tile* Best = nullptr;
-	float BestDistSq = FLT_MAX;
-
-	for (const TPair<FIntPoint, AML_Tile*>& Pair : GridMap)
-	{
-		AML_Tile* Tile = Pair.Value;
-		if (!IsValid(Tile) || !IsTileWalkable(Tile))
-			continue;
-
-		const float DistSq = FVector::DistSquared2D(WorldLocation, Tile->GetActorLocation());
-		if (DistSq < BestDistSq)
-		{
-			BestDistSq = DistSq;
-			Best = Tile;
-		}
-	}
-	return Best;
-}
 
 void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
 {
-	// Update internal state
 	bIsMoving = bNewIsMoving;
-	
-	// Only broadcast when inside the board
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard)
-	{
-		bWasMovingInBoard = false;
-		return;
-	}
-	
-	// Only broadcast if the state actually changed (avoid spam)
-	if (bIsMoving != bWasMovingInBoard)
-	{
-		OnBoardMovementStateChanged.Broadcast(bIsMoving);
-		bWasMovingInBoard = bIsMoving;
-	}
+	TransitionComponent->NotifyIsMoving(bNewIsMoving);
 }
 
 void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 {
-	if (CurrentMovementMode == NewMode)
+	if (TransitionComponent->GetMovementMode() == NewMode)
 		return;
-	
-	const EML_PlayerMovementMode OldMode = CurrentMovementMode;
-	CurrentMovementMode = NewMode;
-	
-	// Handle transitions OUT of old mode
-	switch (OldMode)
-	{
-	case EML_PlayerMovementMode::FreeMovement:
-		// Leaving free movement
+
+	const EML_PlayerMovementMode OldMode = TransitionComponent->GetMovementMode();
+
+	// Let the component update its state and handle pending-state cleanup
+	TransitionComponent->SwitchToMode(NewMode);
+
+	// Notify hover system
+	HoverPreviewComponent->NotifyMovementModeChanged(NewMode);
+
+	// Controller-side reaction: stop NavMesh when entering the board
+	if (OldMode == EML_PlayerMovementMode::FreeMovement)
 		StopNavMeshMovement();
-		break;
-		
-	case EML_PlayerMovementMode::InsideBoard:
-		// Leaving board - clear path preview but keep cursor glow
-		ClearHoverPreview();
-		break;
-		
-	case EML_PlayerMovementMode::ExitingBoard:
-		// Only clean up if we're CANCELLING the exit (going back to InsideBoard)
-		// Don't clean up if we're confirming the exit (going to FreeMovement or staying in InsideBoard for pathing)
-		if (NewMode == EML_PlayerMovementMode::InsideBoard && !bPendingFreeMovementOnArrival)
-		{
-			// Cancelled exit - clean up
-			PendingExitTile = nullptr;
-			bHasExitTargetWorld = false;
-		}
-		// Otherwise, let ConfirmExitBoard handle the cleanup
-		break;
-		
-	case EML_PlayerMovementMode::EnteringBoard:
-		// Nothing special needed
-		break;
-	}
-	
-	// Handle transitions INTO new mode
-	switch (NewMode)
-	{
-	case EML_PlayerMovementMode::FreeMovement:
-		// Entering free movement - nav mesh will be started separately
-		break;
-		
-	case EML_PlayerMovementMode::InsideBoard:
-		// Entering board - tile-by-tile movement
-		break;
-		
-	case EML_PlayerMovementMode::ExitingBoard:
-		// Starting to exit
-		break;
-		
-	case EML_PlayerMovementMode::EnteringBoard:
-		// Starting to enter
-		ClearHoverPreview();
-		break;
-	}
 }
 
 
-// ==================== Pathfinding ====================
-
-bool AML_PlayerController::BuildPath_AxialBFS(const FIntPoint& StartAxial, const FIntPoint& GoalAxial,
-                                              const TMap<FIntPoint, AML_Tile*>& GridMap,
-                                              TArray<FIntPoint>& OutAxialPath) const
-{
-	OutAxialPath.Reset();
-
-	if (StartAxial == GoalAxial)
-	{
-		OutAxialPath.Add(StartAxial);
-		return true;
-	}
-
-	TArray<FIntPoint> Queue;
-	Queue.Reserve(GridMap.Num());
-	int32 Head = 0;
-
-	TMap<FIntPoint, FIntPoint> CameFrom;
-	CameFrom.Reserve(GridMap.Num());
-
-	Queue.Add(StartAxial);
-	CameFrom.Add(StartAxial, StartAxial);
-
-	while (Head < Queue.Num())
-	{
-		const FIntPoint Current = Queue[Head++];
-
-		for (const FIntPoint& Dir : Directions)
-		{
-			const FIntPoint Next = Current + Dir;
-
-			if (CameFrom.Contains(Next))
-				continue;
-
-			const AML_Tile* const* NextTilePtr = GridMap.Find(Next);
-			if (!NextTilePtr || !IsTileWalkable(*NextTilePtr))
-				continue;
-
-			CameFrom.Add(Next, Current);
-
-			if (Next == GoalAxial)
-			{
-				FIntPoint Step = GoalAxial;
-				while (Step != StartAxial)
-				{
-					OutAxialPath.Add(Step);
-					Step = CameFrom[Step];
-				}
-				OutAxialPath.Add(StartAxial);
-				Algo::Reverse(OutAxialPath);
-				return true;
-			}
-
-			Queue.Add(Next);
-		}
-	}
-
-	return false;
-}
 
 
 // ==================== Movement ====================
@@ -310,7 +180,7 @@ void AML_PlayerController::TickNavMeshMovement(float DeltaTime)
 		SetIsMoving(false);
 		
 		// Trigger OnPathFinished for board entry transitions
-		if (bPendingBoardEntryOnArrival)
+		if (TransitionComponent->IsPendingBoardEntry())
 		{
 			OnPathFinished();
 		}
@@ -324,8 +194,8 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		return;
 	
 	// Handle nav mesh movement (FreeMovement and EnteringBoard modes)
-	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement || 
-	    CurrentMovementMode == EML_PlayerMovementMode::EnteringBoard)
+	if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement ||
+	    TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::EnteringBoard)
 	{
 		TickNavMeshMovement(DeltaTime);
 		return;
@@ -369,72 +239,16 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 
 		// During undo-move playback, restore collectibles *behind the player*.
 		// We restore when the player reaches a tile, meaning they just left the previous one.
-		if (bUndoMovePlayback && bUndoRestoreCollectibles)
 		{
-			const int32 LeftIndex = ReachedIndex - 1; // tile behind the player
-			if (LeftIndex >= 0 && LeftIndex < ActiveMoveAxialPath.Num())
-			{
-				const FIntPoint LeftAxial = ActiveMoveAxialPath[LeftIndex];
-
-				if (UndoMoveRemainingCollectibles.Contains(LeftAxial))
-				{
-					if (UML_WavePropagationSubsystem* S = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
-					{
-						S->RestoreCollectibleDuringUndoMove(LeftAxial);
-					}
-					UndoMoveRemainingCollectibles.Remove(LeftAxial);
-				}
-			}
+			UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>();
+			MoveRecordingComponent->TickUndoRestore(ReachedIndex, WavePropagationSubsystem);
 		}
 
 		if (CurrentPathIndex >= CurrentPathWorld.Num())
 		{
-			if (UML_WavePropagationSubsystem* S = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
-			{
-				if (bUndoMovePlayback)
-				{
-					bUndoMovePlayback = false;
-					bSuppressMoveRecording = false;
-
-					// Restore any leftovers (e.g. original start tile depending on timing)
-					if (bUndoRestoreCollectibles && UndoMoveRemainingCollectibles.Num() > 0)
-					{
-						for (const FIntPoint& Ax : UndoMoveRemainingCollectibles)
-						{
-							S->RestoreCollectibleDuringUndoMove(Ax);
-						}
-						UndoMoveRemainingCollectibles.Reset();
-					}
-					bUndoRestoreCollectibles = false;
-
-					S->FinishUndoAnimation();
-				}
-				else if (bMoveInProgress && ActiveMoveAxialPath.Num() > 0)
-				{
-					if (!bSuppressMoveRecording)
-					{
-						const TArray<FIntPoint> Picked = ActiveMovePickedCollectibles.Array();
-						AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(GetPawn());
-						if (!PC->CurrentTileOn) return;
-						S->NotifyMoveCompleted(
-							MoveStartAxial,
-							MoveEndAxial,
-							ActiveMoveAxialPath,
-							MoveStartWorld,
-							MoveEndWorld,
-							Picked
-						);
-					}
-					else
-					{
-						bSuppressMoveRecording = false;
-					}
-				}
-			}
-
-			bMoveInProgress = false;
-			ActiveMoveAxialPath.Reset();
-			ActiveMovePickedCollectibles.Reset();
+			UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>();
+			if (!MoveRecordingComponent->CommitMoveRecord(MycelandCharacter, WavePropagationSubsystem))
+				return;
 
 			// Snap to exact tile center and kill momentum so the character
 			// doesn't slide past due to CMC deceleration.
@@ -459,236 +273,16 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 
 void AML_PlayerController::OnPathFinished()
 {
-	// Arrived at the border tile → switch to free movement
-	if (bPendingFreeMovementOnArrival)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[EXIT] OnPathFinished: bPendingFreeMovementOnArrival=true"));
-		UE_LOG(LogTemp, Warning, TEXT("[EXIT] bHasExitTargetWorld=%d, PendingExitTargetWorld=%s"), 
-			bHasExitTargetWorld, *PendingExitTargetWorld.ToString());
-		
-		bPendingFreeMovementOnArrival = false;
-		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
+	FBoardTransitionCommand Cmd = TransitionComponent->HandlePathFinished(MycelandCharacter);
 
-		if (bHasExitTargetWorld)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[EXIT] Calling StartNavMeshMovement to %s"), *PendingExitTargetWorld.ToString());
-			StartNavMeshMovement(PendingExitTargetWorld);
-			bHasExitTargetWorld = false;
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[EXIT] ERROR: bHasExitTargetWorld is FALSE!"));
-		}
-		
-		// Clean up exit state now that we're done with it
-		PendingExitTile = nullptr;
-
-		return;
-	}
-
-	// Arrived at the board entry tile → switch to board movement and immediately path to stored target
-	if (bPendingBoardEntryOnArrival)
-	{
-		bPendingBoardEntryOnArrival = false;
-		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
-
-		if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
-
-		AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-		if (!IsValid(Board)) return;
-
-		AML_Tile* TargetTile = PendingBoardEntryTargetTile;
-		PendingBoardEntryTargetTile = nullptr;
-
-		if (!IsValid(TargetTile) || TargetTile->GetOwner() != Board) return;
-
-		const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-		const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-		const FIntPoint GoalAxial = TargetTile->GetAxialCoord();
-
-		if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
-		if (!IsTileWalkable(GridMap[StartAxial]) || !IsTileWalkable(GridMap[GoalAxial])) return;
-
-		TArray<FIntPoint> AxialPath;
-		if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
-
-		StartMoveAlongPath(AxialPath, GridMap);
-	}
-
-	if (bPendingPlantOnArrival)
-	{
-		bPendingPlantOnArrival = false;
-
-		if (!IsValid(PendingPlantTargetTile) || !IsValid(MycelandCharacter) || !IsValid(
-			MycelandCharacter->CurrentTileOn))
-		{
-			PendingPlantTargetTile = nullptr;
-			return;
-		}
-
-		AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-		if (!IsValid(Board))
-		{
-			PendingPlantTargetTile = nullptr;
-			return;
-		}
-
-		// Verify the target is still a neighbor and is Dirt
-		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
-		if (Neighbors.Contains(PendingPlantTargetTile) &&
-			PendingPlantTargetTile->GetCurrentType() == EML_TileType::Dirt &&
-			CurrentEnergy > 0)
-		{
-			bTurningToTile = true;
-			StartTurnTowardTileTimer();
-			return; // planting will happen after turn completes
-		}
-
-		PendingPlantTargetTile = nullptr;
-	}
+	if (Cmd.bStartNavMesh)
+		StartNavMeshMovement(Cmd.NavMeshTarget);
+	else if (Cmd.bStartBoardPath)
+		StartMoveAlongPath(Cmd.BoardPath, Cmd.BoardGridMap);
 }
 
 
-// ==================== Board Exit / Entry ====================
-
-void AML_PlayerController::StartExitHoldTimer()
-{
-	ExitHoldTimer = 0.f;
-	bWasExitingLastFrame = false;
-	LastBroadcastProgress = -1.f;
-	
-	// Start timer that updates at 60Hz for smooth progress
-	GetWorld()->GetTimerManager().SetTimer(
-		ExitHoldTimerHandle,
-		this,
-		&AML_PlayerController::TickExitHold,
-		1.f / 60.f,
-		true
-	);
-}
-
-void AML_PlayerController::StopExitHoldTimer()
-{
-	GetWorld()->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
-	
-	// Clean up state
-	ExitHoldTimer = 0.f;
-	bWasExitingLastFrame = false;
-	LastBroadcastProgress = -1.f;
-	
-	// Broadcast cancellation if needed
-	if (CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
-	{
-		OnExitCursorHold.Broadcast(false, 0.0f);
-	}
-}
-
-void AML_PlayerController::TickExitHold()
-{
-	const bool bIsCurrentlyExiting = (CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard && bIsHoldingExitInput);
-    
-	// Not exiting anymore - cancellation
-	if (!bIsCurrentlyExiting)
-	{
-		// Only clean up if we were actually in ExitingBoard mode
-		if (CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
-		{
-			// Stop the timer and reset state
-			GetWorld()->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
-			ExitHoldTimer = 0.f;
-			
-			// Broadcast cancellation
-			OnExitCursorHold.Broadcast(false, 0.0f);
-			bWasExitingLastFrame = false;
-			LastBroadcastProgress = -1.f;
-			
-			// Return to InsideBoard mode (this will clean up exit state via SetMovementMode)
-			SetMovementMode(EML_PlayerMovementMode::InsideBoard);
-		}
-		return;
-	}
-    
-	// Calculate progress
-	const float Progress = FMath::Clamp(ExitHoldTimer / DevSettings->ExitBoardHoldDuration, 0.f, 1.f);
-    
-	// Only broadcast if:
-	// 1. We just started exiting (transition)
-	// 2. The progress has changed significantly (avoids micro-variations)
-	const bool bJustStartedExiting = !bWasExitingLastFrame;
-	const bool bProgressChanged = FMath::Abs(Progress - LastBroadcastProgress) > 0.01f; // 1% difference
-    
-	if (bJustStartedExiting || bProgressChanged)
-	{
-		OnExitCursorHold.Broadcast(true, Progress);
-		LastBroadcastProgress = Progress;
-	}
-    
-	bWasExitingLastFrame = true;
-
-	ExitHoldTimer += 1.f / 60.f; // Fixed timestep
-	if (ExitHoldTimer >= DevSettings->ExitBoardHoldDuration)
-	{
-		// Stop timer and clean state
-		GetWorld()->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
-		ExitHoldTimer = 0.f;
-		bWasExitingLastFrame = false;
-		LastBroadcastProgress = -1.f;
-		
-		// Broadcast completion
-		OnExitCursorHold.Broadcast(false, 1.0f);
-		
-		// Execute the exit
-		ConfirmExitBoard();
-	}
-}
-
-void AML_PlayerController::ConfirmExitBoard()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[EXIT] ConfirmExitBoard called"));
-	
-	if (!IsValid(PendingExitTile) || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
-
-	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board)) return;
-
-	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint GoalAxial = PendingExitTile->GetAxialCoord();
-	
-	UE_LOG(LogTemp, Warning, TEXT("[EXIT] StartAxial=%s, GoalAxial=%s"), *StartAxial.ToString(), *GoalAxial.ToString());
-	
-	if (StartAxial == GoalAxial)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[EXIT] Direct exit (already on border tile)"));
-		// Direct exit, no path needed
-		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
-
-		if (bHasExitTargetWorld)
-		{
-			StartNavMeshMovement(PendingExitTargetWorld);
-			bHasExitTargetWorld = false;
-		}
-
-		PendingExitTile = nullptr;
-		return;
-	}
-
-	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
-
-	TArray<FIntPoint> AxialPath;
-	if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
-
-	UE_LOG(LogTemp, Warning, TEXT("[EXIT] Need to path to border tile. Path length=%d"), AxialPath.Num());
-	UE_LOG(LogTemp, Warning, TEXT("[EXIT] Setting bPendingFreeMovementOnArrival=true, bHasExitTargetWorld=%d"), bHasExitTargetWorld);
-
-	bPendingFreeMovementOnArrival = true;
-	// Still in board mode during this walk; FreeMovement triggers on arrival
-	SetMovementMode(EML_PlayerMovementMode::InsideBoard);
-	// Don't clear PendingExitTile yet - OnPathFinished needs bHasExitTargetWorld
-	// PendingExitTile will be cleared in OnPathFinished
-
-	StartMoveAlongPath(AxialPath, GridMap);
-}
+// Board exit/entry and turn-toward-tile logic — moved to UML_BoardTransitionComponent
 
 
 // ==================== Delegates ====================
@@ -702,23 +296,19 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 		InitNumberOfEnergyForLevel(0);
 
 	// ---------- Automatic transition: Free ↔ InsideBoard ----------
-	// This is the ONLY place where we auto-switch based on tile presence
 	const bool bShouldBeInBoard = IsValid(NewTile);
-	const bool bCurrentlyInFreeMovement = (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement);
-	
+	const bool bCurrentlyInFreeMovement = (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement);
+
 	if (bShouldBeInBoard && bCurrentlyInFreeMovement)
 	{
-		// Entering a board from free movement
 		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
-		// Clear any previous path
 		CurrentPathWorld.Reset();
 		CurrentPathIndex = 0;
 
 		if (!IsValid(MycelandCharacter))
 			return;
 
-		// Smoothly move to tile center
 		FVector TileCenter = NewTile->GetActorLocation();
 		TileCenter.Z = MycelandCharacter->GetActorLocation().Z;
 
@@ -728,7 +318,6 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 	}
 	else if (!bShouldBeInBoard && !bCurrentlyInFreeMovement)
 	{
-		// Left a board - switch to free movement
 		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 	}
 }
@@ -770,129 +359,124 @@ void AML_PlayerController::PlayerTick(float DeltaTime)
 void AML_PlayerController::OnPossess(APawn* aPawn)
 {
 	Super::OnPossess(aPawn);
+
+	// BeginPlay sets DevSettings, but OnPossess can fire first (UE startup order is not guaranteed).
+	if (!DevSettings)
+		DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+
 	MycelandCharacter = Cast<AML_PlayerCharacter>(aPawn);
 	if (MycelandCharacter)
 	{
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
-		
-		if (MycelandCharacter->CurrentTileOn)
-		{
-			CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
-		}
-		else
-		{
-			CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
-		}
+		EnergyComponent->OnEnergyChanged.AddDynamic(this, &AML_PlayerController::ForwardEnergyChanged);
+		HoverPreviewComponent->Initialize(this, MycelandCharacter);
+		HoverPreviewComponent->OnHoveredTileChanged.AddDynamic(this, &AML_PlayerController::ForwardHoveredTileChanged);
+		TransitionComponent->Initialize(this, MycelandCharacter, DevSettings, RotateSpeed);
+
+		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
+			? EML_PlayerMovementMode::InsideBoard
+			: EML_PlayerMovementMode::FreeMovement;
+		TransitionComponent->SwitchToMode(InitialMode);
 		
 		// Always start hover timer for cursor glow
-		StartHoverPreviewTimer();
+		HoverPreviewComponent->StartHoverPreviewTimer();
 	}
 }
 
 
 // ==================== Input ====================
 
-// Bound to OnStarted — fires once per click.
-// Handles: board BFS movement, exit hold trigger, board re-entry.
-// For hold-to-move in free movement, see OnSetDestinationTriggered.
+// Bound to OnStarted — fires once per click. Dispatches to the appropriate sub-handler.
 void AML_PlayerController::OnSetDestinationStarted()
 {
-	// Reset follow time on every new press
 	FollowTime = 0.f;
 
-	// --- INSIDE BOARD ---
-	if (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard)
-	{
-		if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
+	const EML_PlayerMovementMode Mode = TransitionComponent->GetMovementMode();
+	if (Mode == EML_PlayerMovementMode::InsideBoard)
+		HandleInsideBoardClick();
+	else if (Mode == EML_PlayerMovementMode::FreeMovement)
+		HandleFreeMovementClick();
+}
 
-		AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+// Called when the player clicks while inside a board.
+// Either starts a BFS move to a tile, or begins an exit hold when clicking outside.
+void AML_PlayerController::HandleInsideBoardClick()
+{
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
+
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return;
+
+	// TurningToPlant locks all input — propagation is imminent
+	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	AML_Tile* TargetTile = GetTileUnderCursor();
+
+	if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
+	{
+		// Click on a board tile → BFS move
+		const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+		const FIntPoint GoalAxial  = TargetTile->GetAxialCoord();
+
+		if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
+		if (!UML_HexPathfinder::IsTileWalkable(GridMap[StartAxial]) ||
+		    !UML_HexPathfinder::IsTileWalkable(GridMap[GoalAxial])) return;
+
+		TArray<FIntPoint> AxialPath;
+		if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
+
+		MoveRecordingComponent->BeginMoveRecord(
+			StartAxial, GoalAxial,
+			MycelandCharacter->GetActorLocation(),
+			TargetTile->GetActorLocation(),
+			AxialPath
+		);
+
+		TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::Moving);
+		StartMoveAlongPath(AxialPath, GridMap);
+		return;
+	}
+
+	// Click outside the board → hold to exit toward the closest gate tile (EntryTile or ExitTile)
+	FHitResult Hit;
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+
+	AML_Tile* ExitGate = Board->GetClosestGateTile(Hit.Location);
+	if (!IsValid(ExitGate)) return;
+
+	// If the path to the gate is blocked (e.g. obstacles in the way), don't start the hold
+	const FIntPoint CurrentAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint ExitAxial    = ExitGate->GetAxialCoord();
+	TArray<FIntPoint> TestPath;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(CurrentAxial, ExitAxial, GridMap, TestPath)) return;
+
+	TransitionComponent->RequestExitHold(ExitGate, Hit.Location);
+}
+
+// Called when the player clicks while in free movement.
+// Re-enters a board if a board tile is clicked; otherwise caches the ground destination.
+void AML_PlayerController::HandleFreeMovementClick()
+{
+	AML_Tile* TargetTile = GetTileUnderCursor();
+	if (IsValid(TargetTile))
+	{
+		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) return;
 
-		const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-		AML_Tile* TargetTile = GetTileUnderCursor();
+		if (!IsValid(MycelandCharacter)) return;
+		AML_Tile* GateTile = Board->GetClosestGateTile(MycelandCharacter->GetActorLocation());
+		if (!IsValid(GateTile)) return;
 
-		// Click inside the board → BFS
-		if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
-		{
-			const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-			const FIntPoint GoalAxial = TargetTile->GetAxialCoord();
-
-			if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
-			if (!IsTileWalkable(GridMap[StartAxial]) || !IsTileWalkable(GridMap[GoalAxial])) return;
-
-			TArray<FIntPoint> AxialPath;
-			if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
-
-			// --- Arm move recording (NORMAL board move) ---
-			bMoveInProgress = true;
-			bUndoMovePlayback = false; // safety: this is NOT an undo playback
-			bSuppressMoveRecording = false; // safety: allow recording
-
-			MoveStartAxial = StartAxial;
-			MoveEndAxial = GoalAxial;
-
-			MoveStartWorld = MycelandCharacter->GetActorLocation();
-			MoveEndWorld = TargetTile->GetActorLocation();
-
-			// This is the deterministic path we will record/undo
-			ActiveMoveAxialPath = AxialPath;
-			ActiveMovePickedCollectibles.Reset();
-			// ---------------------------------------------
-
-			StartMoveAlongPath(AxialPath, GridMap);
-			return;
-		}
-
-		// Click outside the board → start exit hold
-		FHitResult Hit;
-		if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
-
-		AML_Tile* NearestTile = FindNearestWalkableTile(Hit.Location, GridMap);
-		if (!IsValid(NearestTile)) return;
-
-		PendingExitTile = NearestTile;
-		PendingExitTargetWorld = Hit.Location;
-		bHasExitTargetWorld = true;
-		SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
-		bIsHoldingExitInput = true;
-		StartExitHoldTimer();
-		// Keep hover preview timer running in ExitingBoard mode
+		TransitionComponent->RequestBoardEntry(TargetTile);
+		StartNavMeshMovement(GateTile->GetActorLocation());
 		return;
 	}
 
-	// --- FREE MOVEMENT — click on a board tile → re-enter ---
-	// Note: hold-to-move on open ground is handled by OnSetDestinationTriggered.
-	// Here we only handle the board re-entry case (single-fire on Started).
-	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
-	{
-		AML_Tile* TargetTile = GetTileUnderCursor();
-		if (IsValid(TargetTile))
-		{
-			AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
-			if (!IsValid(Board)) return;
-
-			// Use the board's EntryTile instead of nearest walkable tile
-			AML_Tile* EntryTile = Board->EntryTile;
-			if (!IsValid(EntryTile)) return;
-
-			// Setup board entry state
-			PendingBoardEntryTargetTile = TargetTile;
-			bPendingBoardEntryOnArrival = true;
-			SetMovementMode(EML_PlayerMovementMode::EnteringBoard);
-
-			StartNavMeshMovement(EntryTile->GetActorLocation());
-			return;
-		}
-
-		// Click on open ground in free movement → the initial destination is cached here;
-		// continuous movement while held is handled by OnSetDestinationTriggered.
-		FHitResult Hit;
-		if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
-			return;
-
+	// Click on open ground → cache destination; continuous movement is driven by OnSetDestinationTriggered.
+	FHitResult Hit;
+	if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
 		HoldMoveCachedDestination = Hit.Location;
-		return;
-	}
 }
 
 // Bound to OnTriggered — fires every frame while the button is held.
@@ -904,7 +488,7 @@ void AML_PlayerController::OnSetDestinationTriggered()
 	FollowTime += GetWorld()->GetDeltaSeconds();
 
 	// Hold-to-move is only active in free movement
-	if (CurrentMovementMode != EML_PlayerMovementMode::FreeMovement)
+	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::FreeMovement)
 		return;
 
 	if (!IsValid(MycelandCharacter))
@@ -928,12 +512,12 @@ void AML_PlayerController::OnSetDestinationTriggered()
 // Bound to OnCompleted / OnCanceled
 void AML_PlayerController::OnSetDestinationReleased()
 {
-	bIsHoldingExitInput = false;
-	// TickExitHold will handle the cleanup on next tick for board-exit cancellation.
+	TransitionComponent->CancelExitHold();
+	// TickExitHold detects the cleared flag and performs cleanup on the next tick.
 
 	// In free movement, if this was a short tap (not a hold), use SimpleMoveToLocation
 	// so the character navigates precisely to the clicked point via the nav mesh.
-	if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
+	if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement)
 	{
 		if (FollowTime <= ShortPressThreshold)
 			StartNavMeshMovement(HoldMoveCachedDestination);
@@ -947,9 +531,22 @@ void AML_PlayerController::OnSetDestinationReleased()
 void AML_PlayerController::OnMoveAndPlantStarted()
 {
 	// Only works in board mode
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard) return;
+	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
+	// TurningToPlant locks all input — propagation is imminent
+	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
-	if (CurrentEnergy <= 0) return; // Need energy to plant
+	if (EnergyComponent->GetCurrentEnergy() <= 0) return; // Need energy to plant
+
+	// Redirecting mid move-and-plant: stop cleanly so the new path starts from CurrentTileOn
+	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::MovingToPlant)
+	{
+		TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::Idle);
+		CurrentPathWorld.Reset();
+		CurrentPathIndex = 0;
+		SetIsMoving(false);
+		if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
+			MC->StopMovementImmediately();
+	}
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return;
@@ -972,17 +569,14 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
 	if (CurrentNeighbors.Contains(TargetTile))
 	{
-		// Already adjacent → just plant immediately (like right-click behavior)
-		PendingPlantTargetTile = TargetTile;
-		bTurningToTile = true;
-		StartTurnTowardTileTimer();
+		// Already adjacent → turn and plant immediately
+		TransitionComponent->StartTurnTowardTile(TargetTile);
 		return;
 	}
 
-	// Target is NOT adjacent → need to path there
-	// Build full path to target
+	// Target is NOT adjacent → need to path there first
 	TArray<FIntPoint> FullPath;
-	if (!BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return;
 
 	// Need at least 2 tiles in path (start + at least one step)
 	if (FullPath.Num() < 2) return;
@@ -992,247 +586,47 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 
 	// Verify the new end position is walkable
 	const FIntPoint StopAxial = FullPath.Last();
-	if (!GridMap.Contains(StopAxial) || !IsTileWalkable(GridMap[StopAxial])) return;
+	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return;
 
 	// Verify that from the stop position, target is a neighbor
 	AML_Tile* StopTile = GridMap[StopAxial];
 	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
 	if (!StopNeighbors.Contains(TargetTile)) return;
 
-	// All checks passed → move and plant!
-	PendingPlantTargetTile = TargetTile;
-
-	bPendingPlantOnArrival = true;
-
+	// All checks passed → move then plant
+	TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::MovingToPlant, TargetTile);
 	StartMoveAlongPath(FullPath, GridMap);
 }
 
 
-// ==================== Hover Preview ====================
-
-void AML_PlayerController::StartHoverPreviewTimer()
-{
-	if (!HoverPreviewTimerHandle.IsValid())
-	{
-		GetWorld()->GetTimerManager().SetTimer(
-			HoverPreviewTimerHandle,
-			this,
-			&AML_PlayerController::UpdateHoverPreview,
-			1.f / 30.f, // 30Hz is enough for hover preview
-			true
-		);
-	}
-}
-
-void AML_PlayerController::StopHoverPreviewTimer()
-{
-	GetWorld()->GetTimerManager().ClearTimer(HoverPreviewTimerHandle);
-	ClearHoverPreview();
-	ClearCursorHoverPreview();
-}
-
-void AML_PlayerController::UpdateHoverPreview()
-{
-	// In board modes, update both hover and cursor preview
-	if (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || 
-	    CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
-	{
-		TickHoverPreview();
-		TickCursorHoverPreview();
-	}
-	// In free movement, only update cursor glow (no path preview)
-	else if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
-	{
-		TickCursorHoverPreview();
-	}
-}
-
-void AML_PlayerController::TickCursorHoverPreview()
-{
-	// Get tile under cursor
-	AML_Tile* CursorHoveredTile = GetTileUnderCursor();
-
-	if (CursorHoveredTile == LastCursorHoveredTile)
-		return;
-
-	if (!IsValid(CursorHoveredTile))
-	{
-		ClearCursorHoverPreview();
-		return;
-	}
-
-	if (IsValid(LastCursorHoveredTile))
-		LastCursorHoveredTile->StopGlowingCursorUnhovered();
-	
-	const bool bIsOnPlayerTile = IsValid(MycelandCharacter) &&
-								 IsValid(MycelandCharacter->CurrentTileOn) &&
-								 CursorHoveredTile == MycelandCharacter->CurrentTileOn;
-
-	// Suppress cursor glow when the tile is unreachable in board mode.
-	// TickHoverPreview already ran this frame and set bCurrentHoveredTileReachable.
-	// Also suppress if hovering the player's current tile.
-	const bool bIsInBoardMode = (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || 
-	                             CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard);
-	
-	if (!bIsOnPlayerTile && (!bIsInBoardMode || bCurrentHoveredTileReachable))
-		CursorHoveredTile->GlowCursorHovered();
-
-	LastCursorHoveredTile = CursorHoveredTile;
-}
-
-void AML_PlayerController::ClearCursorHoverPreview()
-{
-	if (IsValid(LastCursorHoveredTile))
-	{
-		LastCursorHoveredTile->StopGlowingCursorUnhovered();
-		LastCursorHoveredTile = nullptr;
-	}
-}
-
-void AML_PlayerController::TickHoverPreview()
-{
-	// Only preview in board mode (InsideBoard or ExitingBoard)
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard && 
-	    CurrentMovementMode != EML_PlayerMovementMode::ExitingBoard)
-	{
-		ClearHoverPreview();
-		return;
-	}
-
-	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
-	{
-		ClearHoverPreview();
-		return;
-	}
-
-	AML_Tile* HoveredTile = GetTileUnderCursor();
-
-	// Same tile as before → no update needed
-	if (HoveredTile == LastHoveredTile)
-		return;
-
-	// Tile changed — clear old path visuals immediately
-	for (AML_Tile* Tile : CurrentPreviewPath)
-		if (IsValid(Tile)) Tile->StopGlowingPathWalk();
-	CurrentPreviewPath.Empty();
-
-	LastHoveredTile = HoveredTile;
-
-	if (!IsValid(HoveredTile))
-	{
-		bCurrentHoveredTileReachable = false;
-		OnHoveredTileChanged.Broadcast(nullptr, false);
-		return;
-	}
-
-	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board) || HoveredTile->GetOwner() != Board || !IsTileWalkable(HoveredTile))
-	{
-		bCurrentHoveredTileReachable = false;
-		OnHoveredTileChanged.Broadcast(HoveredTile, false);
-		return;
-	}
-
-	// Build preview path — empty result means the path is blocked by an obstacle
-	TArray<AML_Tile*> NewPath = BuildPreviewPath(HoveredTile);
-	const bool bReachable = NewPath.Num() > 0;
-
-	bCurrentHoveredTileReachable = bReachable;
-	OnHoveredTileChanged.Broadcast(HoveredTile, bReachable);
-	
-	const bool bIsOnPlayerTile = IsValid(MycelandCharacter) &&
-							 IsValid(MycelandCharacter->CurrentTileOn) &&
-							 HoveredTile == MycelandCharacter->CurrentTileOn;
-
-	if (bReachable)
-	{
-		for (AML_Tile* Tile : NewPath)
-			if (!bIsOnPlayerTile)
-				Tile->GlowPathWalk();
-		CurrentPreviewPath = NewPath;
-	}
-}
-
-void AML_PlayerController::ClearHoverPreview()
-{
-	for (AML_Tile* Tile : CurrentPreviewPath)
-		if (IsValid(Tile)) Tile->StopGlowingPathWalk();
-	CurrentPreviewPath.Empty();
-
-	if (LastHoveredTile != nullptr)
-	{
-		bCurrentHoveredTileReachable = false;
-		OnHoveredTileChanged.Broadcast(nullptr, false);
-	}
-
-	LastHoveredTile = nullptr;
-	bCurrentHoveredTileReachable = false;
-}
-
-TArray<AML_Tile*> AML_PlayerController::BuildPreviewPath(const AML_Tile* TargetTile) const
-{
-	TArray<AML_Tile*> Result;
-
-	if (!IsValid(TargetTile) || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
-		return Result;
-
-	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board))
-		return Result;
-
-	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint GoalAxial = TargetTile->GetAxialCoord();
-
-	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial))
-		return Result;
-
-	if (!IsTileWalkable(GridMap[StartAxial]) || !IsTileWalkable(GridMap[GoalAxial]))
-		return Result;
-
-	// Build axial path using BFS
-	TArray<FIntPoint> AxialPath;
-	if (!BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath))
-		return Result;
-
-	// Convert axial path to tile array
-	Result.Reserve(AxialPath.Num());
-	for (const FIntPoint& Axial : AxialPath)
-	{
-		if (AML_Tile* const* TilePtr = GridMap.Find(Axial))
-		{
-			if (IsValid(*TilePtr))
-			{
-				Result.Add(*TilePtr);
-			}
-		}
-	}
-
-	return Result;
-}
+// Hover preview is managed by HoverPreviewComponent
 
 
 // ==================== Energy ====================
 
+void AML_PlayerController::ForwardEnergyChanged(int32 NewEnergy)
+{
+	OnEnergyChanged.Broadcast(NewEnergy);
+}
+
+void AML_PlayerController::ForwardHoveredTileChanged(AML_Tile* HoveredTile, bool bIsReachable)
+{
+	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
+}
+
 void AML_PlayerController::SetCurrentEnergy(int32 NewEnergy)
 {
-	NewEnergy = FMath::Clamp(NewEnergy, 0, INT32_MAX);
-
-	if (CurrentEnergy == NewEnergy)
-		return;
-
-	CurrentEnergy = NewEnergy;
-	OnEnergyChanged.Broadcast(CurrentEnergy);
+	EnergyComponent->SetCurrentEnergy(NewEnergy);
 }
 
 void AML_PlayerController::AddEnergy(int32 Delta)
 {
-	SetCurrentEnergy(CurrentEnergy + Delta);
+	EnergyComponent->AddEnergy(Delta);
 }
 
 void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
 {
-	SetCurrentEnergy(Energy);
+	EnergyComponent->InitNumberOfEnergyForLevel(Energy);
 }
 
 
@@ -1270,27 +664,20 @@ bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool 
 	}
 
 	TArray<FIntPoint> AxialPath;
-	if (!BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, AxialPath))
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, AxialPath))
 	{
 		if (bFallbackTeleport)
 			MycelandCharacter->SetActorLocation(TeleportFallbackWorld);
 		return false;
 	}
 
-	bMoveInProgress = true;
-	MoveStartAxial = StartAxial;
-	MoveEndAxial = TargetAxial;
-
-	if (APawn* P = GetPawn())
-		MoveStartWorld = P->GetActorLocation();
-
+	const FVector StartWorldLoc = GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
+	FVector EndWorldLoc = TeleportFallbackWorld;
 	if (AML_Tile* const* TilePtr = GridMap.Find(TargetAxial))
-		MoveEndWorld = IsValid(*TilePtr) ? (*TilePtr)->GetActorLocation() : TeleportFallbackWorld;
-	else
-		MoveEndWorld = TeleportFallbackWorld;
+		if (IsValid(*TilePtr))
+			EndWorldLoc = (*TilePtr)->GetActorLocation();
 
-	ActiveMoveAxialPath = AxialPath;
-	ActiveMovePickedCollectibles.Reset();
+	MoveRecordingComponent->BeginMoveRecord(StartAxial, TargetAxial, StartWorldLoc, EndWorldLoc, AxialPath);
 
 	StartMoveAlongPath(AxialPath, GridMap);
 	return true;
@@ -1306,93 +693,13 @@ void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 
-	bUndoMovePlayback = true;
-	bSuppressMoveRecording = true;
-
-	// Setup collectible restore set for this undo playback.
-	bUndoRestoreCollectibles = (PickedCollectibleAxials.Num() > 0);
-	UndoMoveRemainingCollectibles.Reset();
-	for (const FIntPoint& Ax : PickedCollectibleAxials)
-	{
-		UndoMoveRemainingCollectibles.Add(Ax);
-	}
-
-	// Ensure end-of-path logic triggers.
-	bMoveInProgress = true;
-	ActiveMoveAxialPath = AxialPath;
-	ActiveMovePickedCollectibles.Reset();
-
+	MoveRecordingComponent->BeginUndoPlayback(AxialPath, PickedCollectibleAxials);
 	StartMoveAlongPath(AxialPath, GridMap);
 }
 
 void AML_PlayerController::NotifyCollectiblePickedOnAxial(const FIntPoint& Axial)
 {
-	if (!bMoveInProgress) return;
-	ActiveMovePickedCollectibles.Add(Axial);
+	MoveRecordingComponent->NotifyCollectiblePicked(Axial);
 }
 
-void AML_PlayerController::RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed)
-{
-	AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(GetCharacter());
-	if (!IsValid(PlayerCharacter) || !IsValid(HitTileActor)) return;
-
-	FVector Dir = HitTileActor->GetActorLocation() - PlayerCharacter->GetActorLocation();
-	Dir.Z = 0.f;
-
-	if (Dir.IsNearlyZero())
-	{
-		bTurningToTile = false;
-		return;
-	}
-
-	const float DesiredYaw = Dir.Rotation().Yaw;
-	const FRotator CurrentRot = PlayerCharacter->GetActorRotation();
-	const FRotator DesiredRot(0.f, DesiredYaw, 0.f);
-
-	const FRotator NewRot = FMath::RInterpTo(CurrentRot, DesiredRot, DeltaTime, TurnSpeed);
-	PlayerCharacter->SetActorRotation(NewRot);
-
-	const float YawError = FMath::Abs(FMath::FindDeltaAngleDegrees(NewRot.Yaw, DesiredYaw));
-	bTurningToTile = (YawError > 1.0f);
-}
-
-void AML_PlayerController::StartTurnTowardTileTimer()
-{
-	if (!TurnTowardTileTimerHandle.IsValid())
-	{
-		GetWorld()->GetTimerManager().SetTimer(
-			TurnTowardTileTimerHandle,
-			this,
-			&AML_PlayerController::UpdateTurnTowardPendingTile,
-			1.f / 60.f,
-			true
-		);
-	}
-}
-
-void AML_PlayerController::StopTurnTowardTileTimer()
-{
-	GetWorld()->GetTimerManager().ClearTimer(TurnTowardTileTimerHandle);
-}
-
-void AML_PlayerController::UpdateTurnTowardPendingTile()
-{
-	if (!bTurningToTile || !IsValid(PendingPlantTargetTile) || !IsValid(MycelandCharacter))
-	{
-		StopTurnTowardTileTimer();
-		return;
-	}
-
-	RotateCharacterTowardTile(PendingPlantTargetTile, 1.f / 60.f, RotateSpeed);
-
-	if (!bTurningToTile)
-	{
-		StopTurnTowardTileTimer();
-		
-		if (CurrentEnergy > 0)
-		{
-			ConfirmTurn(PendingPlantTargetTile);
-		}
-		PendingPlantTargetTile = nullptr;
-	}
-}
+// Rotation and turn-toward-tile — moved to UML_BoardTransitionComponent

@@ -293,6 +293,20 @@ TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
 	return Result;
 }
 
+AML_Tile* AML_BoardSpawner::GetClosestGateTile(const FVector& WorldLocation) const
+{
+	const bool bEntryValid = IsValid(EntryTile);
+	const bool bExitValid  = IsValid(ExitTile);
+
+	if (!bEntryValid && !bExitValid) return nullptr;
+	if (!bEntryValid) return ExitTile;
+	if (!bExitValid)  return EntryTile;
+
+	const float DistEntry = FVector::DistSquared2D(WorldLocation, EntryTile->GetActorLocation());
+	const float DistExit  = FVector::DistSquared2D(WorldLocation, ExitTile->GetActorLocation());
+	return (DistEntry <= DistExit) ? EntryTile : ExitTile;
+}
+
 FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
 {
 	const float Sqrt3 = 1.73205080757f;
