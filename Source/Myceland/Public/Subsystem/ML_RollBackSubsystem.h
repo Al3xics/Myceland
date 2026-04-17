@@ -1,0 +1,118 @@
+// Copyright Myceland Team, All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "Core/ML_UndoTypes.h"
+#include "ML_RollBackSubsystem.generated.h"
+
+class UML_MycelandDeveloperSettings;
+class AML_PlayerController;
+class AML_PlayerCharacter;
+class AML_BoardSpawner;
+class AML_Tile;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRollbackUndoAnimating, bool, IsUndoAnimating);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRollbackResetAnimating, bool, IsResetAnimating);
+
+UCLASS()
+class MYCELAND_API UML_RollBackSubsystem : public UWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	void EnsureInitialized();
+
+	void BeginTurnRecord(AML_Tile* OriginTile);
+	void CommitTurnRecord();
+	void DiscardTurnRecord();
+
+	void RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin, int32 PriorityIndex);
+	void RecordSpawnedActor(AActor* Spawned, int32 DistanceFromOrigin, int32 PriorityIndex);
+
+	UFUNCTION(BlueprintPure, Category="Undo")
+	bool CanUndo() const;
+
+	UFUNCTION(BlueprintCallable, Category="Undo")
+	bool UndoLastAction_Animated();
+
+	UFUNCTION()
+	void FinishUndoAnimation();
+
+	UFUNCTION()
+	bool RestoreCollectibleDuringUndoMove(const FIntPoint& Axial);
+
+	void NotifyMoveCompleted(
+		const FIntPoint& StartAxial,
+		const FIntPoint& EndAxial,
+		const TArray<FIntPoint>& AxialPath,
+		const FVector& StartWorld,
+		const FVector& EndWorld,
+		const TArray<FIntPoint>& PickedCollectibleAxials
+	);
+
+	UFUNCTION(BlueprintCallable, Category="Reset")
+	bool ResetAllActions_Animated();
+
+	bool ResetAllActions_ExcludingMoves_Animated();
+	void ResetAllActions_ExcludingMoves_Instant(AML_BoardSpawner* Board);
+
+	bool IsUndoInProgress() const { return bUndoInProgress; }
+	bool IsUndoAnimating() const { return bIsUndoAnimating; }
+	bool IsResetAnimating() const { return bIsResetAllAnimating; }
+
+	UPROPERTY(BlueprintAssignable, Category="Undo")
+	FOnRollbackUndoAnimating OnUndoAnimating;
+
+	UPROPERTY(BlueprintAssignable, Category="Reset")
+	FOnRollbackResetAnimating OnResetAnimating;
+
+private:
+	UPROPERTY()
+	AML_PlayerController* PlayerController = nullptr;
+
+	UPROPERTY()
+	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
+
+	TMap<TWeakObjectPtr<AML_BoardSpawner>, TArray<FML_ActionUndoRecord>> BoardUndoStacks;
+
+	TArray<FML_ActionUndoRecord>* GetCurrentBoardStack();
+
+	UPROPERTY(Transient)
+	FML_TurnUndoRecord CurrentTurnRecord;
+
+	bool bHasActiveTurnRecord = false;
+	int32 UndoSequenceCounter = 0;
+
+	bool bUndoInProgress = false;
+	bool bIsUndoAnimating = false;
+
+	UPROPERTY(Transient)
+	FML_TurnUndoRecord ActiveUndoRecord;
+
+	UPROPERTY(Transient)
+	TArray<FML_TileUndoDelta> PendingUndoTileDeltas;
+
+	UPROPERTY(Transient)
+	TArray<FML_SpawnUndoDelta> PendingUndoSpawnDeltas;
+
+	FTimerHandle UndoWaveTimerHandle;
+
+	UPROPERTY(Transient)
+	bool bIsResetAllAnimating = false;
+
+	UPROPERTY(Transient)
+	bool bUndoTimeDilationApplied = false;
+
+	void RunUndoWave();
+	void ScheduleNextUndoWave(float Delay);
+	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
+	void StartNextResetUndoStep();
+	void ContinueResetAllIfNeeded();
+	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
+	void ApplyUndoTimeDilation();
+	void ApplyResetTimeDilation();
+	void ClearTimeDilation();
+	void ResetRuntimeState();
+};

@@ -7,7 +7,7 @@
 #include "ML_MoveRecordingComponent.generated.h"
 
 class AML_PlayerCharacter;
-class UML_WavePropagationSubsystem;
+class UML_RollBackSubsystem;
 
 /**
  * Owns all state required for move recording (undo system) and undo playback.
@@ -62,7 +62,7 @@ public:
 	 * Call when the path finishes. Notifies the wave subsystem and resets internal state.
 	 * Returns false if the caller should abort early (CurrentTileOn was null).
 	 */
-	bool CommitMoveRecord(AML_PlayerCharacter* Character, UML_WavePropagationSubsystem* WaveSubsystem);
+	bool CommitMoveRecord(AML_PlayerCharacter* Character, UML_RollBackSubsystem* RollBackSubsystem);
 
 	// --- Undo playback ---
 
@@ -73,5 +73,5 @@ public:
 	 * Per-waypoint restore during undo playback.
 	 * Call each time the player reaches a tile during undo movement.
 	 */
-	void TickUndoRestore(int32 ReachedIndex, UML_WavePropagationSubsystem* WaveSubsystem);
+	void TickUndoRestore(int32 ReachedIndex, UML_RollBackSubsystem* RollBackSubsystem);
 };

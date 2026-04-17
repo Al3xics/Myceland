@@ -13,6 +13,7 @@
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerCharacter.h"
+#include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
@@ -240,14 +241,14 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		// During undo-move playback, restore collectibles *behind the player*.
 		// We restore when the player reaches a tile, meaning they just left the previous one.
 		{
-			UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>();
-			MoveRecordingComponent->TickUndoRestore(ReachedIndex, WavePropagationSubsystem);
+			UML_RollBackSubsystem* RollBackSubsystem = GetWorld()->GetSubsystem<UML_RollBackSubsystem>();
+			MoveRecordingComponent->TickUndoRestore(ReachedIndex, RollBackSubsystem);
 		}
 
 		if (CurrentPathIndex >= CurrentPathWorld.Num())
 		{
-			UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>();
-			if (!MoveRecordingComponent->CommitMoveRecord(MycelandCharacter, WavePropagationSubsystem))
+			UML_RollBackSubsystem* RollBackSubsystem = GetWorld()->GetSubsystem<UML_RollBackSubsystem>();
+			if (!MoveRecordingComponent->CommitMoveRecord(MycelandCharacter, RollBackSubsystem))
 				return;
 
 			// Snap to exact tile center and kill momentum so the character
@@ -283,6 +284,125 @@ void AML_PlayerController::OnPathFinished()
 
 
 // Board exit/entry and turn-toward-tile logic — moved to UML_BoardTransitionComponent
+
+bool AML_PlayerController::StartRecordedBoardMove(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
+	EML_PlayerBoardActionState ActionState, AML_Tile* PlantTarget)
+{
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
+	if (AxialPath.Num() < 2) return false;
+
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint GoalAxial = AxialPath.Last();
+
+	AML_Tile* const* TargetTilePtr = GridMap.Find(GoalAxial);
+	if (!TargetTilePtr || !IsValid(*TargetTilePtr)) return false;
+
+	MoveRecordingComponent->BeginMoveRecord(
+		StartAxial,
+		GoalAxial,
+		MycelandCharacter->GetActorLocation(),
+		(*TargetTilePtr)->GetActorLocation(),
+		AxialPath
+	);
+
+	TransitionComponent->SetBoardActionState(ActionState, PlantTarget);
+	StartMoveAlongPath(AxialPath, GridMap);
+	return true;
+}
+
+bool AML_PlayerController::Move(AML_Tile* TargetTile, int32 StopBeforeTarget)
+{
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
+	if (!IsValid(TargetTile)) return false;
+
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return false;
+	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint GoalAxial = TargetTile->GetAxialCoord();
+
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return false;
+	if (!UML_HexPathfinder::IsTileWalkable(GridMap[StartAxial]) ||
+		!UML_HexPathfinder::IsTileWalkable(GridMap[GoalAxial])) return false;
+
+	TArray<FIntPoint> AxialPath;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return false;
+
+	if (StopBeforeTarget > 0)
+	{
+		if (AxialPath.Num() <= StopBeforeTarget) return false;
+		AxialPath.SetNum(AxialPath.Num() - StopBeforeTarget);
+	}
+
+	return StartRecordedBoardMove(AxialPath, GridMap);
+}
+
+bool AML_PlayerController::Plant(AML_Tile* TargetTile)
+{
+	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return false;
+	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
+	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
+	if (EnergyComponent->GetCurrentEnergy() <= 0) return false;
+	if (!IsValid(TargetTile)) return false;
+
+	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return false;
+	if (TargetTile->GetCurrentType() != EML_TileType::Dirt) return false;
+
+	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::MovingToPlant)
+	{
+		TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::Idle);
+		CurrentPathWorld.Reset();
+		CurrentPathIndex = 0;
+		SetIsMoving(false);
+		if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
+		{
+			MC->StopMovementImmediately();
+		}
+	}
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint TargetAxial = TargetTile->GetAxialCoord();
+
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return false;
+
+	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
+	if (CurrentNeighbors.Contains(TargetTile))
+	{
+		TransitionComponent->StartTurnTowardTile(TargetTile);
+		return true;
+	}
+
+	TArray<FIntPoint> FullPath;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return false;
+	if (FullPath.Num() < 2) return false;
+
+	const FIntPoint StopAxial = FullPath[FullPath.Num() - 2];
+	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return false;
+
+	AML_Tile* StopTile = GridMap[StopAxial];
+	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
+	if (!StopNeighbors.Contains(TargetTile)) return false;
+
+	TArray<FIntPoint> MovePath = FullPath;
+	MovePath.RemoveAt(MovePath.Num() - 1);
+
+	return StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile);
+}
+
+void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
+{
+	AddEnergy(-1);
+
+	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
+	{
+		OnGrassPlanted.Broadcast(HitTile);
+		WavePropagationSubsystem->BeginTileResolved(HitTile);
+	}
+}
 
 
 // ==================== Delegates ====================
@@ -327,14 +447,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
-	AddEnergy(-1);
-
-	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<
-		UML_WavePropagationSubsystem>())
-	{
-		OnGrassPlanted.Broadcast(HitTile);
-		WavePropagationSubsystem->BeginTileResolved(HitTile);
-	}
+	ExecutePlant(HitTile);
 }
 
 
@@ -344,6 +457,7 @@ void AML_PlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 	GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>()->EnsureInitialized();
+	GetWorld()->GetSubsystem<UML_RollBackSubsystem>()->EnsureInitialized();
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 }
 
@@ -415,26 +529,7 @@ void AML_PlayerController::HandleInsideBoardClick()
 
 	if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
 	{
-		// Click on a board tile → BFS move
-		const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-		const FIntPoint GoalAxial  = TargetTile->GetAxialCoord();
-
-		if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial)) return;
-		if (!UML_HexPathfinder::IsTileWalkable(GridMap[StartAxial]) ||
-		    !UML_HexPathfinder::IsTileWalkable(GridMap[GoalAxial])) return;
-
-		TArray<FIntPoint> AxialPath;
-		if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, GoalAxial, GridMap, AxialPath)) return;
-
-		MoveRecordingComponent->BeginMoveRecord(
-			StartAxial, GoalAxial,
-			MycelandCharacter->GetActorLocation(),
-			TargetTile->GetActorLocation(),
-			AxialPath
-		);
-
-		TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::Moving);
-		StartMoveAlongPath(AxialPath, GridMap);
+		Move(TargetTile);
 		return;
 	}
 
@@ -530,72 +625,8 @@ void AML_PlayerController::OnSetDestinationReleased()
 
 void AML_PlayerController::OnMoveAndPlantStarted()
 {
-	// Only works in board mode
-	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
-	// TurningToPlant locks all input — propagation is imminent
-	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
-	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
-	if (EnergyComponent->GetCurrentEnergy() <= 0) return; // Need energy to plant
-
-	// Redirecting mid move-and-plant: stop cleanly so the new path starts from CurrentTileOn
-	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::MovingToPlant)
-	{
-		TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::Idle);
-		CurrentPathWorld.Reset();
-		CurrentPathIndex = 0;
-		SetIsMoving(false);
-		if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
-			MC->StopMovementImmediately();
-	}
-
-	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board)) return;
-
-	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	AML_Tile* TargetTile = GetTileUnderCursor();
-
-	// Must click on a valid tile in the same board
-	if (!IsValid(TargetTile) || TargetTile->GetOwner() != Board) return;
-
-	// Target must be Dirt
-	if (TargetTile->GetCurrentType() != EML_TileType::Dirt) return;
-
-	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint TargetAxial = TargetTile->GetAxialCoord();
-
-	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return;
-
-	// Check if target is already a neighbor (adjacent)
-	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
-	if (CurrentNeighbors.Contains(TargetTile))
-	{
-		// Already adjacent → turn and plant immediately
-		TransitionComponent->StartTurnTowardTile(TargetTile);
-		return;
-	}
-
-	// Target is NOT adjacent → need to path there first
-	TArray<FIntPoint> FullPath;
-	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return;
-
-	// Need at least 2 tiles in path (start + at least one step)
-	if (FullPath.Num() < 2) return;
-
-	// Remove the last tile (we want to stop BEFORE the target, not ON it)
-	FullPath.RemoveAt(FullPath.Num() - 1);
-
-	// Verify the new end position is walkable
-	const FIntPoint StopAxial = FullPath.Last();
-	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return;
-
-	// Verify that from the stop position, target is a neighbor
-	AML_Tile* StopTile = GridMap[StopAxial];
-	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
-	if (!StopNeighbors.Contains(TargetTile)) return;
-
-	// All checks passed → move then plant
-	TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::MovingToPlant, TargetTile);
-	StartMoveAlongPath(FullPath, GridMap);
+	Plant(TargetTile);
 }
 
 
@@ -671,16 +702,7 @@ bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool 
 		return false;
 	}
 
-	const FVector StartWorldLoc = GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
-	FVector EndWorldLoc = TeleportFallbackWorld;
-	if (AML_Tile* const* TilePtr = GridMap.Find(TargetAxial))
-		if (IsValid(*TilePtr))
-			EndWorldLoc = (*TilePtr)->GetActorLocation();
-
-	MoveRecordingComponent->BeginMoveRecord(StartAxial, TargetAxial, StartWorldLoc, EndWorldLoc, AxialPath);
-
-	StartMoveAlongPath(AxialPath, GridMap);
-	return true;
+	return StartRecordedBoardMove(AxialPath, GridMap);
 }
 
 void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath,

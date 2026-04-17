@@ -102,6 +102,11 @@ private:
 	void TickNavMeshMovement(float DeltaTime);
 	void OnPathFinished();
 	void StopNavMeshMovement();
+	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
+	bool Plant(AML_Tile* TargetTile);
+	void ExecutePlant(AML_Tile* HitTile);
+	bool StartRecordedBoardMove(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
+		EML_PlayerBoardActionState ActionState = EML_PlayerBoardActionState::Moving, AML_Tile* PlantTarget = nullptr);
 
 	// Rotation, exit hold, turn-toward-tile — owned by TransitionComponent
 

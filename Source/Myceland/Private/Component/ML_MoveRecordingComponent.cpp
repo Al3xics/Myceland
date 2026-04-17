@@ -3,7 +3,7 @@
 #include "Component/ML_MoveRecordingComponent.h"
 
 #include "Player/ML_PlayerCharacter.h"
-#include "Subsystem/ML_WavePropagationSubsystem.h"
+#include "Subsystem/ML_RollBackSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
 void UML_MoveRecordingComponent::BeginMoveRecord(const FIntPoint& Start, const FIntPoint& End,
@@ -31,9 +31,9 @@ void UML_MoveRecordingComponent::NotifyCollectiblePicked(const FIntPoint& Axial)
 }
 
 bool UML_MoveRecordingComponent::CommitMoveRecord(AML_PlayerCharacter* Character,
-                                                   UML_WavePropagationSubsystem* WaveSubsystem)
+                                                   UML_RollBackSubsystem* RollBackSubsystem)
 {
-	if (IsValid(WaveSubsystem))
+	if (IsValid(RollBackSubsystem))
 	{
 		if (bUndoMovePlayback)
 		{
@@ -44,12 +44,12 @@ bool UML_MoveRecordingComponent::CommitMoveRecord(AML_PlayerCharacter* Character
 			if (bUndoRestoreCollectibles && UndoMoveRemainingCollectibles.Num() > 0)
 			{
 				for (const FIntPoint& Ax : UndoMoveRemainingCollectibles)
-					WaveSubsystem->RestoreCollectibleDuringUndoMove(Ax);
+					RollBackSubsystem->RestoreCollectibleDuringUndoMove(Ax);
 				UndoMoveRemainingCollectibles.Reset();
 			}
 			bUndoRestoreCollectibles = false;
 
-			WaveSubsystem->FinishUndoAnimation();
+			RollBackSubsystem->FinishUndoAnimation();
 		}
 		else if (bMoveInProgress && ActiveMoveAxialPath.Num() > 0)
 		{
@@ -62,7 +62,7 @@ bool UML_MoveRecordingComponent::CommitMoveRecord(AML_PlayerCharacter* Character
 				}
 
 				const TArray<FIntPoint> Picked = ActiveMovePickedCollectibles.Array();
-				WaveSubsystem->NotifyMoveCompleted(
+				RollBackSubsystem->NotifyMoveCompleted(
 					MoveStartAxial,
 					MoveEndAxial,
 					ActiveMoveAxialPath,
@@ -100,7 +100,7 @@ void UML_MoveRecordingComponent::BeginUndoPlayback(const TArray<FIntPoint>& Path
 	ActiveMovePickedCollectibles.Reset();
 }
 
-void UML_MoveRecordingComponent::TickUndoRestore(int32 ReachedIndex, UML_WavePropagationSubsystem* WaveSubsystem)
+void UML_MoveRecordingComponent::TickUndoRestore(int32 ReachedIndex, UML_RollBackSubsystem* RollBackSubsystem)
 {
 	if (!bUndoMovePlayback || !bUndoRestoreCollectibles)
 		return;
@@ -113,8 +113,8 @@ void UML_MoveRecordingComponent::TickUndoRestore(int32 ReachedIndex, UML_WavePro
 	if (!UndoMoveRemainingCollectibles.Contains(LeftAxial))
 		return;
 
-	if (IsValid(WaveSubsystem))
-		WaveSubsystem->RestoreCollectibleDuringUndoMove(LeftAxial);
+	if (IsValid(RollBackSubsystem))
+		RollBackSubsystem->RestoreCollectibleDuringUndoMove(LeftAxial);
 
 	UndoMoveRemainingCollectibles.Remove(LeftAxial);
 }
