@@ -108,6 +108,13 @@ private:
 	bool StartRecordedBoardMove(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 		EML_PlayerBoardActionState ActionState = EML_PlayerBoardActionState::Moving, AML_Tile* PlantTarget = nullptr);
 
+	/**
+	 * Redirects the active in-progress world-space path to follow FullMergedAxialPath,
+	 * while preserving the exact logical target index currently being aimed at.
+	 */
+	void ExtendMoveAlongPath(const TArray<FIntPoint>& FullMergedAxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
+		int32 PreservedPathIndex);
+
 	// Rotation, exit hold, turn-toward-tile — owned by TransitionComponent
 
 	// ==================== Delegates ====================

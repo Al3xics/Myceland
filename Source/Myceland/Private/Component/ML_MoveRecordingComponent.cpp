@@ -23,6 +23,51 @@ void UML_MoveRecordingComponent::BeginMoveRecord(const FIntPoint& Start, const F
 	ActiveMovePickedCollectibles.Reset();
 }
 
+const TArray<FIntPoint>& UML_MoveRecordingComponent::ExtendMoveRecord(const FIntPoint& NewEndAxial,
+                                                                      const FVector& NewEndWorld,
+                                                                      const TArray<FIntPoint>& NewSubPath,
+                                                                      int32 CurrentPathIndexInRecord)
+{
+	// Nothing to extend if no move is in progress.
+	if (!bMoveInProgress || bUndoMovePlayback)
+		return ActiveMoveAxialPath;
+
+	// NewSubPath must contain at least start + end (i.e. it must be a real path segment).
+	if (NewSubPath.Num() < 2)
+		return ActiveMoveAxialPath;
+
+	// Keep the "walked" prefix: everything up to (and including) the waypoint the
+	// player has already reached / is about to reach.
+	// CurrentPathIndexInRecord is the index the TickMoveAlongPath is currently aiming at,
+	// so all indices < CurrentPathIndexInRecord have already been physically crossed.
+	const int32 KeepUpTo = FMath::Clamp(CurrentPathIndexInRecord + 1, 0, ActiveMoveAxialPath.Num());
+
+	TArray<FIntPoint> KeptPath;
+	KeptPath.Reserve(KeepUpTo + NewSubPath.Num());
+
+	// Copy the already-walked portion.
+	for (int32 i = 0; i < KeepUpTo; ++i)
+		KeptPath.Add(ActiveMoveAxialPath[i]);
+
+	// Append the new sub-path.
+	// NewSubPath[0] is the junction tile (the axial the player is currently heading toward).
+	// If it's already the last element of the kept portion, skip it to avoid a duplicate.
+	int32 SubPathStart = 0;
+	if (KeptPath.Num() > 0 && NewSubPath[0] == KeptPath.Last())
+		SubPathStart = 1;
+
+	for (int32 i = SubPathStart; i < NewSubPath.Num(); ++i)
+		KeptPath.Add(NewSubPath[i]);
+
+	// Commit the merged path.
+	ActiveMoveAxialPath = MoveTemp(KeptPath);
+
+	// Update the destination; the start stays the same (it's where the move originally began).
+	MoveEndAxial = NewEndAxial;
+	MoveEndWorld = NewEndWorld;
+	return ActiveMoveAxialPath;
+}
+
 void UML_MoveRecordingComponent::NotifyCollectiblePicked(const FIntPoint& Axial)
 {
 	if (!bMoveInProgress)

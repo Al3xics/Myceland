@@ -47,6 +47,7 @@ public:
 
 	bool IsMoveInProgress() const { return bMoveInProgress; }
 	bool IsUndoMovePlayback() const { return bUndoMovePlayback; }
+	const TArray<FIntPoint>& GetActiveMoveAxialPath() const { return ActiveMoveAxialPath; }
 
 	// --- Normal move recording ---
 
@@ -54,6 +55,29 @@ public:
 	void BeginMoveRecord(const FIntPoint& Start, const FIntPoint& End,
 	                     const FVector& StartWorld, const FVector& EndWorld,
 	                     const TArray<FIntPoint>& Path);
+
+	/**
+	 * Called when the player redirects to a new destination while a move is already in progress.
+	 *
+	 * Instead of restarting the record (which would lose the path already walked),
+	 * this splices the new BFS sub-path onto the portion of the current path that
+	 * has already been committed (i.e. the waypoints up to and including
+	 * CurrentPathIndexInRecord).
+	 *
+	 * @param NewEndAxial        The new destination axial.
+	 * @param NewEndWorld        The new destination world position.
+	 * @param NewSubPath         BFS path from the player's current axial position to NewEndAxial.
+	 *                           Must start at the axial the player is currently heading toward
+	 *                           (the waypoint at CurrentPathIndexInRecord).
+	 * @param CurrentPathIndexInRecord
+	 *                           The index in ActiveMoveAxialPath that the player has
+	 *                           already reached / is currently moving toward.
+	 *                           Everything before this index is already "walked" history.
+	 */
+	const TArray<FIntPoint>& ExtendMoveRecord(const FIntPoint& NewEndAxial,
+	                                          const FVector& NewEndWorld,
+	                                          const TArray<FIntPoint>& NewSubPath,
+	                                          int32 CurrentPathIndexInRecord);
 
 	/** Record a collectible picked up while a move is in progress. */
 	void NotifyCollectiblePicked(const FIntPoint& Axial);

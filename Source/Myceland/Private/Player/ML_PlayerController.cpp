@@ -128,6 +128,56 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
 	SetIsMoving(true);
 }
 
+/**
+ * Redirects the active world-space path to follow a new AxialPath without resetting
+ * CurrentPathIndex to zero. Used when the player clicks a new destination mid-move.
+ *
+ * The new AxialPath is the fully merged path produced by ExtendMoveRecord, so it
+ * already contains the walked prefix. We just rebuild CurrentPathWorld from it,
+ * then set CurrentPathIndex to the first waypoint that is AFTER the player's current
+ * position — preserving the in-progress movement seamlessly.
+ */
+void AML_PlayerController::ExtendMoveAlongPath(const TArray<FIntPoint>& FullMergedAxialPath,
+                                               const TMap<FIntPoint, AML_Tile*>& GridMap,
+                                               int32 PreservedPathIndex)
+{
+	// Rebuild the full world-space path from the merged axial path.
+	TArray<FVector> NewPathWorld;
+	NewPathWorld.Reserve(FullMergedAxialPath.Num());
+
+	for (const FIntPoint& Axial : FullMergedAxialPath)
+		if (AML_Tile* const* TilePtr = GridMap.Find(Axial))
+			if (IsValid(*TilePtr))
+				NewPathWorld.Add((*TilePtr)->GetActorLocation());
+
+	if (NewPathWorld.Num() == 0)
+		return; // Nothing valid — keep the current path as-is.
+
+	// The merged axial path preserves the current logical target at the same index.
+	// Keep that exact waypoint instead of trying to rediscover it from world positions.
+	const FVector PlayerLoc = IsValid(MycelandCharacter) ? MycelandCharacter->GetActorLocation() : FVector::ZeroVector;
+	int32 NewIndex = FMath::Clamp(PreservedPathIndex, 0, NewPathWorld.Num() - 1);
+
+	// Advance past any waypoints the player has already reached.
+	while (NewIndex < NewPathWorld.Num() &&
+	       FVector::DistSquared2D(PlayerLoc, NewPathWorld[NewIndex]) <= FMath::Square(AcceptanceRadius))
+	{
+		NewIndex++;
+	}
+
+	if (NewIndex >= NewPathWorld.Num())
+	{
+		// Player is already at or past the new destination — treat as finished.
+		CurrentPathWorld = MoveTemp(NewPathWorld);
+		CurrentPathIndex = CurrentPathWorld.Num();
+		return;
+	}
+
+	CurrentPathWorld  = MoveTemp(NewPathWorld);
+	CurrentPathIndex  = NewIndex;
+	// bIsMoving is already true; no need to call SetIsMoving again.
+}
+
 void AML_PlayerController::StartNavMeshMovement(const FVector& WorldLocation)
 {
 	if (!IsValid(MycelandCharacter))
@@ -291,22 +341,63 @@ bool AML_PlayerController::StartRecordedBoardMove(const TArray<FIntPoint>& Axial
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
 	if (AxialPath.Num() < 2) return false;
 
-	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
 	const FIntPoint GoalAxial = AxialPath.Last();
 
 	AML_Tile* const* TargetTilePtr = GridMap.Find(GoalAxial);
 	if (!TargetTilePtr || !IsValid(*TargetTilePtr)) return false;
 
-	MoveRecordingComponent->BeginMoveRecord(
-		StartAxial,
-		GoalAxial,
-		MycelandCharacter->GetActorLocation(),
-		(*TargetTilePtr)->GetActorLocation(),
-		AxialPath
-	);
+	const bool bMoveAlreadyInProgress =
+		MoveRecordingComponent->IsMoveInProgress() &&
+		!MoveRecordingComponent->IsUndoMovePlayback();
 
-	TransitionComponent->SetBoardActionState(ActionState, PlantTarget);
-	StartMoveAlongPath(AxialPath, GridMap);
+	if (bMoveAlreadyInProgress)
+	{
+		// Redirect from the waypoint currently being aimed at in the recorded path,
+		// not from CurrentTileOn. That keeps the merged path valid even after many
+		// consecutive redirects before the logical tile ownership updates.
+		const TArray<FIntPoint>& RecordedPath = MoveRecordingComponent->GetActiveMoveAxialPath();
+		if (RecordedPath.Num() < 2) return false;
+
+		const int32 JunctionIndex = FMath::Clamp(CurrentPathIndex, 0, RecordedPath.Num() - 1);
+		const FIntPoint JunctionAxial = RecordedPath[JunctionIndex];
+
+		if (!GridMap.Contains(JunctionAxial) || !GridMap.Contains(GoalAxial)) return false;
+
+		TArray<FIntPoint> RedirectSubPath;
+		if (!UML_HexPathfinder::BuildPath_AxialBFS(JunctionAxial, GoalAxial, GridMap, RedirectSubPath)) return false;
+		if (RedirectSubPath.Num() < 2) return false;
+
+		const TArray<FIntPoint>& FullMergedPath = MoveRecordingComponent->ExtendMoveRecord(
+			GoalAxial,
+			(*TargetTilePtr)->GetActorLocation(),
+			RedirectSubPath,
+			JunctionIndex
+		);
+
+		// Rebuild the world path from the merged record and keep the same logical
+		// target index, so repeated redirects stay stable.
+		ExtendMoveAlongPath(FullMergedPath, GridMap, JunctionIndex);
+
+		// Update the action state (e.g. Moving → MovingToPlant) if needed.
+		TransitionComponent->SetBoardActionState(ActionState, PlantTarget);
+	}
+	else
+	{
+		// Fresh move — normal begin record.
+		const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+
+		MoveRecordingComponent->BeginMoveRecord(
+			StartAxial,
+			GoalAxial,
+			MycelandCharacter->GetActorLocation(),
+			(*TargetTilePtr)->GetActorLocation(),
+			AxialPath
+		);
+
+		TransitionComponent->SetBoardActionState(ActionState, PlantTarget);
+		StartMoveAlongPath(AxialPath, GridMap);
+	}
+
 	return true;
 }
 
