@@ -37,7 +37,7 @@ private:
 
 	bool bCurrentHoveredTileReachable = false;
 
-	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
+	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
 
 	FTimerHandle HoverPreviewTimerHandle;
 
