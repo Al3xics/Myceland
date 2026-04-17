@@ -107,14 +107,39 @@ void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const A
 	{
 		OnBoardChanged.Broadcast(CurrentTileOn);
 
-		// Le joueur vient de quitter le board → reset les PlantWaves sans toucher aux Move
 		if (bIsNull)
 		{
 			if (UWorld* World = GetWorld())
 			{
-				if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
+				const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
+				if (IsValid(OldTile) && IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
 				{
-					WaveSubsystem->ResetAllActions_ExcludingMoves_Animated();
+					if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
+					{
+						WaveSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
+					}
+				}
+			}
+		}
+	}
+	// Transition board A → board B
+	else if (!bWasNull && !bIsNull)
+	{
+		const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
+		const AML_BoardSpawner* NewBoard = NewTile->GetBoardSpawnerFromTile();
+
+		if (OldBoard != NewBoard)
+		{
+			OnBoardChanged.Broadcast(CurrentTileOn);
+
+			if (UWorld* World = GetWorld())
+			{
+				if (IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
+				{
+					if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
+					{
+						WaveSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
+					}
 				}
 			}
 		}

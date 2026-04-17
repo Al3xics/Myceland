@@ -89,12 +89,15 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
+
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	AML_Tile* EntryTile;
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	AML_Tile* ExitTile;
 	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
-	void UpdateCurrentGrid();
+	void UpdateCurrentGrid(bool bAllowSpawn = true);
 
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Clear & Rebuild Grid"))
 	void RebuildGrid();
@@ -110,6 +113,13 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AML_Tile*> GetGridTiles();
+
+	/**
+	 * Returns whichever of EntryTile / ExitTile is closer (2D) to WorldLocation.
+	 * Returns nullptr if both are invalid.
+	 */
+	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	AML_Tile* GetClosestGateTile(const FVector& WorldLocation) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
@@ -125,4 +135,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	TSubclassOf<AML_TileBase> WaterChangeTile;
+	
+	UPROPERTY(BlueprintReadWrite)
+    bool bIsPuzzleSolved; 
 };

@@ -6,6 +6,11 @@
 #include "Core/ML_CoreData.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/PlayerController.h"
+#include "Component/ML_EnergyComponent.h"
+#include "Component/ML_HoverPreviewComponent.h"
+#include "Component/ML_MoveRecordingComponent.h"
+#include "Player/ML_HexPathfinder.h"
+#include "Component/ML_BoardTransitionComponent.h"
 #include "ML_PlayerController.generated.h"
 
 class UML_MycelandDeveloperSettings;
@@ -15,9 +20,8 @@ class AML_BoardSpawner;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnergyChanged, int32, NewEnergy);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHoveredTileChanged, AML_Tile*, HoveredTile, bool, bIsReachable);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
+// FOnHoveredTileChanged is declared in ML_HoverPreviewComponent.h (included above)
+// FOnExitCursorHold and FOnBoardMovementStateChanged are declared in ML_BoardTransitionComponent.h (included above)
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -26,10 +30,19 @@ class MYCELAND_API AML_PlayerController : public APlayerController
 
 private:
 	
-	// ==================== Energy ====================
-	
+	// ==================== Components ====================
+
 	UPROPERTY()
-	int CurrentEnergy = 0;
+	UML_EnergyComponent* EnergyComponent = nullptr;
+
+	UPROPERTY()
+	UML_HoverPreviewComponent* HoverPreviewComponent = nullptr;
+
+	UPROPERTY()
+	UML_MoveRecordingComponent* MoveRecordingComponent = nullptr;
+
+	UPROPERTY()
+	UML_BoardTransitionComponent* TransitionComponent = nullptr;
 
 	// ==================== References ====================
 
@@ -45,112 +58,71 @@ private:
 	int32 CurrentPathIndex = 0;
 
 	bool bIsMoving = false;
-	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
 
-	// Exit hold
-	float ExitHoldTimer = 0.f;
-	bool bIsHoldingExitInput = false;
-	bool bHasExitTargetWorld = false;
-	bool bWasExitingLastFrame = false;
-	float LastBroadcastProgress = -1.f;
-
-	UPROPERTY(Transient)
-	AML_Tile* PendingExitTile = nullptr;
-	
-	UPROPERTY(Transient)
-	FVector PendingExitTargetWorld = FVector::ZeroVector;
-
-	// Board entry
-	bool bPendingFreeMovementOnArrival = false;
-	bool bPendingBoardEntryOnArrival = false;
-
-	UPROPERTY(Transient)
-	AML_Tile* PendingBoardEntryTargetTile = nullptr;
-	
-	// Move and Plant
-	UPROPERTY(Transient)
-	AML_Tile* PendingPlantTargetTile = nullptr;
-	
-	bool bPendingPlantOnArrival = false;
-	
-	// Free movement target
+	// Free movement target (SimpleMoveToLocation)
 	UPROPERTY(Transient)
 	FVector PendingFreeMovementTarget = FVector::ZeroVector;
-	
+
 	bool bHasFreeMovementTarget = false;
+	bool bIsUsingNavMeshMovement = false;
+	float FollowTime = 0.f;
+	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
-	// Rotate Tile
-	UPROPERTY(Transient)
-	const AML_Tile* RotateTargetTile = nullptr;
-	
-	bool bTurningToTile;
+	// Mode, action state, exit hold, turn-toward-tile, and all pending state
+	// are owned by TransitionComponent
 
-	// ==================== Undo ====================
-
-	// ---- Move recording for Undo ----
-	bool bMoveInProgress = false;
-
-	FIntPoint MoveStartAxial = FIntPoint::ZeroValue;
-	FVector   MoveStartWorld = FVector::ZeroVector;
-
-	FIntPoint MoveEndAxial   = FIntPoint::ZeroValue;
-	FVector   MoveEndWorld   = FVector::ZeroVector;
-
-	TArray<FIntPoint> ActiveMoveAxialPath;
-
-	UPROPERTY(Transient)
-	TSet<FIntPoint> ActiveMovePickedCollectibles;
-
-	// Flags
-	bool bSuppressMoveRecording = false;
-	bool bUndoMovePlayback = false;
-
-	// ---- Undo move collectible restore ----
-	UPROPERTY(Transient)
-	TSet<FIntPoint> UndoMoveRemainingCollectibles;
-
-	bool bUndoRestoreCollectibles = false;
+	// Undo / move recording is managed by MoveRecordingComponent
 
 	// ==================== Helpers ====================
 
+	void SetIsMoving(bool bNewIsMoving);
+
+	// ==================== Cursor / Component Callbacks ====================
+
+public:
 	AML_Tile* GetTileUnderCursor() const;
-	bool IsTileWalkable(const AML_Tile* Tile) const;
-	AML_Tile* FindNearestWalkableTile(const FVector& WorldLocation, const TMap<FIntPoint, AML_Tile*>& GridMap) const;
 
-	// ==================== Pathfinding ====================
+	/** Called by TransitionComponent when turn-toward-tile completes. */
+	void ConfirmTurn(AML_Tile* HitTile);
 
-	bool BuildPath_AxialBFS(const FIntPoint& StartAxial, const FIntPoint& GoalAxial, const TMap<FIntPoint, AML_Tile*>& GridMap, TArray<FIntPoint>& OutAxialPath) const;
+	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
+	void StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap);
+
+	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
+	void StartNavMeshMovement(const FVector& WorldLocation);
+
+	/** Called by TransitionComponent to change the movement mode and notify other systems. */
+	void SetMovementMode(EML_PlayerMovementMode NewMode);
+
+private:
 
 	// ==================== Movement ====================
 
-	void StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap);
-	void StartMoveToWorldLocation(const FVector& WorldLocation);
 	void TickMoveAlongPath(float DeltaTime);
+	void TickNavMeshMovement(float DeltaTime);
 	void OnPathFinished();
+	void StopNavMeshMovement();
 
-	// ==================== Rotation ====================
-	
-	void RotateCharacterTowardTile(const AML_Tile* HitTileActor, float DeltaTime, float TurnSpeed);
-	void TickTurnTowardPendingTile(float DeltaTime);
-
-	// ==================== Board Exit / Entry ====================
-
-	void TickExitHold(float DeltaTime);
-	void ConfirmExitBoard();
+	// Rotation, exit hold, turn-toward-tile — owned by TransitionComponent
 
 	// ==================== Delegates ====================
 
 	UFUNCTION()
 	void HandleBoardStateChanged(const AML_Tile* NewTile);
 
-	// ==================== Actions ====================
+	UFUNCTION()
+	void ForwardEnergyChanged(int32 NewEnergy);
 
-	void ConfirmTurn(AML_Tile* HitTile);
+	UFUNCTION()
+	void ForwardHoveredTileChanged(AML_Tile* HoveredTile, bool bIsReachable);
+
+	// Hover timer management delegated to HoverPreviewComponent
 
 protected:
 
 	// ==================== Lifecycle ====================
 
+	AML_PlayerController();
 	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
 	virtual void OnPossess(APawn* aPawn) override;
@@ -161,19 +133,21 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
-	/*
-	// Bind to OnTriggered — every frame while held (continuous free movement)
+	// Bind to OnTriggered - maintain click when outside the board to move
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
-	*/
 
 	// Bind to OnCompleted / OnCanceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationReleased();
-	
+
 	// Bind to OnStarted - for Plant and Move only
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnMoveAndPlantStarted();
+
+	// ---- Input sub-handlers (called by OnSetDestinationStarted) ----
+	void HandleInsideBoardClick();
+	void HandleFreeMovementClick();
 
 	// ==================== Movement Tuning ====================
 
@@ -184,7 +158,7 @@ protected:
 	float MoveSpeedScale = 1.f;
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
-	float RotateSpeed =10.f;
+	float RotateSpeed = 10.f;
 
 	// 0 = strict center-to-center, 1 = maximum smoothing
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0", ClampMax = "1.0"))
@@ -193,24 +167,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0"))
 	float BaseCornerCutDistance = 80.f;
 	
-	// ==================== Hover Preview ====================
-    
-	UPROPERTY(Transient)
-	AML_Tile* LastCursorHoveredTile = nullptr;
-
-	UPROPERTY(Transient)
-	AML_Tile* LastHoveredTile = nullptr;
-
-	UPROPERTY(Transient)
-	TArray<AML_Tile*> CurrentPreviewPath;
-
-	bool bCurrentHoveredTileReachable = false;
-    
-	void TickCursorHoverPreview(float DeltaTime);
-	void ClearCursorHoverPreview();
-	void TickHoverPreview(float DeltaTime);
-	void ClearHoverPreview();
-	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
+	// Nav Mesh Movement
+	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|NavMesh")
+	float NavMeshAcceptanceRadius = 50.f;
+	
+	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
+	float ShortPressThreshold = 0.5f;
+	
+	// Hover preview is managed by HoverPreviewComponent
 
 public:
 	
@@ -234,18 +198,23 @@ public:
 	// The float is normalized between 0-1
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Exit")
 	FOnExitCursorHold OnExitCursorHold;
+	
+	// Whenever the player starts and stops moving INSIDE a board.
+	// Will not be broadcasted when OUTSIDE the board.
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller")
+	FOnBoardMovementStateChanged OnBoardMovementStateChanged;
 
 	// ==================== Energy ====================
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
-	int32 GetCurrentEnergy() const { return CurrentEnergy; }
-	
+	int32 GetCurrentEnergy() const { return EnergyComponent ? EnergyComponent->GetCurrentEnergy() : 0; }
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void SetCurrentEnergy(int32 NewEnergy);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void AddEnergy(int32 Delta);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
 	void InitNumberOfEnergyForLevel(int32 Energy);
 	
@@ -269,6 +238,6 @@ public:
 
 	void NotifyCollectiblePickedOnAxial(const FIntPoint& Axial);
 
-	bool IsMoveInProgress() const { return bMoveInProgress; }
-	bool IsUndoMovePlayback() const { return bUndoMovePlayback; }
+	bool IsMoveInProgress() const { return MoveRecordingComponent && MoveRecordingComponent->IsMoveInProgress(); }
+	bool IsUndoMovePlayback() const { return MoveRecordingComponent && MoveRecordingComponent->IsUndoMovePlayback(); }
 };

@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Myceland/Public/Tiles/ML_BoardSpawner.h"
+#include "Myceland/Public/Subsystem/ML_WinLoseSubsystem.h"
 #include "ML_PlayerCharacter.generated.h"
 
 class AML_PlayerController;
