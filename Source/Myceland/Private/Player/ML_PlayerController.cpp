@@ -339,16 +339,18 @@ bool AML_PlayerController::StartRecordedBoardMove(const TArray<FIntPoint>& Axial
 	EML_PlayerBoardActionState ActionState, AML_Tile* PlantTarget)
 {
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
-	if (AxialPath.Num() < 2) return false;
+
+	const bool bMoveAlreadyInProgress =
+		MoveRecordingComponent->IsMoveInProgress() &&
+		!MoveRecordingComponent->IsUndoMovePlayback();
+
+	if ((!bMoveAlreadyInProgress && AxialPath.Num() < 2) || (bMoveAlreadyInProgress && AxialPath.Num() < 1))
+		return false;
 
 	const FIntPoint GoalAxial = AxialPath.Last();
 
 	AML_Tile* const* TargetTilePtr = GridMap.Find(GoalAxial);
 	if (!TargetTilePtr || !IsValid(*TargetTilePtr)) return false;
-
-	const bool bMoveAlreadyInProgress =
-		MoveRecordingComponent->IsMoveInProgress() &&
-		!MoveRecordingComponent->IsUndoMovePlayback();
 
 	if (bMoveAlreadyInProgress)
 	{
@@ -364,8 +366,15 @@ bool AML_PlayerController::StartRecordedBoardMove(const TArray<FIntPoint>& Axial
 		if (!GridMap.Contains(JunctionAxial) || !GridMap.Contains(GoalAxial)) return false;
 
 		TArray<FIntPoint> RedirectSubPath;
-		if (!UML_HexPathfinder::BuildPath_AxialBFS(JunctionAxial, GoalAxial, GridMap, RedirectSubPath)) return false;
-		if (RedirectSubPath.Num() < 2) return false;
+		if (GoalAxial == JunctionAxial)
+		{
+			RedirectSubPath.Add(JunctionAxial);
+		}
+		else
+		{
+			if (!UML_HexPathfinder::BuildPath_AxialBFS(JunctionAxial, GoalAxial, GridMap, RedirectSubPath)) return false;
+			if (RedirectSubPath.Num() < 2) return false;
+		}
 
 		const TArray<FIntPoint>& FullMergedPath = MoveRecordingComponent->ExtendMoveRecord(
 			GoalAxial,
@@ -442,26 +451,22 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return false;
 	if (TargetTile->GetCurrentType() != EML_TileType::Dirt) return false;
 
-	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::MovingToPlant)
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	if (MoveRecordingComponent->IsMoveInProgress() && !MoveRecordingComponent->IsUndoMovePlayback())
 	{
-		TransitionComponent->SetBoardActionState(EML_PlayerBoardActionState::Idle);
-		CurrentPathWorld.Reset();
-		CurrentPathIndex = 0;
-		SetIsMoving(false);
-		if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
+		const TArray<FIntPoint>& RecordedPath = MoveRecordingComponent->GetActiveMoveAxialPath();
+		if (RecordedPath.IsValidIndex(CurrentPathIndex))
 		{
-			MC->StopMovementImmediately();
+			StartAxial = RecordedPath[CurrentPathIndex];
 		}
 	}
-
-	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
 	const FIntPoint TargetAxial = TargetTile->GetAxialCoord();
 
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return false;
 
 	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
-	if (CurrentNeighbors.Contains(TargetTile))
+	if (!MoveRecordingComponent->IsMoveInProgress() && CurrentNeighbors.Contains(TargetTile))
 	{
 		TransitionComponent->StartTurnTowardTile(TargetTile);
 		return true;
@@ -480,6 +485,10 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 
 	TArray<FIntPoint> MovePath = FullPath;
 	MovePath.RemoveAt(MovePath.Num() - 1);
+	if (MovePath.Num() == 0)
+	{
+		MovePath.Add(StartAxial);
+	}
 
 	return StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile);
 }
