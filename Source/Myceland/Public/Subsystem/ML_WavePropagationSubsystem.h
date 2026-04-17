@@ -35,10 +35,7 @@ public:
 	void BeginTileResolved(AML_Tile* HitTile);
 
 	UFUNCTION(BlueprintPure, Category="Undo")
-	bool CanUndo() const
-	{
-		return !bIsResolvingTiles && !bIsUndoAnimating && ActionUndoStack.Num() > 0;
-	}
+	bool CanUndo() const;
 
 	// UI button
 	UFUNCTION(BlueprintCallable, Category="Undo")
@@ -66,6 +63,10 @@ public:
 	bool ResetAllActions_Animated();
 
 	bool ResetAllActions_ExcludingMoves_Animated();
+
+	// Instantly reverts all PlantWaves for the given board, ignoring Move entries.
+	// Safe to call from outside the board (e.g. on board exit).
+	void ResetAllActions_ExcludingMoves_Instant(AML_BoardSpawner* Board);
 
 	UPROPERTY(BlueprintAssignable, Category="Undo")
 	FOnUndoAnimating OnUndoAnimating;
@@ -114,12 +115,15 @@ private:
 	void CancelAllWaveTimers();
 
 	// =========================================================================
-	// Undo history / turn recording
+	// Undo history — one stack per board
 	// =========================================================================
 
-	// Full action history used by Undo / Reset.
-	UPROPERTY(Transient)
-	TArray<FML_ActionUndoRecord> ActionUndoStack;
+	// Per-board undo stacks. Key is the BoardSpawner that owns the tiles.
+	TMap<TWeakObjectPtr<AML_BoardSpawner>, TArray<FML_ActionUndoRecord>> BoardUndoStacks;
+
+	// Returns the undo stack for the board the player is currently standing on.
+	// Returns nullptr if the player is not on any board.
+	TArray<FML_ActionUndoRecord>* GetCurrentBoardStack();
 
 	// Record currently being built while a turn/action is in progress.
 	UPROPERTY(Transient)
@@ -159,7 +163,6 @@ private:
 	void RunUndoWave();
 	void ScheduleNextUndoWave(float Delay);
 	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
-	//void FinishUndoAnimation();
 
 	// Removes the collectible actor currently associated with a tile (if any).
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
