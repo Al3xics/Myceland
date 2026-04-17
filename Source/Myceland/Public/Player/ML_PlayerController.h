@@ -95,6 +95,10 @@ public:
 	void SetMovementMode(EML_PlayerMovementMode NewMode);
 
 private:
+	
+	// ==================== Ground ====================
+	
+	bool IsClickableGround(const FHitResult& Hit) const;
 
 	// ==================== Movement ====================
 

@@ -35,6 +35,9 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
 		return nullptr;
+	
+	if (!IsClickableGround(Hit))
+		return nullptr;
 
 	if (AML_Tile* Tile = Cast<AML_Tile>(Hit.GetActor()))
 		return Tile;
@@ -82,7 +85,14 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 		StopNavMeshMovement();
 }
 
-
+bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
+{
+	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
+		return false;
+    GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
+	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
+	return ObjectType == ECC_GameTraceChannel1;
+}
 
 
 // ==================== Movement ====================
@@ -441,6 +451,7 @@ void AML_PlayerController::HandleInsideBoardClick()
 	// Click outside the board → hold to exit toward the closest gate tile (EntryTile or ExitTile)
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!IsClickableGround(Hit)) return;
 
 	AML_Tile* ExitGate = Board->GetClosestGateTile(Hit.Location);
 	if (!IsValid(ExitGate)) return;
@@ -475,8 +486,9 @@ void AML_PlayerController::HandleFreeMovementClick()
 
 	// Click on open ground → cache destination; continuous movement is driven by OnSetDestinationTriggered.
 	FHitResult Hit;
-	if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
-		HoldMoveCachedDestination = Hit.Location;
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!IsClickableGround(Hit)) return;
+	HoldMoveCachedDestination = Hit.Location;
 }
 
 // Bound to OnTriggered — fires every frame while the button is held.
@@ -496,13 +508,13 @@ void AML_PlayerController::OnSetDestinationTriggered()
 
 	// Update the cached destination to the current cursor position every frame
 	FHitResult Hit;
-	if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
-	{
-		// Only follow the cursor on open ground — ignore board tiles so that
-		// clicking on a board still triggers the re-entry logic on release.
-		if (!Cast<AML_Tile>(Hit.GetActor()))
-			HoldMoveCachedDestination = Hit.Location;
-	}
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!IsClickableGround(Hit)) return;
+	
+	// Only follow the cursor on open ground — ignore board tiles so that
+	// clicking on a board still triggers the re-entry logic on release.
+	if (!Cast<AML_Tile>(Hit.GetActor()))
+		HoldMoveCachedDestination = Hit.Location;
 
 	// Push the character toward the cached destination every frame
 	const FVector WorldDirection = (HoldMoveCachedDestination - MycelandCharacter->GetActorLocation()).GetSafeNormal();
