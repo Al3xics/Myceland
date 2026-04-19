@@ -15,7 +15,7 @@ class UML_MycelandDeveloperSettings;
 class UML_EnergyComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardMovementStateChanged, bool, bIsMoving);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardActivityStateChanged, bool, bIsMoving);
 
 /**
  * Result returned by HandlePathFinished / HandleBoardPresenceChanged so the controller
@@ -123,7 +123,7 @@ public:
 	// Whenever the player starts and stops moving INSIDE a board.
 	// Will not be broadcasted when OUTSIDE the board.
 	UPROPERTY(BlueprintAssignable, Category = "Board Transition Component|Delegates")
-	FOnBoardMovementStateChanged OnBoardMovementStateChanged;
+	FOnBoardActivityStateChanged OnBoardActivityStateChanged;
 	
 	// Called when the player holds cursor to exit board
 	// The float is normalized between 0-1

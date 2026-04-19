@@ -49,7 +49,7 @@ void UML_BoardTransitionComponent::NotifyIsMoving(bool bIsMoving)
 
 	if (bIsMoving != bWasMovingInBoard)
 	{
-		OnBoardMovementStateChanged.Broadcast(bIsMoving);
+		OnBoardActivityStateChanged.Broadcast(bIsMoving);
 		bWasMovingInBoard = bIsMoving;
 	}
 }
@@ -209,6 +209,7 @@ void UML_BoardTransitionComponent::StartTurnTowardTile(AML_Tile* Target)
 {
 	PendingPlantTargetTile = Target;
 	BoardActionState       = EML_PlayerBoardActionState::TurningToPlant;
+	OnBoardActivityStateChanged.Broadcast(true);
 
 	if (!TurnTowardTileTimerHandle.IsValid())
 	{
@@ -259,6 +260,7 @@ void UML_BoardTransitionComponent::UpdateTurnTowardPendingTile()
 	{
 		GetWorld()->GetTimerManager().ClearTimer(TurnTowardTileTimerHandle);
 		BoardActionState = EML_PlayerBoardActionState::Idle;
+		OnBoardActivityStateChanged.Broadcast(false);
 
 		AML_Tile* Target = PendingPlantTargetTile;
 		PendingPlantTargetTile = nullptr;
