@@ -7,8 +7,6 @@
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
-#include "AIController.h"
-#include "NavigationSystem.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -89,7 +87,7 @@ bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 {
 	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
 		return false;
-    GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
+    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
 	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
 	return ObjectType == ECC_GameTraceChannel1;
 }
@@ -292,18 +290,15 @@ void AML_PlayerController::OnPathFinished()
 }
 
 
-// Board exit/entry and turn-toward-tile logic — moved to UML_BoardTransitionComponent
-
-
 // ==================== Delegates ====================
 
 void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 {
 	// ---------- Energy ----------
 	if (NewTile)
-		InitNumberOfEnergyForLevel(NewTile->GetBoardSpawnerFromTile()->GetEnergyForPuzzle());
+		EnergyComponent->InitNumberOfEnergyForLevel(NewTile->GetBoardSpawnerFromTile()->GetEnergyForPuzzle());
 	else
-		InitNumberOfEnergyForLevel(0);
+		EnergyComponent->InitNumberOfEnergyForLevel(0);
 
 	// ---------- Automatic transition: Free ↔ InsideBoard ----------
 	const bool bShouldBeInBoard = IsValid(NewTile);
@@ -337,7 +332,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
-	AddEnergy(-1);
+	EnergyComponent->AddEnergy(-1);
 
 	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<
 		UML_WavePropagationSubsystem>())
@@ -378,10 +373,8 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 	if (MycelandCharacter)
 	{
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
-		EnergyComponent->OnEnergyChanged.AddDynamic(this, &AML_PlayerController::ForwardEnergyChanged);
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
-		HoverPreviewComponent->OnHoveredTileChanged.AddDynamic(this, &AML_PlayerController::ForwardHoveredTileChanged);
-		TransitionComponent->Initialize(this, MycelandCharacter, DevSettings, RotateSpeed);
+		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);
 
 		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
 			? EML_PlayerMovementMode::InsideBoard
@@ -611,37 +604,6 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 }
 
 
-// Hover preview is managed by HoverPreviewComponent
-
-
-// ==================== Energy ====================
-
-void AML_PlayerController::ForwardEnergyChanged(int32 NewEnergy)
-{
-	OnEnergyChanged.Broadcast(NewEnergy);
-}
-
-void AML_PlayerController::ForwardHoveredTileChanged(AML_Tile* HoveredTile, bool bIsReachable)
-{
-	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
-}
-
-void AML_PlayerController::SetCurrentEnergy(int32 NewEnergy)
-{
-	EnergyComponent->SetCurrentEnergy(NewEnergy);
-}
-
-void AML_PlayerController::AddEnergy(int32 Delta)
-{
-	EnergyComponent->AddEnergy(Delta);
-}
-
-void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
-{
-	EnergyComponent->InitNumberOfEnergyForLevel(Energy);
-}
-
-
 // ==================== Actions ====================
 
 bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport,
@@ -713,5 +675,3 @@ void AML_PlayerController::NotifyCollectiblePickedOnAxial(const FIntPoint& Axial
 {
 	MoveRecordingComponent->NotifyCollectiblePicked(Axial);
 }
-
-// Rotation and turn-toward-tile — moved to UML_BoardTransitionComponent

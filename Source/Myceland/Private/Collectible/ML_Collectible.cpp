@@ -45,7 +45,7 @@ void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_Pl
 		return;
 	}
 
-	MycelandController->AddEnergy(+1);
+	MycelandController->EnergyComponent->AddEnergy(+1);
 
 	if (OwningTile)
 	{

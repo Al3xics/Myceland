@@ -49,7 +49,7 @@ private:
 
 public:
 
-	UPROPERTY(BlueprintAssignable, Category = "Myceland|Hover")
+	UPROPERTY(BlueprintAssignable, Category = "Hover Preview Component|Hover")
 	FOnHoveredTileChanged OnHoveredTileChanged;
 
 	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character);

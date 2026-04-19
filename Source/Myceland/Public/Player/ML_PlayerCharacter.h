@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Myceland/Public/Tiles/ML_BoardSpawner.h"
-#include "Myceland/Public/Subsystem/ML_WinLoseSubsystem.h"
 #include "ML_PlayerCharacter.generated.h"
 
 class AML_PlayerController;
@@ -40,7 +39,7 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category="Myceland Character")
 	AML_Tile* CurrentTileOn = nullptr;
 	
-	UPROPERTY(BlueprintAssignable, Category="Myceland Character")
+	UPROPERTY(BlueprintAssignable, Category="Myceland Character|Delegates")
 	FOnBoardChanged OnBoardChanged;
 	
 	AML_PlayerCharacter();

@@ -12,6 +12,7 @@ class AML_PlayerCharacter;
 class AML_BoardSpawner;
 class AML_Tile;
 class UML_MycelandDeveloperSettings;
+class UML_EnergyComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardMovementStateChanged, bool, bIsMoving);
@@ -53,15 +54,22 @@ private:
 
 	UPROPERTY(Transient)
 	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
+	
+	UPROPERTY(Transient)
+	UML_EnergyComponent* EnergyComponent = nullptr;
 
 	float RotateSpeed = 10.f;
 
-	// ---- Movement mode ----
+	
+	
+	// ========== Movement mode ==========
 	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
 	EML_PlayerBoardActionState BoardActionState = EML_PlayerBoardActionState::Idle;
 	bool bWasMovingInBoard = false;
 
-	// ---- Exit hold ----
+	
+	
+	// ========== Exit hold ==========
 	float ExitHoldTimer = 0.f;
 	bool bIsHoldingExitInput = false;
 	bool bHasExitTargetWorld = false;
@@ -74,21 +82,29 @@ private:
 
 	FVector PendingExitTargetWorld = FVector::ZeroVector;
 
-	// ---- Board entry ----
+	
+	
+	// ========== Board entry ==========
 	bool bPendingFreeMovementOnArrival = false;
 	bool bPendingBoardEntryOnArrival = false;
 
 	UPROPERTY(Transient)
 	AML_Tile* PendingBoardEntryTargetTile = nullptr;
 
-	// ---- Plant ----
+	
+	
+	// ========== Plant ==========
 	UPROPERTY(Transient)
 	AML_Tile* PendingPlantTargetTile = nullptr;
 
-	// ---- Turn toward tile ----
+	
+	
+	// ========== Turn toward tile ==========
 	FTimerHandle TurnTowardTileTimerHandle;
 
-	// ---- Internal timer callbacks ----
+	
+	
+	// ========== Internal timer callbacks ==========
 	void TickExitHold();
 	void ConfirmExitBoard();
 	void UpdateTurnTowardPendingTile();
@@ -97,17 +113,36 @@ private:
 
 public:
 
-	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character,
+	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, UML_EnergyComponent* Energy,
 	                const UML_MycelandDeveloperSettings* Settings, float InRotateSpeed);
 
-	// ---- Queries ----
+	
+	
+	// ========== Delegates ==========
+	
+	// Whenever the player starts and stops moving INSIDE a board.
+	// Will not be broadcasted when OUTSIDE the board.
+	UPROPERTY(BlueprintAssignable, Category = "Board Transition Component|Delegates")
+	FOnBoardMovementStateChanged OnBoardMovementStateChanged;
+	
+	// Called when the player holds cursor to exit board
+	// The float is normalized between 0-1
+	UPROPERTY(BlueprintAssignable, Category = "Board Transition Component|Delegates")
+	FOnExitCursorHold OnExitCursorHold;
+	
+	
+	
+	// ========== Queries ==========
+	
 	EML_PlayerMovementMode GetMovementMode() const { return CurrentMovementMode; }
 	EML_PlayerBoardActionState GetBoardActionState() const { return BoardActionState; }
 	bool IsHoldingExitInput() const { return bIsHoldingExitInput; }
 	bool IsPendingFreeMovementOnArrival() const { return bPendingFreeMovementOnArrival; }
 	bool IsPendingBoardEntry() const { return bPendingBoardEntryOnArrival; }
 
-	// ---- Mode management ----
+	
+	
+	// ========== Mode management ==========
 
 	/**
 	 * Updates CurrentMovementMode and handles associated state cleanup.
@@ -116,10 +151,12 @@ public:
 	 */
 	void SwitchToMode(EML_PlayerMovementMode NewMode);
 
-	/** Handles bWasMovingInBoard and broadcasts OnBoardMovementStateChanged on the controller. */
+	/** Handles bWasMovingInBoard and broadcasts OnBoardMovementStateChanged. */
 	void NotifyIsMoving(bool bIsMoving);
 
-	// ---- Exit hold ----
+	
+	
+	// ========== Exit hold ==========
 
 	/** Called from OnSetDestinationStarted when clicking outside the board. */
 	void RequestExitHold(AML_Tile* ExitTile, const FVector& WorldTarget);
@@ -127,7 +164,9 @@ public:
 	/** Called from OnSetDestinationReleased. TickExitHold detects the flag and cancels. */
 	void CancelExitHold();
 
-	// ---- Board entry / action state ----
+	
+	
+	// ========== Board entry / action state ==========
 
 	/** Set the board action state (and optional plant target tile). */
 	void SetBoardActionState(EML_PlayerBoardActionState State, AML_Tile* PlantTarget = nullptr);
@@ -141,7 +180,9 @@ public:
 	/** Starts the turn-toward-tile timer; sets BoardActionState = TurningToPlant. */
 	void StartTurnTowardTile(AML_Tile* Target);
 
-	// ---- Path completion callbacks ----
+	
+	
+	// ========== Path completion callbacks ==========
 
 	/**
 	 * Called from AML_PlayerController::OnPathFinished.
