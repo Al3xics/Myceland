@@ -292,6 +292,12 @@ void AML_PlayerController::OnPathFinished()
 
 // ==================== Delegates ====================
 
+void AML_PlayerController::HandleCurrentTileChanged(AML_Tile* OldTile, AML_Tile* NewTile)
+{
+	if (HoverPreviewComponent)
+		HoverPreviewComponent->NotifyPlayerTileChanged();
+}
+
 void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 {
 	// ---------- Energy ----------
@@ -372,6 +378,7 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 	MycelandCharacter = Cast<AML_PlayerCharacter>(aPawn);
 	if (MycelandCharacter)
 	{
+		MycelandCharacter->OnCurrentTileChanged.AddDynamic(this, &AML_PlayerController::HandleCurrentTileChanged);
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
 		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);

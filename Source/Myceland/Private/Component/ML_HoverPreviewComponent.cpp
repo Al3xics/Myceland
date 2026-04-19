@@ -23,6 +23,14 @@ void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode
 		ClearHoverPreview();
 }
 
+void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
+{
+	// Force the preview path update from the new position
+	LastHoveredTile = nullptr; // Force recalculation even if cursor is on the same tile
+	if (HoverPreviewTimerHandle.IsValid())
+		TickHoverPreview();
+}
+
 void UML_HoverPreviewComponent::StartHoverPreviewTimer()
 {
 	if (!HoverPreviewTimerHandle.IsValid())
@@ -46,18 +54,8 @@ void UML_HoverPreviewComponent::StopHoverPreviewTimer()
 
 void UML_HoverPreviewComponent::UpdateHoverPreview()
 {
-	// In board modes, update both hover and cursor preview
-	if (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard ||
-		CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
-	{
-		TickHoverPreview();
-		TickCursorHoverPreview();
-	}
-	// In free movement, only update cursor glow (no path preview)
-	else if (CurrentMovementMode == EML_PlayerMovementMode::FreeMovement)
-	{
-		TickCursorHoverPreview();
-	}
+	TickHoverPreview();
+	TickCursorHoverPreview();
 }
 
 void UML_HoverPreviewComponent::TickCursorHoverPreview()
@@ -104,71 +102,115 @@ void UML_HoverPreviewComponent::ClearCursorHoverPreview()
 	}
 }
 
+void UML_HoverPreviewComponent::SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable)
+{
+	bCurrentHoveredTileReachable = bIsReachable;
+	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
+}
+
+AML_Tile* UML_HoverPreviewComponent::FindClosestEntryExitTile(const AML_BoardSpawner* Board, const FVector& PlayerLocation) const
+{
+	if (!IsValid(Board))
+		return nullptr;
+	
+	TArray<AML_Tile*> EntryExitTiles;
+	EntryExitTiles.Add(Board->EntryTile);
+	EntryExitTiles.Add(Board->ExitTile);
+    
+	if (EntryExitTiles.Num() == 0)
+		return nullptr;
+
+	AML_Tile* ClosestTile = nullptr;
+	float MinDistanceSq = TNumericLimits<float>::Max();
+
+	for (AML_Tile* Tile : EntryExitTiles)
+	{
+		if (!IsValid(Tile) || !UML_HexPathfinder::IsTileWalkable(Tile))
+			continue;
+
+		const float DistSq = FVector::DistSquared(PlayerLocation, Tile->GetActorLocation());
+		if (DistSq < MinDistanceSq)
+		{
+			MinDistanceSq = DistSq;
+			ClosestTile = Tile;
+		}
+	}
+
+	return ClosestTile;
+}
+
 void UML_HoverPreviewComponent::TickHoverPreview()
 {
-	// Only preview in board mode
-	if (CurrentMovementMode != EML_PlayerMovementMode::InsideBoard &&
-		CurrentMovementMode != EML_PlayerMovementMode::ExitingBoard)
-	{
-		ClearHoverPreview();
-		return;
-	}
-
-	if (!IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn))
-	{
-		ClearHoverPreview();
-		return;
-	}
-
 	if (!IsValid(OwningController))
-		return;
+        return;
 
-	AML_Tile* HoveredTile = OwningController->GetTileUnderCursor();
+    AML_Tile* HoveredTile = OwningController->GetTileUnderCursor();
 
-	// Same tile as before → no update needed
-	if (HoveredTile == LastHoveredTile)
-		return;
+    // Same tile as before → no update needed
+    if (HoveredTile == LastHoveredTile)
+        return;
 
-	// Tile changed — clear old path visuals immediately
-	for (AML_Tile* Tile : CurrentPreviewPath)
-		if (IsValid(Tile)) Tile->StopGlowingPathWalk();
-	CurrentPreviewPath.Empty();
+    // Tile changed — clear old path visuals immediately
+    for (AML_Tile* Tile : CurrentPreviewPath)
+        if (IsValid(Tile)) Tile->StopGlowingPathWalk();
+    CurrentPreviewPath.Empty();
 
-	LastHoveredTile = HoveredTile;
+    LastHoveredTile = HoveredTile;
 
-	if (!IsValid(HoveredTile))
-	{
-		bCurrentHoveredTileReachable = false;
-		OnHoveredTileChanged.Broadcast(nullptr, false);
-		return;
-	}
+    if (!IsValid(HoveredTile))
+    {
+        SetHoveredTileState(nullptr, false);
+        return;
+    }
 
-	AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board) || HoveredTile->GetOwner() != Board || !UML_HexPathfinder::IsTileWalkable(HoveredTile))
-	{
-		bCurrentHoveredTileReachable = false;
-		OnHoveredTileChanged.Broadcast(HoveredTile, false);
-		return;
-	}
+    AML_Tile* StartTile = nullptr;
+    const AML_BoardSpawner* Board = HoveredTile->GetBoardSpawnerFromTile();
+    
+    if (!IsValid(Board))
+    {
+        SetHoveredTileState(HoveredTile, false);
+        return;
+    }
 
-	// Build preview path — empty result means the path is blocked by an obstacle
-	TArray<AML_Tile*> NewPath = BuildPreviewPath(HoveredTile);
-	const bool bReachable = NewPath.Num() > 0;
+    // If the player is on the board, use their current tile
+    if (IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
+        PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile() == Board)
+    {
+        StartTile = PlayerCharacter->CurrentTileOn;
+    }
+    // Alternatively, find the entry/exit tile closest to the player
+    else if (IsValid(PlayerCharacter))
+    {
+        StartTile = FindClosestEntryExitTile(Board, PlayerCharacter->GetActorLocation());
+    }
 
-	bCurrentHoveredTileReachable = bReachable;
-	OnHoveredTileChanged.Broadcast(HoveredTile, bReachable);
+    if (!IsValid(StartTile))
+    {
+        SetHoveredTileState(HoveredTile, false);
+        return;
+    }
 
-	const bool bIsOnPlayerTile = IsValid(PlayerCharacter) &&
-								  IsValid(PlayerCharacter->CurrentTileOn) &&
-								  HoveredTile == PlayerCharacter->CurrentTileOn;
+    // Check that the hovered tile is walkable
+    if (!UML_HexPathfinder::IsTileWalkable(HoveredTile))
+    {
+        SetHoveredTileState(HoveredTile, false);
+        return;
+    }
 
-	if (bReachable)
-	{
-		for (AML_Tile* Tile : NewPath)
-			if (!bIsOnPlayerTile)
-				Tile->GlowPathWalk();
-		CurrentPreviewPath = NewPath;
-	}
+    // Build preview path
+    TArray<AML_Tile*> NewPath = BuildPreviewPathFromTile(StartTile, HoveredTile);
+    const bool bReachable = NewPath.Num() > 0;
+
+    SetHoveredTileState(HoveredTile, bReachable);
+
+    const bool bIsOnPlayerTile = (StartTile == HoveredTile);
+
+    if (bReachable && !bIsOnPlayerTile)
+    {
+        for (AML_Tile* Tile : NewPath)
+            Tile->GlowPathWalk();
+        CurrentPreviewPath = NewPath;
+    }
 }
 
 void UML_HoverPreviewComponent::ClearHoverPreview()
@@ -179,27 +221,26 @@ void UML_HoverPreviewComponent::ClearHoverPreview()
 
 	if (LastHoveredTile != nullptr)
 	{
-		bCurrentHoveredTileReachable = false;
-		OnHoveredTileChanged.Broadcast(nullptr, false);
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Magenta, TEXT("Hover preview: 4"));
+		SetHoveredTileState(nullptr, false);
 	}
 
 	LastHoveredTile = nullptr;
-	bCurrentHoveredTileReachable = false;
 }
 
-TArray<AML_Tile*> UML_HoverPreviewComponent::BuildPreviewPath(const AML_Tile* TargetTile) const
+TArray<AML_Tile*> UML_HoverPreviewComponent::BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const
 {
 	TArray<AML_Tile*> Result;
 
-	if (!IsValid(TargetTile) || !IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn))
+	if (!IsValid(StartTile) || !IsValid(TargetTile))
 		return Result;
 
-	AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	const AML_BoardSpawner* Board = StartTile->GetBoardSpawnerFromTile();
 	if (!IsValid(Board))
 		return Result;
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
-	const FIntPoint StartAxial = PlayerCharacter->CurrentTileOn->GetAxialCoord();
+	const FIntPoint StartAxial = StartTile->GetAxialCoord();
 	const FIntPoint GoalAxial = TargetTile->GetAxialCoord();
 
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(GoalAxial))

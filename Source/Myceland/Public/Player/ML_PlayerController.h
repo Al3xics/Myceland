@@ -90,6 +90,9 @@ private:
 	
 	
 	// ==================== Delegates ====================
+	
+	UFUNCTION()
+	void HandleCurrentTileChanged(AML_Tile* OldTile, AML_Tile* NewTile);
 
 	UFUNCTION()
 	void HandleBoardStateChanged(const AML_Tile* NewTile);
