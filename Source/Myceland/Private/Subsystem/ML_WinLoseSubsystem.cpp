@@ -60,6 +60,12 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 			CurrentBoardSpawner->ExitTile,
 			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
 
+		ClearWinPath(
+	CurrentBoardSpawner,
+	CurrentBoardSpawner->EntryTile,
+	CurrentBoardSpawner->ExitTile,
+	{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 	
