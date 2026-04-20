@@ -43,7 +43,7 @@ void UML_WavePropagationSubsystem::BeginTurnRecord_Internal(AML_Tile* OriginTile
 
 	bHasActiveTurnRecord = true;
 	CurrentTurnRecord = FML_TurnUndoRecord{};
-	CurrentTurnRecord.EnergyBefore = PlayerController->GetCurrentEnergy() + 1; // +1 to account for the energy already spent in ConfirmTurn before BeginTileResolved is called
+	CurrentTurnRecord.EnergyBefore = PlayerController->EnergyComponent->GetCurrentEnergy() + 1; // +1 to account for the energy already spent in ConfirmTurn before BeginTileResolved is called
 	CurrentTurnRecord.PlayerAxialBefore = PC->CurrentTileOn->GetAxialCoord();
 	CurrentTurnRecord.PlayerWorldBefore = PC->GetActorLocation();
 	CurrentTurnRecord.OriginTile = OriginTile;
@@ -98,7 +98,11 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	CommitTurnRecord_Internal();
 
 	if (PlayerController)
+	{
+		if (PlayerController->TransitionComponent)
+			PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
 		PlayerController->EnableInput(PlayerController);
+	}
 }
 
 void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
@@ -109,6 +113,8 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 
 	bIsResolvingTiles = true;
 	PlayerController->DisableInput(PlayerController);
+	if (PlayerController->TransitionComponent)
+		PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(true);
 
 	CurrentOriginTile = HitTile;
 	CurrentWaveIndex = 0;
@@ -554,7 +560,7 @@ bool UML_WavePropagationSubsystem::RestoreCollectibleDuringUndoMove(const FIntPo
 	Tile->SetHasCollectible(true);
 
 	// Give energy back to the world (player loses 1).
-	PlayerController->AddEnergy(-1);
+	PlayerController->EnergyComponent->AddEnergy(-1);
 
 	// Optional safety: avoid instant overlap in the same frame.
 	if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
@@ -866,7 +872,7 @@ bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 			OnUndoAnimating.Broadcast(bIsUndoAnimating);
 
 		ActiveUndoRecord = Action.Turn;
-		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
+		PlayerController->EnergyComponent->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
@@ -1009,7 +1015,7 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 	{
 		if ((*Stack)[i].Type == EML_UndoActionType::PlantWaves)
 		{
-			PlayerController->SetCurrentEnergy((*Stack)[i].Turn.EnergyBefore);
+			PlayerController->EnergyComponent->SetCurrentEnergy((*Stack)[i].Turn.EnergyBefore);
 			break;
 		}
 	}
