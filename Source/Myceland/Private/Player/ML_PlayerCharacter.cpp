@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Player/ML_PlayerController.h"
+#include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
@@ -114,9 +115,9 @@ void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const A
 				const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
 				if (IsValid(OldTile) && IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
 				{
-					if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
+					if (UML_RollBackSubsystem* RollBackSubsystem = World->GetSubsystem<UML_RollBackSubsystem>())
 					{
-						WaveSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
+						RollBackSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
 					}
 				}
 			}
@@ -136,9 +137,9 @@ void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const A
 			{
 				if (IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
 				{
-					if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
+					if (UML_RollBackSubsystem* RollBackSubsystem = World->GetSubsystem<UML_RollBackSubsystem>())
 					{
-						WaveSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
+						RollBackSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
 					}
 				}
 			}

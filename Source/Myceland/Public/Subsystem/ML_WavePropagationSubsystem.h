@@ -4,18 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "Core/ML_UndoTypes.h"
 #include "ML_WavePropagationSubsystem.generated.h"
 
 struct FML_WaveChange;
 
 class UML_MycelandDeveloperSettings;
 class UML_WinLoseSubsystem;
+class UML_RollBackSubsystem;
 class AML_PlayerController;
-class AML_PlayerCharacter;
-class AML_BoardSpawner;
 class AML_Tile;
-class AML_Collectible;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUndoAnimating, bool, IsUndoAnimating);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnResetAnimating, bool, IsResetAnimating);
@@ -28,28 +25,23 @@ class MYCELAND_API UML_WavePropagationSubsystem : public UWorldSubsystem
 public:
 	void EnsureInitialized();
 
-	// Called by collectible wave BEFORE flipping HasCollectible flag.
-	void RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin);
-
 	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
 	void BeginTileResolved(AML_Tile* HitTile);
+
+	void RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin);
 
 	UFUNCTION(BlueprintPure, Category="Undo")
 	bool CanUndo() const;
 
-	// UI button
 	UFUNCTION(BlueprintCallable, Category="Undo")
 	bool UndoLastAction_Animated();
 
-	// Called by PlayerController when an undo-move playback ends.
 	UFUNCTION()
 	void FinishUndoAnimation();
 
-	// Called during undo-move playback to restore a collectible on a tile the player just left.
 	UFUNCTION()
 	bool RestoreCollectibleDuringUndoMove(const FIntPoint& Axial);
 
-	// Called by PlayerController when a normal move ends successfully.
 	void NotifyMoveCompleted(
 		const FIntPoint& StartAxial,
 		const FIntPoint& EndAxial,
@@ -63,10 +55,12 @@ public:
 	bool ResetAllActions_Animated();
 
 	bool ResetAllActions_ExcludingMoves_Animated();
+	void ResetAllActions_ExcludingMoves_Instant(class AML_BoardSpawner* Board);
 
-	// Instantly reverts all PlantWaves for the given board, ignoring Move entries.
-	// Safe to call from outside the board (e.g. on board exit).
-	void ResetAllActions_ExcludingMoves_Instant(AML_BoardSpawner* Board);
+	void CancelAllWaveTimers();
+	bool IsResolvingTiles() const { return bIsResolvingTiles; }
+	int32 GetCurrentPriorityIndexForRecording() const { return CurrentPriorityIndexForRecording; }
+	void AbortPropagationRuntime();
 
 	UPROPERTY(BlueprintAssignable, Category="Undo")
 	FOnUndoAnimating OnUndoAnimating;
@@ -87,6 +81,9 @@ private:
 
 	UPROPERTY()
 	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
+
+	UPROPERTY()
+	UML_RollBackSubsystem* RollBackSubsystem = nullptr;
 
 	// =========================================================================
 	// Forward wave propagation runtime
@@ -112,79 +109,16 @@ private:
 	void ScheduleNextPriority();
 	void ProcessNextWave();
 	void EndTileResolved();
-	void CancelAllWaveTimers();
 
 	// =========================================================================
-	// Undo history — one stack per board
-	// =========================================================================
-
-	// Per-board undo stacks. Key is the BoardSpawner that owns the tiles.
-	TMap<TWeakObjectPtr<AML_BoardSpawner>, TArray<FML_ActionUndoRecord>> BoardUndoStacks;
-
-	// Returns the undo stack for the board the player is currently standing on.
-	// Returns nullptr if the player is not on any board.
-	TArray<FML_ActionUndoRecord>* GetCurrentBoardStack();
-
-	// Record currently being built while a turn/action is in progress.
-	UPROPERTY(Transient)
-	FML_TurnUndoRecord CurrentTurnRecord;
-
-	bool bHasActiveTurnRecord = false;
-
 	// Deterministic ordering for recorded deltas during forward gameplay.
 	int32 CurrentPriorityIndexForRecording = 0;
-	int32 UndoSequenceCounter = 0;
 
-	void BeginTurnRecord_Internal(AML_Tile* OriginTile);
-	void CommitTurnRecord_Internal();
-	void DiscardTurnRecord_Internal();
+	UFUNCTION()
+	void HandleRollbackUndoAnimating(bool bIsAnimating);
 
-	void RecordTileBeforeChange(AML_Tile* Tile, int32 DistanceFromOrigin);
-	void RecordSpawnedActor(AActor* Spawned, int32 DistanceFromOrigin);
+	UFUNCTION()
+	void HandleRollbackResetAnimating(bool bIsAnimating);
 
-	// =========================================================================
-	// Undo animation runtime
-	// =========================================================================
-
-	bool bUndoInProgress = false;
-	bool bIsUndoAnimating = false;
-
-	// Undo record currently being played back visually.
-	UPROPERTY(Transient)
-	FML_TurnUndoRecord ActiveUndoRecord;
-
-	// Remaining deltas to apply during animated undo.
-	UPROPERTY(Transient)
-	TArray<FML_TileUndoDelta> PendingUndoTileDeltas;
-
-	UPROPERTY(Transient)
-	TArray<FML_SpawnUndoDelta> PendingUndoSpawnDeltas;
-
-	void RunUndoWave();
-	void ScheduleNextUndoWave(float Delay);
-	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
-
-	// Removes the collectible actor currently associated with a tile (if any).
-	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
-
-	// =========================================================================
-	// Reset runtime
-	// =========================================================================
-
-	UPROPERTY(Transient)
-	bool bIsResetAllAnimating = false;
-
-	void StartNextResetUndoStep();
-	void ContinueResetAllIfNeeded();
-
-	// =========================================================================
-	// Time dilation helpers
-	// =========================================================================
-
-	UPROPERTY(Transient)
-	bool bUndoTimeDilationApplied = false;
-
-	void ApplyUndoTimeDilation();
-	void ApplyResetTimeDilation();
-	void ClearTimeDilation();
+	bool bRollbackDelegatesBound = false;
 };
