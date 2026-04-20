@@ -159,7 +159,8 @@ void AML_PlayerCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	
 	// Only check if the character has moved
-	const FVector CurrentLocation = GetActorLocation();
+	FVector CurrentLocation = GetActorLocation();
+	CurrentLocation.Z = 0.f;
 	if (!LastCheckedLocation.Equals(CurrentLocation, 10.f)) // Tolerance of 10 units
 	{
 		UpdateCurrentTile();
@@ -171,4 +172,3 @@ void AML_PlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
-
