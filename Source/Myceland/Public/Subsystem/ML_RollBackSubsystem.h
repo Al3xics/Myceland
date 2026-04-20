@@ -71,6 +71,9 @@ public:
 private:
 	UPROPERTY()
 	AML_PlayerController* PlayerController = nullptr;
+	
+	UPROPERTY()
+	AML_PlayerCharacter* PlayerCharacter = nullptr;
 
 	UPROPERTY()
 	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
@@ -84,7 +87,7 @@ private:
 
 	bool bHasActiveTurnRecord = false;
 	int32 UndoSequenceCounter = 0;
-
+	bool bBoardChangedDelegateBound = false;
 	bool bUndoInProgress = false;
 	bool bIsUndoAnimating = false;
 
@@ -104,7 +107,10 @@ private:
 
 	UPROPERTY(Transient)
 	bool bUndoTimeDilationApplied = false;
-
+	
+	UFUNCTION()
+	void OnBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
+	
 	void RunUndoWave();
 	void ScheduleNextUndoWave(float Delay);
 	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);

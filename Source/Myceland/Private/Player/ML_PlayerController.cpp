@@ -513,13 +513,13 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 
 // ==================== Delegates ====================
 
-void AML_PlayerController::HandleCurrentTileChanged(AML_Tile* OldTile, AML_Tile* NewTile)
+void AML_PlayerController::HandleCurrentTileChanged(const AML_Tile* OldTile, const AML_Tile* NewTile)
 {
 	if (HoverPreviewComponent)
 		HoverPreviewComponent->NotifyPlayerTileChanged();
 }
 
-void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
+void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, const AML_Tile* NewTile)
 {
 	// ---------- Energy ----------
 	if (NewTile)

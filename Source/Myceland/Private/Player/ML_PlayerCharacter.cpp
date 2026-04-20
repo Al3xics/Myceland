@@ -104,48 +104,8 @@ void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const A
 {
 	const bool bWasNull = (OldTile == nullptr);
 	const bool bIsNull  = (NewTile == nullptr);
-
-	if (bWasNull != bIsNull)
-	{
-		OnBoardChanged.Broadcast(CurrentTileOn);
-
-		if (bIsNull)
-		{
-			if (UWorld* World = GetWorld())
-			{
-				const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
-				if (IsValid(OldTile) && IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
-				{
-					if (UML_RollBackSubsystem* RollBackSubsystem = World->GetSubsystem<UML_RollBackSubsystem>())
-					{
-						RollBackSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
-					}
-				}
-			}
-		}
-	}
-	// Transition board A → board B
-	else if (!bWasNull && !bIsNull)
-	{
-		const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
-		const AML_BoardSpawner* NewBoard = NewTile->GetBoardSpawnerFromTile();
-
-		if (OldBoard != NewBoard)
-		{
-			OnBoardChanged.Broadcast(CurrentTileOn);
-
-			if (UWorld* World = GetWorld())
-			{
-				if (IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
-				{
-					if (UML_RollBackSubsystem* RollBackSubsystem = World->GetSubsystem<UML_RollBackSubsystem>())
-					{
-						RollBackSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
-					}
-				}
-			}
-		}
-	}
+	
+	OnBoardChanged.Broadcast(OldTile, CurrentTileOn);
 }
 
 void AML_PlayerCharacter::BeginPlay()
