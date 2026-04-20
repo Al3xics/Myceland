@@ -85,6 +85,7 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	}
 
 	CurrentTileOn = NewTile;
+	OnCurrentTileChanged.Broadcast(OldTile, NewTile);
 	HandleTileStateChange(OldTile, NewTile);
 
 	if (CurrentTileOn)
@@ -156,7 +157,14 @@ void AML_PlayerCharacter::BeginPlay()
 void AML_PlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	UpdateCurrentTile();
+	
+	// Only check if the character has moved
+	const FVector CurrentLocation = GetActorLocation();
+	if (!LastCheckedLocation.Equals(CurrentLocation, 10.f)) // Tolerance of 10 units
+	{
+		UpdateCurrentTile();
+		LastCheckedLocation = CurrentLocation;
+	}
 }
 
 void AML_PlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

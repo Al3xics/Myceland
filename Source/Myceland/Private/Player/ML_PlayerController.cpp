@@ -7,8 +7,6 @@
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
-#include "AIController.h"
-#include "NavigationSystem.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -35,6 +33,9 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 {
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+		return nullptr;
+	
+	if (!IsClickableGround(Hit))
 		return nullptr;
 
 	if (AML_Tile* Tile = Cast<AML_Tile>(Hit.GetActor()))
@@ -83,7 +84,14 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 		StopNavMeshMovement();
 }
 
-
+bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
+{
+	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
+		return false;
+    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
+	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
+	return ObjectType == ECC_GameTraceChannel1;
+}
 
 
 // ==================== Movement ====================
@@ -333,8 +341,6 @@ void AML_PlayerController::OnPathFinished()
 }
 
 
-// Board exit/entry and turn-toward-tile logic — moved to UML_BoardTransitionComponent
-
 bool AML_PlayerController::StartRecordedBoardMove(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 	EML_PlayerBoardActionState ActionState, AML_Tile* PlantTarget)
 {
@@ -507,13 +513,19 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 
 // ==================== Delegates ====================
 
+void AML_PlayerController::HandleCurrentTileChanged(AML_Tile* OldTile, AML_Tile* NewTile)
+{
+	if (HoverPreviewComponent)
+		HoverPreviewComponent->NotifyPlayerTileChanged();
+}
+
 void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* NewTile)
 {
 	// ---------- Energy ----------
 	if (NewTile)
-		InitNumberOfEnergyForLevel(NewTile->GetBoardSpawnerFromTile()->GetEnergyForPuzzle());
+		EnergyComponent->InitNumberOfEnergyForLevel(NewTile->GetBoardSpawnerFromTile()->GetEnergyForPuzzle());
 	else
-		InitNumberOfEnergyForLevel(0);
+		EnergyComponent->InitNumberOfEnergyForLevel(0);
 
 	// ---------- Automatic transition: Free ↔ InsideBoard ----------
 	const bool bShouldBeInBoard = IsValid(NewTile);
@@ -581,11 +593,10 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 	MycelandCharacter = Cast<AML_PlayerCharacter>(aPawn);
 	if (MycelandCharacter)
 	{
+		MycelandCharacter->OnCurrentTileChanged.AddDynamic(this, &AML_PlayerController::HandleCurrentTileChanged);
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
-		EnergyComponent->OnEnergyChanged.AddDynamic(this, &AML_PlayerController::ForwardEnergyChanged);
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
-		HoverPreviewComponent->OnHoveredTileChanged.AddDynamic(this, &AML_PlayerController::ForwardHoveredTileChanged);
-		TransitionComponent->Initialize(this, MycelandCharacter, DevSettings, RotateSpeed);
+		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);
 
 		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
 			? EML_PlayerMovementMode::InsideBoard
@@ -670,8 +681,9 @@ void AML_PlayerController::HandleFreeMovementClick()
 
 	// Click on open ground → cache destination; continuous movement is driven by OnSetDestinationTriggered.
 	FHitResult Hit;
-	if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
-		HoldMoveCachedDestination = Hit.Location;
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!IsClickableGround(Hit)) return;
+	HoldMoveCachedDestination = Hit.Location;
 }
 
 // Bound to OnTriggered — fires every frame while the button is held.
@@ -691,13 +703,13 @@ void AML_PlayerController::OnSetDestinationTriggered()
 
 	// Update the cached destination to the current cursor position every frame
 	FHitResult Hit;
-	if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
-	{
-		// Only follow the cursor on open ground — ignore board tiles so that
-		// clicking on a board still triggers the re-entry logic on release.
-		if (!Cast<AML_Tile>(Hit.GetActor()))
-			HoldMoveCachedDestination = Hit.Location;
-	}
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!IsClickableGround(Hit)) return;
+	
+	// Only follow the cursor on open ground — ignore board tiles so that
+	// clicking on a board still triggers the re-entry logic on release.
+	if (!Cast<AML_Tile>(Hit.GetActor()))
+		HoldMoveCachedDestination = Hit.Location;
 
 	// Push the character toward the cached destination every frame
 	const FVector WorldDirection = (HoldMoveCachedDestination - MycelandCharacter->GetActorLocation()).GetSafeNormal();
@@ -727,37 +739,6 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 {
 	AML_Tile* TargetTile = GetTileUnderCursor();
 	Plant(TargetTile);
-}
-
-
-// Hover preview is managed by HoverPreviewComponent
-
-
-// ==================== Energy ====================
-
-void AML_PlayerController::ForwardEnergyChanged(int32 NewEnergy)
-{
-	OnEnergyChanged.Broadcast(NewEnergy);
-}
-
-void AML_PlayerController::ForwardHoveredTileChanged(AML_Tile* HoveredTile, bool bIsReachable)
-{
-	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
-}
-
-void AML_PlayerController::SetCurrentEnergy(int32 NewEnergy)
-{
-	EnergyComponent->SetCurrentEnergy(NewEnergy);
-}
-
-void AML_PlayerController::AddEnergy(int32 Delta)
-{
-	EnergyComponent->AddEnergy(Delta);
-}
-
-void AML_PlayerController::InitNumberOfEnergyForLevel(const int32 Energy)
-{
-	EnergyComponent->InitNumberOfEnergyForLevel(Energy);
 }
 
 
@@ -823,5 +804,3 @@ void AML_PlayerController::NotifyCollectiblePickedOnAxial(const FIntPoint& Axial
 {
 	MoveRecordingComponent->NotifyCollectiblePicked(Axial);
 }
-
-// Rotation and turn-toward-tile — moved to UML_BoardTransitionComponent

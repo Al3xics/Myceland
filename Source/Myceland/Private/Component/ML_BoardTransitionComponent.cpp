@@ -11,11 +11,12 @@
 
 // ==================== Lifecycle ====================
 
-void UML_BoardTransitionComponent::Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character,
+void UML_BoardTransitionComponent::Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, UML_EnergyComponent* Energy,
                                                const UML_MycelandDeveloperSettings* Settings, float InRotateSpeed)
 {
 	OwningController = Controller;
 	PlayerCharacter  = Character;
+	EnergyComponent  = Energy;
 	DevSettings      = Settings;
 	RotateSpeed      = InRotateSpeed;
 }
@@ -48,7 +49,7 @@ void UML_BoardTransitionComponent::NotifyIsMoving(bool bIsMoving)
 
 	if (bIsMoving != bWasMovingInBoard)
 	{
-		OwningController->OnBoardMovementStateChanged.Broadcast(bIsMoving);
+		OnBoardActivityStateChanged.Broadcast(bIsMoving);
 		bWasMovingInBoard = bIsMoving;
 	}
 }
@@ -103,7 +104,7 @@ void UML_BoardTransitionComponent::TickExitHold()
 			GetWorld()->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
 			ExitHoldTimer = 0.f;
 
-			OwningController->OnExitCursorHold.Broadcast(false, 0.0f);
+			OnExitCursorHold.Broadcast(false, 0.0f);
 			bWasExitingLastFrame  = false;
 			LastBroadcastProgress = -1.f;
 
@@ -121,7 +122,7 @@ void UML_BoardTransitionComponent::TickExitHold()
 
 	if (bJustStartedExiting || bProgressChanged)
 	{
-		OwningController->OnExitCursorHold.Broadcast(true, Progress);
+		OnExitCursorHold.Broadcast(true, Progress);
 		LastBroadcastProgress = Progress;
 	}
 
@@ -135,7 +136,7 @@ void UML_BoardTransitionComponent::TickExitHold()
 		bWasExitingLastFrame  = false;
 		LastBroadcastProgress = -1.f;
 
-		OwningController->OnExitCursorHold.Broadcast(false, 1.0f);
+		OnExitCursorHold.Broadcast(false, 1.0f);
 		ConfirmExitBoard();
 	}
 }
@@ -208,6 +209,7 @@ void UML_BoardTransitionComponent::StartTurnTowardTile(AML_Tile* Target)
 {
 	PendingPlantTargetTile = Target;
 	BoardActionState       = EML_PlayerBoardActionState::TurningToPlant;
+	OnBoardActivityStateChanged.Broadcast(true);
 
 	if (!TurnTowardTileTimerHandle.IsValid())
 	{
@@ -258,11 +260,12 @@ void UML_BoardTransitionComponent::UpdateTurnTowardPendingTile()
 	{
 		GetWorld()->GetTimerManager().ClearTimer(TurnTowardTileTimerHandle);
 		BoardActionState = EML_PlayerBoardActionState::Idle;
+		OnBoardActivityStateChanged.Broadcast(false);
 
 		AML_Tile* Target = PendingPlantTargetTile;
 		PendingPlantTargetTile = nullptr;
 
-		if (OwningController->GetCurrentEnergy() > 0)
+		if (EnergyComponent && EnergyComponent->GetCurrentEnergy() > 0)
 			OwningController->ConfirmTurn(Target);
 	}
 }
@@ -354,7 +357,7 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Character->CurrentTileOn);
 		if (Neighbors.Contains(PendingPlantTargetTile) &&
 			PendingPlantTargetTile->GetCurrentType() == EML_TileType::Dirt &&
-			OwningController->GetCurrentEnergy() > 0)
+			EnergyComponent && EnergyComponent->GetCurrentEnergy() > 0)
 		{
 			StartTurnTowardTile(PendingPlantTargetTile);
 			return Cmd;

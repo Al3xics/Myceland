@@ -14,9 +14,8 @@ AML_TileBase::AML_TileBase()
 	GroundBase = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundBase"));
 	GroundBase->SetupAttachment(SceneRoot);
 	GroundBase->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	GroundBase->SetCollisionObjectType(ECC_WorldStatic);
+	GroundBase->SetCollisionObjectType(ECC_GameTraceChannel1);
 	GroundBase->SetCollisionResponseToAllChannels(ECR_Block);
-	GroundBase->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 	GroundBase->SetGenerateOverlapEvents(false);
 }
 	

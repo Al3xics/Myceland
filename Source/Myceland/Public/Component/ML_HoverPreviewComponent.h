@@ -7,6 +7,7 @@
 #include "Core/ML_CoreData.h"
 #include "ML_HoverPreviewComponent.generated.h"
 
+class AML_BoardSpawner;
 class AML_PlayerController;
 class AML_PlayerCharacter;
 class AML_Tile;
@@ -37,7 +38,7 @@ private:
 
 	bool bCurrentHoveredTileReachable = false;
 
-	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::InsideBoard;
+	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
 
 	FTimerHandle HoverPreviewTimerHandle;
 
@@ -45,15 +46,18 @@ private:
 	void TickHoverPreview();
 	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();
-	TArray<AML_Tile*> BuildPreviewPath(const AML_Tile* TargetTile) const;
+	void SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable);
+	AML_Tile* FindClosestEntryExitTile(const AML_BoardSpawner* Board, const FVector& PlayerLocation) const;
+	TArray<AML_Tile*> BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const;
 
 public:
 
-	UPROPERTY(BlueprintAssignable, Category = "Myceland|Hover")
+	UPROPERTY(BlueprintAssignable, Category = "Hover Preview Component|Hover")
 	FOnHoveredTileChanged OnHoveredTileChanged;
 
 	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character);
 	void NotifyMovementModeChanged(EML_PlayerMovementMode NewMode);
+	void NotifyPlayerTileChanged();
 
 	void ClearHoverPreview();
 	void StartHoverPreviewTimer();

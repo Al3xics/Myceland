@@ -53,7 +53,11 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 		RollBackSubsystem->CommitTurnRecord();
 
 	if (PlayerController)
+	{
+		if (PlayerController->TransitionComponent)
+			PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
 		PlayerController->EnableInput(PlayerController);
+	}
 }
 
 void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
@@ -64,6 +68,8 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 
 	bIsResolvingTiles = true;
 	PlayerController->DisableInput(PlayerController);
+	if (PlayerController->TransitionComponent)
+		PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(true);
 
 	CurrentOriginTile = HitTile;
 	CurrentWaveIndex = 0;

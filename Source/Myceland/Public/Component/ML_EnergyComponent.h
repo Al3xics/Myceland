@@ -20,18 +20,18 @@ private:
 
 public:
 
-	UPROPERTY(BlueprintAssignable, Category = "Myceland|Energy")
+	UPROPERTY(BlueprintAssignable, Category = "Energy Component|Delegates")
 	FOnEnergyChanged OnEnergyChanged;
 
-	UFUNCTION(BlueprintCallable, Category = "Myceland|Energy")
+	UFUNCTION(BlueprintCallable, Category = "Energy Component|Energy")
 	int32 GetCurrentEnergy() const { return CurrentEnergy; }
 
-	UFUNCTION(BlueprintCallable, Category = "Myceland|Energy")
+	UFUNCTION(BlueprintCallable, Category = "Energy Component|Energy")
 	void SetCurrentEnergy(int32 NewEnergy);
 
-	UFUNCTION(BlueprintCallable, Category = "Myceland|Energy")
+	UFUNCTION(BlueprintCallable, Category = "Energy Component|Energy")
 	void AddEnergy(int32 Delta);
 
-	UFUNCTION(BlueprintCallable, Category = "Myceland|Energy")
+	UFUNCTION(BlueprintCallable, Category = "Energy Component|Energy")
 	void InitNumberOfEnergyForLevel(int32 Energy);
 };
