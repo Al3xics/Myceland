@@ -62,6 +62,12 @@ public:
 	void TriggerFindConnectedGoalCheck();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void ResetConnectedGoalPathState();
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void RemoveTileFromConnectedGoalPath(AML_Tile* Tile);
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_Tile* GetPlayerCurrentTile() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
@@ -92,11 +98,11 @@ private:
 	UFUNCTION()
 	void HandleBoardChanged(const AML_Tile* NewTile);
 
-	UFUNCTION()
+UFUNCTION()
 	void BroadcastNextConnectedGoalPathTile();
 
 	UPROPERTY()
-	TSet<AML_Tile*> PreviouslyGlowedPathTiles;
+	TSet<AML_Tile*> PreviousConnectedPathTiles;
 
 	UPROPERTY()
 	TArray<AML_Tile*> PendingConnectedGoalPathQueue;

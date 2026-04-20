@@ -276,17 +276,23 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 		false,
 		2);
 
+	TSet<AML_Tile*> CurrentConnectedPathTiles;
 	for (const FML_TileGroup& Group : ConnectedGoalGroups)
 	{
 		for (AML_Tile* Tile : Group.Tiles)
 		{
-			if (IsValid(Tile) && !PreviouslyGlowedPathTiles.Contains(Tile))
+			if (IsValid(Tile))
 			{
-				PreviouslyGlowedPathTiles.Add(Tile);
-				PendingConnectedGoalPathQueue.Add(Tile);
+				CurrentConnectedPathTiles.Add(Tile);
+				if (!PreviousConnectedPathTiles.Contains(Tile))
+				{
+					PendingConnectedGoalPathQueue.Add(Tile);
+				}
 			}
 		}
 	}
+
+	PreviousConnectedPathTiles = MoveTemp(CurrentConnectedPathTiles);
 
 	if (PendingConnectedGoalPathQueue.Num() > 0
 		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
@@ -345,13 +351,30 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		BoundPlayer = Player;
 		Player->OnBoardChanged.AddDynamic(this, &UML_WinLoseSubsystem::HandleBoardChanged);
 	}
+
+}
+
+void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
+{
+	PreviousConnectedPathTiles.Reset();
+	PendingConnectedGoalPathQueue.Reset();
+	GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
+}
+
+void UML_WinLoseSubsystem::RemoveTileFromConnectedGoalPath(AML_Tile* Tile)
+{
+	if (!IsValid(Tile))
+	{
+		return;
+	}
+
+	PreviousConnectedPathTiles.Remove(Tile);
+	PendingConnectedGoalPathQueue.Remove(Tile);
 }
 
 void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)
 {
-	PreviouslyGlowedPathTiles.Reset();
-	PendingConnectedGoalPathQueue.Reset();
-	GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
+	ResetConnectedGoalPathState();
 
 	if (!IsValid(NewTile))
 	{

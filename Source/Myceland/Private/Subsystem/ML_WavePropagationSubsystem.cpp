@@ -367,9 +367,17 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 void UML_WavePropagationSubsystem::HandleRollbackUndoAnimating(bool bIsAnimating)
 {
 	OnUndoAnimating.Broadcast(bIsAnimating);
+	if (!bIsAnimating && WinLoseSubsystem)
+	{
+		WinLoseSubsystem->TriggerFindConnectedGoalCheck();
+	}
 }
 
 void UML_WavePropagationSubsystem::HandleRollbackResetAnimating(bool bIsAnimating)
 {
 	OnResetAnimating.Broadcast(bIsAnimating);
+	if (!bIsAnimating && WinLoseSubsystem)
+	{
+		WinLoseSubsystem->TriggerFindConnectedGoalCheck();
+	}
 }
