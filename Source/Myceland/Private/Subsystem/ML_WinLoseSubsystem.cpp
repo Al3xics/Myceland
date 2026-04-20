@@ -267,7 +267,7 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 	return ConnectedGoalGroups.Num() > 0;
 }
 
-TArray<FML_TileGroup> UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
+void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 {
 	FindConnectedGoalGroups(
 		CurrentBoardSpawner,
@@ -276,7 +276,41 @@ TArray<FML_TileGroup> UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 		false,
 		2);
 
-	return ConnectedGoalGroups;
+	for (const FML_TileGroup& Group : ConnectedGoalGroups)
+	{
+		for (AML_Tile* Tile : Group.Tiles)
+		{
+			if (IsValid(Tile) && !PreviouslyGlowedPathTiles.Contains(Tile))
+			{
+				PreviouslyGlowedPathTiles.Add(Tile);
+				PendingConnectedGoalPathQueue.Add(Tile);
+			}
+		}
+	}
+
+	if (PendingConnectedGoalPathQueue.Num() > 0
+		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
+			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, 0.1f, true);
+	}
+}
+
+void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
+{
+	if (PendingConnectedGoalPathQueue.Num() == 0)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
+		return;
+	}
+
+	AML_Tile* Next = PendingConnectedGoalPathQueue[0];
+	PendingConnectedGoalPathQueue.RemoveAt(0, 1, EAllowShrinking::No);
+
+	if (IsValid(Next))
+	{
+		OnConnectedGoalPathTile.Broadcast(Next);
+	}
 }
 
 AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
@@ -315,6 +349,10 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)
 {
+	PreviouslyGlowedPathTiles.Reset();
+	PendingConnectedGoalPathQueue.Reset();
+	GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
+
 	if (!IsValid(NewTile))
 	{
 		CurrentBoardSpawner = nullptr;

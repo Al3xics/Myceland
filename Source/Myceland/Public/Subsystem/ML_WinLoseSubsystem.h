@@ -15,6 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCheckPaths);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnConnectedGoalPathTile, AML_Tile*, Tile);
 
 UCLASS()
 class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
@@ -33,6 +34,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnCheckPaths OnCheckPaths;
+
+	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
+	FOnConnectedGoalPathTile OnConnectedGoalPathTile;
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
@@ -55,7 +59,7 @@ public:
 		int32 MinGoalsInGroup);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	TArray<FML_TileGroup> TriggerFindConnectedGoalCheck();
+	void TriggerFindConnectedGoalCheck();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_Tile* GetPlayerCurrentTile() const;
@@ -87,6 +91,17 @@ public:
 private:
 	UFUNCTION()
 	void HandleBoardChanged(const AML_Tile* NewTile);
+
+	UFUNCTION()
+	void BroadcastNextConnectedGoalPathTile();
+
+	UPROPERTY()
+	TSet<AML_Tile*> PreviouslyGlowedPathTiles;
+
+	UPROPERTY()
+	TArray<AML_Tile*> PendingConnectedGoalPathQueue;
+
+	FTimerHandle ConnectedGoalPathTimerHandle;
 
 	static const FIntPoint HexDirs[6];
 
