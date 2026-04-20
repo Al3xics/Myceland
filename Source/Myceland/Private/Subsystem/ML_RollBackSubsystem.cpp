@@ -46,7 +46,7 @@ void UML_RollBackSubsystem::BeginTurnRecord(AML_Tile* OriginTile)
 
 	bHasActiveTurnRecord = true;
 	CurrentTurnRecord = FML_TurnUndoRecord{};
-	CurrentTurnRecord.EnergyBefore = PlayerController->GetCurrentEnergy() + 1;
+	CurrentTurnRecord.EnergyBefore = PlayerController->EnergyComponent->GetCurrentEnergy() + 1;
 	CurrentTurnRecord.PlayerAxialBefore = PC->CurrentTileOn->GetAxialCoord();
 	CurrentTurnRecord.PlayerWorldBefore = PC->GetActorLocation();
 	CurrentTurnRecord.OriginTile = OriginTile;
@@ -335,7 +335,7 @@ bool UML_RollBackSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Ax
 	Tile->CollectibleActor = SpawnedCollectible;
 	Tile->SetHasCollectible(true);
 
-	PlayerController->AddEnergy(-1);
+	PlayerController->EnergyComponent->AddEnergy(-1);
 
 	if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
 	{
@@ -568,7 +568,7 @@ bool UML_RollBackSubsystem::UndoLastAction_Animated()
 		}
 
 		ActiveUndoRecord = Action.Turn;
-		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
+		PlayerController->EnergyComponent->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
@@ -701,7 +701,7 @@ void UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_BoardSpaw
 	{
 		if ((*Stack)[i].Type == EML_UndoActionType::PlantWaves)
 		{
-			PlayerController->SetCurrentEnergy((*Stack)[i].Turn.EnergyBefore);
+			PlayerController->EnergyComponent->SetCurrentEnergy((*Stack)[i].Turn.EnergyBefore);
 			break;
 		}
 	}

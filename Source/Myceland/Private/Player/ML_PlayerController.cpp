@@ -501,7 +501,7 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 
 void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 {
-	AddEnergy(-1);
+	EnergyComponent->AddEnergy(-1);
 
 	if (UML_WavePropagationSubsystem* WavePropagationSubsystem = GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>())
 	{
