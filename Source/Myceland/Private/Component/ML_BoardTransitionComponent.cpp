@@ -64,6 +64,9 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitTile, const FVe
 
 	OwningController->SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
 	bIsHoldingExitInput = true;
+	
+	if (OwningController->HoverPreviewComponent)
+		OwningController->HoverPreviewComponent->SetForcedHoverTile(ExitTile);
 
 	// Start exit hold timer
 	ExitHoldTimer        = 0.f;
@@ -107,6 +110,12 @@ void UML_BoardTransitionComponent::TickExitHold()
 			OnExitCursorHold.Broadcast(false, 0.0f);
 			bWasExitingLastFrame  = false;
 			LastBroadcastProgress = -1.f;
+			
+			if (OwningController->HoverPreviewComponent)
+			{
+				OwningController->HoverPreviewComponent->ClearForcedHoverTile();
+				OwningController->HoverPreviewComponent->ClearHoverPreview();
+			}
 
 			// Return to board — SwitchToMode handles clearing exit state
 			OwningController->SetMovementMode(EML_PlayerMovementMode::InsideBoard);
@@ -137,6 +146,10 @@ void UML_BoardTransitionComponent::TickExitHold()
 		LastBroadcastProgress = -1.f;
 
 		OnExitCursorHold.Broadcast(false, 1.0f);
+		
+		if (OwningController->HoverPreviewComponent)
+			OwningController->HoverPreviewComponent->ClearForcedHoverTile();
+		
 		ConfirmExitBoard();
 	}
 }
