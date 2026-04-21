@@ -6,6 +6,7 @@
 #include "Core/ML_CoreData.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
+#include "Subsystem/ML_RollBackSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
@@ -52,14 +53,8 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		GameResult.bIsGameOver = false;
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
+		bPendingClearWinPath = true;
 		OnWin.Broadcast();
-
-		ClearWinPath(
-			CurrentBoardSpawner,
-			GetPlayerCurrentTile(),
-			CurrentBoardSpawner->ExitTile,
-			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
-
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 	
@@ -285,14 +280,25 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 			{
 				CurrentConnectedPathTiles.Add(Tile);
 				if (!PreviousConnectedPathTiles.Contains(Tile))
-				{
 					PendingConnectedGoalPathQueue.Add(Tile);
-				}
 			}
 		}
 	}
 
+	TArray<AML_Tile*> DisconnectedTiles;
+	for (AML_Tile* Tile : PreviousConnectedPathTiles)
+	{
+		if (!CurrentConnectedPathTiles.Contains(Tile))
+		{
+			DisconnectedTiles.Add(Tile);
+			PendingConnectedGoalPathQueue.Remove(Tile);
+		}
+	}
+
 	PreviousConnectedPathTiles = MoveTemp(CurrentConnectedPathTiles);
+
+	if (DisconnectedTiles.Num() > 0)
+		OnDisconnectedGoalPathTile.Broadcast(DisconnectedTiles);
 
 	if (PendingConnectedGoalPathQueue.Num() > 0
 		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
@@ -307,6 +313,18 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 	if (PendingConnectedGoalPathQueue.Num() == 0)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
+		OnConnectedGoalPathComplete.Broadcast();
+
+		if (bPendingClearWinPath)
+		{
+			bPendingClearWinPath = false;
+			ClearWinPath(
+				CurrentBoardSpawner,
+				GetPlayerCurrentTile(),
+				CurrentBoardSpawner->ExitTile,
+				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+		}
+
 		return;
 	}
 
@@ -352,6 +370,11 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		Player->OnBoardChanged.AddDynamic(this, &UML_WinLoseSubsystem::HandleBoardChanged);
 	}
 
+	if (UML_RollBackSubsystem* RollBack = InWorld.GetSubsystem<UML_RollBackSubsystem>())
+	{
+		RollBack->OnUndoAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleRollback);
+		RollBack->OnResetAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleRollback);
+	}
 }
 
 void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
@@ -619,4 +642,12 @@ bool UML_WinLoseSubsystem::ConvertAxialsToTiles(
 	}
 
 	return OutTiles.Num() > 0;
+}
+
+void UML_WinLoseSubsystem::HandleRollback(bool bIsAnimating)
+{
+	if (!bIsAnimating)
+	{
+		TriggerFindConnectedGoalCheck();
+	}
 }
