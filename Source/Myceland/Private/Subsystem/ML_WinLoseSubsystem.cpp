@@ -31,10 +31,10 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
     if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
 
 	
-	const bool bWin = AreAllGoalsConnectedByAllowedPaths(
+	const bool bWin = AreAllGoalsConnected(
 		CurrentBoardSpawner,
 		EML_TileType::Tree,
-		{EML_TileType::Grass, EML_TileType::Water});
+		CachedGoalPathAllowedSet);
 
 	FML_GameResult GameResult;
 
@@ -43,7 +43,6 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Lose;
 		GameResult.bIsGameOver = true;
 		OnLose.Broadcast();
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Lost!"));
 		bIsPlayerDead = false;
 		return GameResult;
 	}
@@ -55,7 +54,6 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		bPendingClearWinPath = true;
 		OnWin.Broadcast();
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 	
 	return GameResult;
@@ -85,6 +83,14 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(
 	EML_TileType GoalType,
 	const TArray<EML_TileType>& AllowedPathTypes)
 {
+	return AreAllGoalsConnected(Board, GoalType, BuildAllowedSet(AllowedPathTypes));
+}
+
+bool UML_WinLoseSubsystem::AreAllGoalsConnected(
+	AML_BoardSpawner* Board,
+	EML_TileType GoalType,
+	const TSet<EML_TileType>& AllowedSet)
+{
 	PathTiles.Reset();
 
 	if (!IsValid(Board))
@@ -92,13 +98,12 @@ bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(
 		return false;
 	}
 
-	const TMap<FIntPoint, AML_Tile*> Grid = Board->GetGridMap();
+	const TMap<FIntPoint, AML_Tile*>& Grid = Board->GetGridMapRef();
 	if (Grid.Num() == 0)
 	{
 		return false;
 	}
 
-	const TSet<EML_TileType> AllowedSet = BuildAllowedSet(AllowedPathTypes);
 	const TArray<FIntPoint> GoalAxials = CollectGoalAxials(Grid, GoalType);
 
 	if (GoalAxials.Num() <= 1)
@@ -173,6 +178,16 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 	bool bDisallowBlocked,
 	int32 MinGoalsInGroup)
 {
+	return FindConnectedGoalGroups(Board, GoalType, BuildAllowedSet(AllowedPathTypes), bDisallowBlocked, MinGoalsInGroup);
+}
+
+bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
+	AML_BoardSpawner* Board,
+	EML_TileType GoalType,
+	const TSet<EML_TileType>& AllowedSet,
+	bool bDisallowBlocked,
+	int32 MinGoalsInGroup)
+{
 	ConnectedGoalGroups.Reset();
 
 	if (!IsValid(Board))
@@ -180,13 +195,12 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 		return false;
 	}
 
-	const TMap<FIntPoint, AML_Tile*> Grid = Board->GetGridMap();
+	const TMap<FIntPoint, AML_Tile*>& Grid = Board->GetGridMapRef();
 	if (Grid.Num() == 0)
 	{
 		return false;
 	}
 
-	const TSet<EML_TileType> AllowedSet = BuildAllowedSet(AllowedPathTypes);
 	const TArray<FIntPoint> GoalAxials = CollectGoalAxials(Grid, GoalType, bDisallowBlocked);
 
 	const int32 RequiredGoalsPerPath = FMath::Max(2, MinGoalsInGroup);
@@ -283,7 +297,7 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 	FindConnectedGoalGroups(
 		CurrentBoardSpawner,
 		EML_TileType::Tree,
-		{EML_TileType::Grass, EML_TileType::Water},
+		CachedGoalPathAllowedSet,
 		false,
 		2);
 
@@ -307,7 +321,15 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 		if (!CurrentConnectedPathTiles.Contains(Tile))
 		{
 			DisconnectedTiles.Add(Tile);
-			PendingConnectedGoalPathQueue.Remove(Tile);
+
+			for (int32 i = QueueReadIndex; i < PendingConnectedGoalPathQueue.Num(); ++i)
+			{
+				if (PendingConnectedGoalPathQueue[i] == Tile)
+				{
+					PendingConnectedGoalPathQueue[i] = nullptr;
+					break;
+				}
+			}
 		}
 	}
 
@@ -316,7 +338,7 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 	if (DisconnectedTiles.Num() > 0)
 		OnDisconnectedGoalPathTile.Broadcast(DisconnectedTiles);
 
-	if (PendingConnectedGoalPathQueue.Num() > 0
+	if (QueueReadIndex < PendingConnectedGoalPathQueue.Num()
 		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
 	{
 		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
@@ -326,8 +348,16 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 
 void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 {
-	if (PendingConnectedGoalPathQueue.Num() == 0)
+	while (QueueReadIndex < PendingConnectedGoalPathQueue.Num()
+		&& PendingConnectedGoalPathQueue[QueueReadIndex] == nullptr)
 	{
+		++QueueReadIndex;
+	}
+
+	if (QueueReadIndex >= PendingConnectedGoalPathQueue.Num())
+	{
+		PendingConnectedGoalPathQueue.Reset();
+		QueueReadIndex = 0;
 		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
 		OnConnectedGoalPathComplete.Broadcast();
 
@@ -339,18 +369,19 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 				GetPlayerCurrentTile(),
 				CurrentBoardSpawner->ExitTile,
 				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+
+			ClearWinPath(CurrentBoardSpawner,
+				CurrentBoardSpawner->EntryTile,
+				CurrentBoardSpawner->ExitTile,
+				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
 		}
 
 		return;
 	}
 
-	AML_Tile* Next = PendingConnectedGoalPathQueue[0];
-	PendingConnectedGoalPathQueue.RemoveAt(0, 1, EAllowShrinking::No);
-
+	AML_Tile* Next = PendingConnectedGoalPathQueue[QueueReadIndex++];
 	if (IsValid(Next))
-	{
 		OnConnectedGoalPathTile.Broadcast(Next);
-	}
 }
 
 AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
@@ -391,12 +422,16 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		RollBack->OnUndoAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleUndoAnimating);
 		RollBack->OnResetAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleResetAnimating);
 	}
+
+	CachedGoalPathAllowedSet.Add(EML_TileType::Grass);
+	CachedGoalPathAllowedSet.Add(EML_TileType::Water);
 }
 
 void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
 {
 	PreviousConnectedPathTiles.Reset();
 	PendingConnectedGoalPathQueue.Reset();
+	QueueReadIndex = 0;
 	GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
 }
 
@@ -413,7 +448,17 @@ void UML_WinLoseSubsystem::RemoveTileFromConnectedGoalPath(AML_Tile* Tile)
 
 void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)
 {
-	ResetConnectedGoalPathState();
+	if (PreviousConnectedPathTiles.Num() > 0
+		&& IsValid(CurrentBoardSpawner) && !CurrentBoardSpawner->bIsPuzzleSolved)
+	{
+		TArray<AML_Tile*> AllConnected = PreviousConnectedPathTiles.Array();
+		ResetConnectedGoalPathState();
+		OnDisconnectedGoalPathTile.Broadcast(AllConnected);
+	}
+	else
+	{
+		ResetConnectedGoalPathState();
+	}
 
 	if (!IsValid(NewTile))
 	{
@@ -462,7 +507,7 @@ void UML_WinLoseSubsystem::ClearWinPath(
 		return;
 	}
 
-	const TMap<FIntPoint, AML_Tile*> Grid = Board->GetGridMap();
+	const TMap<FIntPoint, AML_Tile*>& Grid = Board->GetGridMapRef();
 	if (Grid.Num() == 0)
 	{
 		return;
@@ -673,6 +718,7 @@ void UML_WinLoseSubsystem::HandleResetAnimating(bool bIsAnimating)
 		TArray<AML_Tile*> AllConnected = PreviousConnectedPathTiles.Array();
 		PreviousConnectedPathTiles.Reset();
 		PendingConnectedGoalPathQueue.Reset();
+		QueueReadIndex = 0;
 		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
 
 		if (AllConnected.Num() > 0)

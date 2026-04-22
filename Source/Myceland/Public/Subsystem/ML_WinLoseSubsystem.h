@@ -123,11 +123,26 @@ UFUNCTION()
 
 	FTimerHandle ConnectedGoalPathTimerHandle;
 
+	int32 QueueReadIndex = 0;
 	bool bPendingClearWinPath = false;
 
 	static const FIntPoint HexDirs[6];
 
+	TSet<EML_TileType> CachedGoalPathAllowedSet;
+
 	TSet<EML_TileType> BuildAllowedSet(const TArray<EML_TileType>& AllowedPathTypes) const;
+
+	bool AreAllGoalsConnected(
+		AML_BoardSpawner* Board,
+		EML_TileType GoalType,
+		const TSet<EML_TileType>& AllowedSet);
+
+	bool FindConnectedGoalGroups(
+		AML_BoardSpawner* Board,
+		EML_TileType GoalType,
+		const TSet<EML_TileType>& AllowedSet,
+		bool bDisallowBlocked,
+		int32 MinGoalsInGroup);
 
 	TArray<FIntPoint> CollectGoalAxials(
 		const TMap<FIntPoint, AML_Tile*>& Grid,

@@ -43,6 +43,9 @@ private:
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
 	
 	TMap<FIntPoint, TObjectPtr<AML_Tile>> GridMap;
+
+	mutable TMap<FIntPoint, AML_Tile*> GridMapCache;
+	mutable bool bGridMapCacheBuilt = false;
 	
 	// Generators
 	void SpawnHexagonRadius();
@@ -110,6 +113,8 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TMap<FIntPoint, AML_Tile*> GetGridMap() const;
+
+	const TMap<FIntPoint, AML_Tile*>& GetGridMapRef() const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AML_Tile*> GetGridTiles();
