@@ -203,8 +203,15 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 	const int32 N = GoalAxials.Num();
 
 	// LocalUsedTiles defined before CanTraverse — both lambdas capture it by reference.
-	// Seeded with tiles from prior calls; grows each time an MST edge is processed.
-	TSet<AML_Tile*> LocalUsedTiles = PreviousConnectedPathTiles;
+	// Seeded with only currently-valid path tiles (AllowedSet) from prior calls so that
+	// goal tiles removed by undo don't remain traversable as stale waypoints.
+	// Goal tiles enter LocalUsedTiles only after Phase 1 confirms they are connected.
+	TSet<AML_Tile*> LocalUsedTiles;
+	for (AML_Tile* Tile : PreviousConnectedPathTiles)
+	{
+		if (IsValid(Tile) && AllowedSet.Contains(Tile->GetCurrentType()))
+			LocalUsedTiles.Add(Tile);
+	}
 
 	// Once a goal tile enters LocalUsedTiles it is treated exactly like grass or water:
 	// traversable and cost-0. This lets subsequent paths route THROUGH linked goals
