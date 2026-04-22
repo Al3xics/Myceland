@@ -156,6 +156,14 @@ UFUNCTION()
 		TSet<FIntPoint>& OutVisited,
 		TMap<FIntPoint, FIntPoint>& OutParent) const;
 
+	void RunZeroOneBFS(
+		const TMap<FIntPoint, AML_Tile*>& Grid,
+		const FIntPoint& Start,
+		TFunctionRef<bool(AML_Tile*)> CanTraverse,
+		TFunctionRef<int32(AML_Tile*)> GetCost,
+		TSet<FIntPoint>& OutVisited,
+		TMap<FIntPoint, FIntPoint>& OutParent,
+		TMap<FIntPoint, int32>& OutDist) const;
 
 	bool BuildPathAxialsFromParent(
 		const FIntPoint& Start,

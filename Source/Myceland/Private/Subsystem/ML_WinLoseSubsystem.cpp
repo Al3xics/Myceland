@@ -3,6 +3,7 @@
 #include "Subsystem/ML_WinLoseSubsystem.h"
 
 #include "Algo/Reverse.h"
+#include "Containers/Deque.h"
 #include "Core/ML_CoreData.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -199,96 +200,154 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 		return false;
 	}
 
+	const int32 N = GoalAxials.Num();
+
+	// LocalUsedTiles defined before CanTraverse — both lambdas capture it by reference.
+	// Seeded with tiles from prior calls; grows each time an MST edge is processed.
+	TSet<AML_Tile*> LocalUsedTiles = PreviousConnectedPathTiles;
+
+	// Once a goal tile enters LocalUsedTiles it is treated exactly like grass or water:
+	// traversable and cost-0. This lets subsequent paths route THROUGH linked goals
+	// instead of creating parallel detours around them.
 	auto CanTraverse = [&](AML_Tile* Tile) -> bool
 	{
-		if (!IsValid(Tile))
-		{
-			return false;
-		}
-
-		if (bDisallowBlocked && Tile->IsBlocked())
-		{
-			return false;
-		}
-
-		const EML_TileType TileType = Tile->GetCurrentType();
-		return AllowedSet.Contains(TileType);
+		if (!IsValid(Tile)) return false;
+		if (bDisallowBlocked && Tile->IsBlocked()) return false;
+		if (AllowedSet.Contains(Tile->GetCurrentType())) return true;
+		return LocalUsedTiles.Contains(Tile);
 	};
 
-	for (int32 i = 0; i < GoalAxials.Num(); ++i)
+	auto GetCost = [&](AML_Tile* Tile) -> int32
 	{
-		const FIntPoint Start = GoalAxials[i];
+		return LocalUsedTiles.Contains(Tile) ? 0 : 1;
+	};
 
-		TSet<FIntPoint> Visited;
-		TMap<FIntPoint, FIntPoint> Parent;
-		RunBFS(Grid, Start, CanTraverse, Visited, Parent);
-
-		for (int32 j = i + 1; j < GoalAxials.Num(); ++j)
+	// FindBridge: cheapest entry tile adjacent to TargetGoal that the BFS reached.
+	// Accepts AllowedSet tiles and linked goal tiles (both are valid waypoints).
+	auto FindBridge = [&](
+		const FIntPoint& TargetGoal,
+		const TSet<FIntPoint>& Visited,
+		const TMap<FIntPoint, int32>& DistMap) -> FIntPoint
+	{
+		FIntPoint Bridge = FIntPoint(INT_MAX, INT_MAX);
+		int32 BestDist = INT_MAX;
+		for (const FIntPoint& Dir : HexDirs)
 		{
-			const FIntPoint Target = GoalAxials[j];
+			const FIntPoint Neighbor = TargetGoal + Dir;
+			if (!Visited.Contains(Neighbor)) continue;
+			AML_Tile* const* NPtr = Grid.Find(Neighbor);
+			if (!NPtr || !IsValid(*NPtr)) continue;
+			AML_Tile* NTile = *NPtr;
+			if (!AllowedSet.Contains(NTile->GetCurrentType()) && !LocalUsedTiles.Contains(NTile)) continue;
+			const int32* D = DistMap.Find(Neighbor);
+			if (!D) continue;
+			if (*D < BestDist) { BestDist = *D; Bridge = Neighbor; }
+		}
+		return Bridge;
+	};
 
-			FIntPoint Bridge = FIntPoint(INT_MAX, INT_MAX);
-			int32 BestDepth = INT_MAX;
+	// Phase 0: all-pairs 0-1 BFS with the current LocalUsedTiles as cost-0.
+	// CanTraverse allows linked goal tiles, so distances reflect the real traversable
+	// network (goals act as waypoints). Edge weight = new tiles needed for that pair.
+	struct FPairEdge { int32 i, j, Dist; };
+	TArray<FPairEdge> AllEdges;
 
+	for (int32 i = 0; i < N; ++i)
+	{
+		TSet<FIntPoint> Vis;
+		TMap<FIntPoint, FIntPoint> Par;
+		TMap<FIntPoint, int32> Dist;
+		RunZeroOneBFS(Grid, GoalAxials[i], CanTraverse, GetCost, Vis, Par, Dist);
+
+		for (int32 j = i + 1; j < N; ++j)
+		{
+			int32 BridgeDist = INT_MAX;
 			for (const FIntPoint& Dir : HexDirs)
 			{
-				const FIntPoint Neighbor = Target + Dir;
-				if (!Visited.Contains(Neighbor)) continue;
-				if (AML_Tile* const* NPtr = Grid.Find(Neighbor))
-				{
-					if (!IsValid(*NPtr) || !AllowedSet.Contains((*NPtr)->GetCurrentType())) continue;
-
-					int32 Depth = 0;
-					FIntPoint Node = Neighbor;
-					while (Node != Start)
-					{
-						const FIntPoint* Prev = Parent.Find(Node);
-						if (!Prev) { Depth = INT_MAX; break; }
-						Node = *Prev;
-						++Depth;
-					}
-
-					if (Depth < BestDepth)
-					{
-						BestDepth = Depth;
-						Bridge = Neighbor;
-					}
-				}
+				const FIntPoint Neighbor = GoalAxials[j] + Dir;
+				if (!Vis.Contains(Neighbor)) continue;
+				AML_Tile* const* NPtr = Grid.Find(Neighbor);
+				if (!NPtr || !IsValid(*NPtr)) continue;
+				AML_Tile* NTile = *NPtr;
+				if (!AllowedSet.Contains(NTile->GetCurrentType()) && !LocalUsedTiles.Contains(NTile)) continue;
+				const int32* D = Dist.Find(Neighbor);
+				if (D && *D < BridgeDist) BridgeDist = *D;
 			}
-
-			if (Bridge == FIntPoint(INT_MAX, INT_MAX)) continue;
-
-			TArray<FIntPoint> PathAxials;
-			if (!BuildPathAxialsFromParent(Start, Bridge, Parent, PathAxials))
-			{
-				continue;
-			}
-			PathAxials.Add(Target);
-
-			TArray<AML_Tile*> PathTilesLocal;
-			if (!ConvertAxialsToTiles(Grid, PathAxials, PathTilesLocal))
-			{
-				continue;
-			}
-
-			FML_TileGroup Group;
-			Group.Tiles = MoveTemp(PathTilesLocal);
-
-			if (AML_Tile* GoalA = Grid.FindRef(Start); IsValid(GoalA))
-			{
-				Group.Goals.Add(GoalA);
-			}
-
-			if (AML_Tile* GoalB = Grid.FindRef(Target); IsValid(GoalB))
-			{
-				Group.Goals.Add(GoalB);
-			}
-
-			if (Group.Goals.Num() >= RequiredGoalsPerPath)
-			{
-				ConnectedGoalGroups.Add(MoveTemp(Group));
-			}
+			if (BridgeDist != INT_MAX) AllEdges.Add({i, j, BridgeDist + 1});
 		}
+	}
+
+	if (AllEdges.IsEmpty()) return false;
+
+	// Sort descending: pairs needing the most new tiles go first — they form the backbone.
+	// Cheaper pairs (already routable through established tiles) are processed after and
+	// will naturally pass through the corridor that earlier edges built up.
+	AllEdges.Sort([](const FPairEdge& A, const FPairEdge& B) { return A.Dist > B.Dist; });
+
+	// Kruskal's maximum spanning tree: N-1 essential links, no redundant connections.
+	TArray<int32> UF; UF.SetNum(N);
+	for (int32 k = 0; k < N; ++k) UF[k] = k;
+	auto UFFind = [&](int32 x) -> int32
+	{
+		while (UF[x] != x) { UF[x] = UF[UF[x]]; x = UF[x]; }
+		return x;
+	};
+
+	TArray<FPairEdge> MSTEdges;
+	for (const FPairEdge& E : AllEdges)
+	{
+		const int32 ra = UFFind(E.i), rb = UFFind(E.j);
+		if (ra == rb) continue;
+		UF[ra] = rb;
+		MSTEdges.Add(E);
+		if (MSTEdges.Num() == N - 1) break;
+	}
+
+	if (MSTEdges.IsEmpty()) return false;
+
+	// Pre-add every goal tile that will be linked this call before computing any path.
+	// Phase 0 only knew about PreviousConnectedPathTiles, so goals discovered via the MST
+	// weren't waypoints yet during distance calculation. Adding them all now means every
+	// BFS in Phase 1 sees the complete waypoint network — the same context every time,
+	// regardless of which MST edge happens to run first.
+	for (const FPairEdge& E : MSTEdges)
+	{
+		if (AML_Tile* T = Grid.FindRef(GoalAxials[E.i]); IsValid(T)) LocalUsedTiles.Add(T);
+		if (AML_Tile* T = Grid.FindRef(GoalAxials[E.j]); IsValid(T)) LocalUsedTiles.Add(T);
+	}
+
+	// Phase 1: 0-1 BFS per MST edge. All linked goal tiles are already cost-0 waypoints.
+	// Path tiles still grow after each edge so later links can reuse earlier corridors.
+	for (const FPairEdge& E : MSTEdges)
+	{
+		TSet<FIntPoint> Visited;
+		TMap<FIntPoint, FIntPoint> Parent;
+		TMap<FIntPoint, int32> Dist;
+		RunZeroOneBFS(Grid, GoalAxials[E.i], CanTraverse, GetCost, Visited, Parent, Dist);
+
+		const FIntPoint Bridge = FindBridge(GoalAxials[E.j], Visited, Dist);
+		if (Bridge == FIntPoint(INT_MAX, INT_MAX)) continue;
+
+		TArray<FIntPoint> PathAxials;
+		if (!BuildPathAxialsFromParent(GoalAxials[E.i], Bridge, Parent, PathAxials)) continue;
+		PathAxials.Add(GoalAxials[E.j]);
+
+		for (const FIntPoint& Axial : PathAxials)
+		{
+			if (AML_Tile* const* TilePtr = Grid.Find(Axial))
+				if (IsValid(*TilePtr)) LocalUsedTiles.Add(*TilePtr);
+		}
+
+		TArray<AML_Tile*> PathTilesLocal;
+		if (!ConvertAxialsToTiles(Grid, PathAxials, PathTilesLocal)) continue;
+
+		FML_TileGroup Group;
+		Group.Tiles = MoveTemp(PathTilesLocal);
+		if (AML_Tile* GoalA = Grid.FindRef(GoalAxials[E.i]); IsValid(GoalA)) Group.Goals.Add(GoalA);
+		if (AML_Tile* GoalB = Grid.FindRef(GoalAxials[E.j]); IsValid(GoalB)) Group.Goals.Add(GoalB);
+
+		if (Group.Goals.Num() >= RequiredGoalsPerPath)
+			ConnectedGoalGroups.Add(MoveTemp(Group));
 	}
 
 	return ConnectedGoalGroups.Num() > 0;
@@ -661,6 +720,67 @@ void UML_WinLoseSubsystem::RunBFS(
 	}
 }
 
+void UML_WinLoseSubsystem::RunZeroOneBFS(
+	const TMap<FIntPoint, AML_Tile*>& Grid,
+	const FIntPoint& Start,
+	TFunctionRef<bool(AML_Tile*)> CanTraverse,
+	TFunctionRef<int32(AML_Tile*)> GetCost,
+	TSet<FIntPoint>& OutVisited,
+	TMap<FIntPoint, FIntPoint>& OutParent,
+	TMap<FIntPoint, int32>& OutDist) const
+{
+	OutVisited.Reset();
+	OutParent.Reset();
+	OutDist.Reset();
+
+	OutDist.Reserve(Grid.Num());
+	OutDist.Add(Start, 0);
+
+	TDeque<FIntPoint> Deque;
+	Deque.PushLast(Start);
+
+	while (!Deque.IsEmpty())
+	{
+		const FIntPoint Current = Deque.First();
+		Deque.PopFirst();
+
+		if (OutVisited.Contains(Current))
+			continue;
+		OutVisited.Add(Current);
+
+		const int32 CurrentDist = OutDist[Current];
+
+		for (const FIntPoint& Dir : HexDirs)
+		{
+			const FIntPoint Next = Current + Dir;
+			if (OutVisited.Contains(Next))
+				continue;
+
+			AML_Tile* const* NextPtr = Grid.Find(Next);
+			if (!NextPtr)
+				continue;
+
+			AML_Tile* NextTile = *NextPtr;
+			if (!CanTraverse(NextTile))
+				continue;
+
+			const int32 Cost = GetCost(NextTile);
+			const int32 NewDist = CurrentDist + Cost;
+
+			int32* ExistingDist = OutDist.Find(Next);
+			if (ExistingDist && NewDist >= *ExistingDist)
+				continue;
+
+			OutDist.Add(Next, NewDist);
+			OutParent.Add(Next, Current);
+
+			if (Cost == 0)
+				Deque.PushFirst(Next);
+			else
+				Deque.PushLast(Next);
+		}
+	}
+}
 
 bool UML_WinLoseSubsystem::BuildPathAxialsFromParent(
 	const FIntPoint& Start,
@@ -710,8 +830,21 @@ bool UML_WinLoseSubsystem::ConvertAxialsToTiles(
 
 void UML_WinLoseSubsystem::HandleUndoAnimating(bool bIsAnimating)
 {
-	if (!bIsAnimating)
+	if (bIsAnimating)
+	{
+		TArray<AML_Tile*> AllConnected = PreviousConnectedPathTiles.Array();
+		PreviousConnectedPathTiles.Reset();
+		PendingConnectedGoalPathQueue.Reset();
+		QueueReadIndex = 0;
+		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
+
+		if (AllConnected.Num() > 0)
+			OnDisconnectedGoalPathTile.Broadcast(AllConnected);
+	}
+	else
+	{
 		TriggerFindConnectedGoalCheck();
+	}
 }
 
 void UML_WinLoseSubsystem::HandleResetAnimating(bool bIsAnimating)
