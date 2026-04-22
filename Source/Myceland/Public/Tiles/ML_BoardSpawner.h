@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Core/ML_CoreData.h"
 #include "GameFramework/Actor.h"
+#include "PuzzleGeneration/ML_PuzzleGenerationTypes.h"
 #include "ML_BoardSpawner.generated.h"
 
 class UML_BiomeTileSet;
@@ -138,4 +139,17 @@ public:
 	
 	UPROPERTY(BlueprintReadWrite)
     bool bIsPuzzleSolved; 
+	
+	// ==================== Myceland Hex Procedural Grid ====================
+	
+	UPROPERTY(EditAnywhere, Category="Myceland Puzzle Generator")
+	FML_PuzzleGenerationSettings PuzzleGenerationSettings;
+
+	UFUNCTION(CallInEditor, Category="Myceland Puzzle Generator")
+	void AnalyzeCurrentPuzzle();
+	
+	
+private:
+	
+	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
 };

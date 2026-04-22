@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
+#include "PuzzleGeneration/ML_PuzzleSolver.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
 #include "Tiles/TileBase/ML_TileParasite.h"
 #include "Tiles/TileBase/ML_TileWater.h"
@@ -425,3 +426,56 @@ void AML_BoardSpawner::SpawnRectangleWH()
 		}
 	}
 }
+
+void AML_BoardSpawner::AnalyzeCurrentPuzzle()
+{
+	UpdateCurrentGrid(false);
+
+	const FML_PuzzleState State = BuildPuzzleStateFromCurrentGrid();
+	const FML_PuzzleSolveReport Report = FML_PuzzleSolver::Solve(State, PuzzleGenerationSettings);
+
+	UE_LOG(LogTemp, Error, TEXT("Puzzle analysis: Solvable=%s, Solutions=%d, Shortest=%d"),
+		Report.bSolvable ? TEXT("true") : TEXT("false"),
+		Report.SolutionCount,
+		Report.ShortestSolutionLength);
+
+	for (const FIntPoint& Action : Report.ShortestSolution.PlantActions)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Solution action: Plant at Q=%d R=%d"), Action.X, Action.Y);
+	}
+}
+
+FML_PuzzleState AML_BoardSpawner::BuildPuzzleStateFromCurrentGrid() const
+{
+	FML_PuzzleState State;
+	State.Energy = EnergyForPuzzle;
+
+	if (EntryTile)
+	{
+		State.EntryAxial = EntryTile->GetAxialCoord();
+	}
+
+	if (ExitTile)
+	{
+		State.ExitAxial = ExitTile->GetAxialCoord();
+	}
+
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		const AML_Tile* Tile = Pair.Value.Get();
+		if (!IsValid(Tile))
+		{
+			continue;
+		}
+
+		FML_PuzzleCell Cell;
+		Cell.Axial = Pair.Key;
+		Cell.Type = Tile->GetCurrentType();
+		Cell.bHasCollectible = Tile->HasCollectible();
+
+		State.Cells.Add(Cell);
+	}
+
+	return State;
+}
+ 
