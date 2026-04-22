@@ -214,7 +214,7 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 		if (!IsValid(Tile)) return false;
 		if (bDisallowBlocked && Tile->IsBlocked()) return false;
 		if (AllowedSet.Contains(Tile->GetCurrentType())) return true;
-		return LocalUsedTiles.Contains(Tile);
+		return Tile->GetCurrentType() == GoalType && LocalUsedTiles.Contains(Tile);
 	};
 
 	auto GetCost = [&](AML_Tile* Tile) -> int32
@@ -238,7 +238,7 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 			AML_Tile* const* NPtr = Grid.Find(Neighbor);
 			if (!NPtr || !IsValid(*NPtr)) continue;
 			AML_Tile* NTile = *NPtr;
-			if (!AllowedSet.Contains(NTile->GetCurrentType()) && !LocalUsedTiles.Contains(NTile)) continue;
+			if (!AllowedSet.Contains(NTile->GetCurrentType()) && !(NTile->GetCurrentType() == GoalType && LocalUsedTiles.Contains(NTile))) continue;
 			const int32* D = DistMap.Find(Neighbor);
 			if (!D) continue;
 			if (*D < BestDist) { BestDist = *D; Bridge = Neighbor; }
@@ -269,7 +269,7 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 				AML_Tile* const* NPtr = Grid.Find(Neighbor);
 				if (!NPtr || !IsValid(*NPtr)) continue;
 				AML_Tile* NTile = *NPtr;
-				if (!AllowedSet.Contains(NTile->GetCurrentType()) && !LocalUsedTiles.Contains(NTile)) continue;
+				if (!AllowedSet.Contains(NTile->GetCurrentType()) && !(NTile->GetCurrentType() == GoalType && LocalUsedTiles.Contains(NTile))) continue;
 				const int32* D = Dist.Find(Neighbor);
 				if (D && *D < BridgeDist) BridgeDist = *D;
 			}
@@ -830,21 +830,8 @@ bool UML_WinLoseSubsystem::ConvertAxialsToTiles(
 
 void UML_WinLoseSubsystem::HandleUndoAnimating(bool bIsAnimating)
 {
-	if (bIsAnimating)
-	{
-		TArray<AML_Tile*> AllConnected = PreviousConnectedPathTiles.Array();
-		PreviousConnectedPathTiles.Reset();
-		PendingConnectedGoalPathQueue.Reset();
-		QueueReadIndex = 0;
-		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
-
-		if (AllConnected.Num() > 0)
-			OnDisconnectedGoalPathTile.Broadcast(AllConnected);
-	}
-	else
-	{
+	if (!bIsAnimating)
 		TriggerFindConnectedGoalCheck();
-	}
 }
 
 void UML_WinLoseSubsystem::HandleResetAnimating(bool bIsAnimating)
