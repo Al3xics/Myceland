@@ -208,7 +208,7 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 		}
 
 		const EML_TileType TileType = Tile->GetCurrentType();
-		return TileType == GoalType || AllowedSet.Contains(TileType);
+		return AllowedSet.Contains(TileType);
 	};
 
 	for (int32 i = 0; i < GoalAxials.Num(); ++i)
@@ -222,16 +222,32 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 		for (int32 j = i + 1; j < GoalAxials.Num(); ++j)
 		{
 			const FIntPoint Target = GoalAxials[j];
-			if (!Visited.Contains(Target))
+
+			// Find a path-tile neighbor of Target that the BFS reached.
+			// Direct Tree-to-Tree adjacency is intentionally excluded.
+			FIntPoint Bridge = FIntPoint(INT_MAX, INT_MAX);
+			for (const FIntPoint& Dir : HexDirs)
 			{
-				continue;
+				const FIntPoint Neighbor = Target + Dir;
+				if (!Visited.Contains(Neighbor)) continue;
+				if (AML_Tile* const* NPtr = Grid.Find(Neighbor))
+				{
+					if (IsValid(*NPtr) && AllowedSet.Contains((*NPtr)->GetCurrentType()))
+					{
+						Bridge = Neighbor;
+						break;
+					}
+				}
 			}
 
+			if (Bridge == FIntPoint(INT_MAX, INT_MAX)) continue;
+
 			TArray<FIntPoint> PathAxials;
-			if (!BuildPathAxialsFromParent(Start, Target, Parent, PathAxials))
+			if (!BuildPathAxialsFromParent(Start, Bridge, Parent, PathAxials))
 			{
 				continue;
 			}
+			PathAxials.Add(Target);
 
 			TArray<AML_Tile*> PathTilesLocal;
 			if (!ConvertAxialsToTiles(Grid, PathAxials, PathTilesLocal))
@@ -372,8 +388,8 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 	if (UML_RollBackSubsystem* RollBack = InWorld.GetSubsystem<UML_RollBackSubsystem>())
 	{
-		RollBack->OnUndoAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleRollback);
-		RollBack->OnResetAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleRollback);
+		RollBack->OnUndoAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleUndoAnimating);
+		RollBack->OnResetAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleResetAnimating);
 	}
 }
 
@@ -644,9 +660,25 @@ bool UML_WinLoseSubsystem::ConvertAxialsToTiles(
 	return OutTiles.Num() > 0;
 }
 
-void UML_WinLoseSubsystem::HandleRollback(bool bIsAnimating)
+void UML_WinLoseSubsystem::HandleUndoAnimating(bool bIsAnimating)
 {
 	if (!bIsAnimating)
+		TriggerFindConnectedGoalCheck();
+}
+
+void UML_WinLoseSubsystem::HandleResetAnimating(bool bIsAnimating)
+{
+	if (bIsAnimating)
+	{
+		TArray<AML_Tile*> AllConnected = PreviousConnectedPathTiles.Array();
+		PreviousConnectedPathTiles.Reset();
+		PendingConnectedGoalPathQueue.Reset();
+		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
+
+		if (AllConnected.Num() > 0)
+			OnDisconnectedGoalPathTile.Broadcast(AllConnected);
+	}
+	else
 	{
 		TriggerFindConnectedGoalCheck();
 	}

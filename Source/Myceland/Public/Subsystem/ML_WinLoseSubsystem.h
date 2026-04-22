@@ -107,7 +107,10 @@ private:
 	void HandleBoardChanged(const AML_Tile* NewTile);
 
 	UFUNCTION()
-	void HandleRollback(bool bIsAnimating);
+	void HandleUndoAnimating(bool bIsAnimating);
+
+	UFUNCTION()
+	void HandleResetAnimating(bool bIsAnimating);
 
 UFUNCTION()
 	void BroadcastNextConnectedGoalPathTile();
