@@ -35,6 +35,11 @@ void AML_BoardSpawner::BeginPlay()
 	UpdateCurrentGrid(false);
 }
 
+void AML_BoardSpawner::UpdateCurrentGridEditor()
+{
+	UpdateCurrentGrid(true);
+}
+
 void AML_BoardSpawner::RebuildGrid()
 {
 	ClearTiles();
@@ -177,9 +182,14 @@ void AML_BoardSpawner::UpdateCurrentGrid(bool bAllowSpawn)
 	GridMap = MoveTemp(NewTilesByAxial);
 	SpawnedTiles.Empty();
 	SpawnedTiles.Reserve(GridMap.Num());
+	TreeTiles.Empty();
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		SpawnedTiles.Add(Pair.Value);
+		if (Pair.Value && Pair.Value->GetCurrentType() == EML_TileType::Tree)
+		{
+			TreeTiles.Add(Pair.Value);
+		}
 	}
 }
 
@@ -201,6 +211,7 @@ void AML_BoardSpawner::ClearTiles()
 	}
 
 	SpawnedTiles.Empty();
+	TreeTiles.Empty();
 	GridMap.Empty();
 }
 
@@ -246,6 +257,17 @@ TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		Result.Add(Pair.Value.Get());
+	}
+	return Result;
+}
+
+TArray<AML_Tile*> AML_BoardSpawner::GetTreeTiles() const
+{
+	TArray<AML_Tile*> Result;
+	Result.Reserve(TreeTiles.Num());
+	for (const TObjectPtr<AML_Tile>& Tile : TreeTiles)
+	{
+		Result.Add(Tile.Get());
 	}
 	return Result;
 }

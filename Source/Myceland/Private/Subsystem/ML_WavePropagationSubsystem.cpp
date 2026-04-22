@@ -21,6 +21,8 @@ void UML_WavePropagationSubsystem::EnsureInitialized()
 	PlayerController = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController());
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	RollBackSubsystem = GetWorld()->GetSubsystem<UML_RollBackSubsystem>();
+	
+	ensure(PlayerController && WinLoseSubsystem && RollBackSubsystem);
 
 	if (RollBackSubsystem && !bRollbackDelegatesBound)
 	{
@@ -28,8 +30,6 @@ void UML_WavePropagationSubsystem::EnsureInitialized()
 		RollBackSubsystem->OnResetAnimating.AddDynamic(this, &UML_WavePropagationSubsystem::HandleRollbackResetAnimating);
 		bRollbackDelegatesBound = true;
 	}
-
-	ensure(PlayerController && WinLoseSubsystem && RollBackSubsystem);
 }
 
 void UML_WavePropagationSubsystem::CancelAllWaveTimers()
@@ -114,6 +114,8 @@ void UML_WavePropagationSubsystem::RunWave()
 			const EML_TileType OldType = Change.Tile->GetCurrentType();
 			AML_Tile* Tile = Change.Tile;
 			if (!IsValid(Tile)) continue;
+
+			Tile->OnWaveTouched();
 
 			if (RollBackSubsystem)
 				RollBackSubsystem->RecordTileForUndo(Tile, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);

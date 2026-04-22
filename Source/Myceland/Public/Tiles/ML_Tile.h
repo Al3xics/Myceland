@@ -125,6 +125,9 @@ public:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
+	void OnWaveTouched();
 	
 	
 	UFUNCTION()
