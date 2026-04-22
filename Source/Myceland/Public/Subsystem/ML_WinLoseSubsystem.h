@@ -156,6 +156,7 @@ UFUNCTION()
 		TSet<FIntPoint>& OutVisited,
 		TMap<FIntPoint, FIntPoint>& OutParent) const;
 
+
 	bool BuildPathAxialsFromParent(
 		const FIntPoint& Start,
 		const FIntPoint& Target,

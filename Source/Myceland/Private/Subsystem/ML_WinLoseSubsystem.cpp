@@ -227,19 +227,31 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 		{
 			const FIntPoint Target = GoalAxials[j];
 
-			// Find a path-tile neighbor of Target that the BFS reached.
-			// Direct Tree-to-Tree adjacency is intentionally excluded.
 			FIntPoint Bridge = FIntPoint(INT_MAX, INT_MAX);
+			int32 BestDepth = INT_MAX;
+
 			for (const FIntPoint& Dir : HexDirs)
 			{
 				const FIntPoint Neighbor = Target + Dir;
 				if (!Visited.Contains(Neighbor)) continue;
 				if (AML_Tile* const* NPtr = Grid.Find(Neighbor))
 				{
-					if (IsValid(*NPtr) && AllowedSet.Contains((*NPtr)->GetCurrentType()))
+					if (!IsValid(*NPtr) || !AllowedSet.Contains((*NPtr)->GetCurrentType())) continue;
+
+					int32 Depth = 0;
+					FIntPoint Node = Neighbor;
+					while (Node != Start)
 					{
+						const FIntPoint* Prev = Parent.Find(Node);
+						if (!Prev) { Depth = INT_MAX; break; }
+						Node = *Prev;
+						++Depth;
+					}
+
+					if (Depth < BestDepth)
+					{
+						BestDepth = Depth;
 						Bridge = Neighbor;
-						break;
 					}
 				}
 			}
@@ -648,6 +660,7 @@ void UML_WinLoseSubsystem::RunBFS(
 		}
 	}
 }
+
 
 bool UML_WinLoseSubsystem::BuildPathAxialsFromParent(
 	const FIntPoint& Start,
