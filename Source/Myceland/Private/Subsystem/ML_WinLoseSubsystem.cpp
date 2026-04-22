@@ -22,40 +22,30 @@ const FIntPoint UML_WinLoseSubsystem::HexDirs[6] = {
 
 FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 {
-	if (CurrentBoardSpawner == nullptr)
-	{
+	if (!CurrentBoardSpawner)
 		CurrentBoardSpawner = FindBoardSpawner();
-	}
-	
-	FML_GameResult NoResult;
-    if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
-
-	
-	const bool bWin = AreAllGoalsConnected(
-		CurrentBoardSpawner,
-		EML_TileType::Tree,
-		CachedGoalPathAllowedSet);
 
 	FML_GameResult GameResult;
+	if (!IsValid(CurrentBoardSpawner) || CurrentBoardSpawner->bIsPuzzleSolved)
+		return GameResult;
 
 	if (bIsPlayerDead)
 	{
 		GameResult.Result = EML_WinLose::Lose;
 		GameResult.bIsGameOver = true;
-		OnLose.Broadcast();
 		bIsPlayerDead = false;
+		OnLose.Broadcast();
 		return GameResult;
 	}
 
-	if (bWin)
+	if (AreAllGoalsConnected(CurrentBoardSpawner, EML_TileType::Tree, CachedGoalPathAllowedSet))
 	{
 		GameResult.Result = EML_WinLose::Win;
-		GameResult.bIsGameOver = false;
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		bPendingClearWinPath = true;
 		OnWin.Broadcast();
 	}
-	
+
 	return GameResult;
 }
 
