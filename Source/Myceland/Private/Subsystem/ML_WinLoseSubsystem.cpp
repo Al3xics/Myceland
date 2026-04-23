@@ -69,94 +69,37 @@ bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
 	return false;
 }
 
-bool UML_WinLoseSubsystem::AreAllGoalsConnectedByAllowedPaths(
-	AML_BoardSpawner* Board,
-	EML_TileType GoalType,
-	const TArray<EML_TileType>& AllowedPathTypes)
-{
-	return AreAllGoalsConnected(Board, GoalType, BuildAllowedSet(AllowedPathTypes));
-}
-
 bool UML_WinLoseSubsystem::AreAllGoalsConnected(
 	AML_BoardSpawner* Board,
 	EML_TileType GoalType,
 	const TSet<EML_TileType>& AllowedSet)
 {
-	PathTiles.Reset();
-
 	if (!IsValid(Board))
-	{
 		return false;
-	}
 
 	const TMap<FIntPoint, AML_Tile*>& Grid = Board->GetGridMapRef();
 	if (Grid.Num() == 0)
-	{
 		return false;
-	}
 
 	const TArray<FIntPoint> GoalAxials = CollectGoalAxials(Grid, GoalType);
-
 	if (GoalAxials.Num() <= 1)
-	{
 		return true;
-	}
 
 	auto CanTraverse = [&](AML_Tile* Tile) -> bool
 	{
-		if (!IsValid(Tile))
-		{
-			return false;
-		}
-
+		if (!IsValid(Tile)) return false;
 		const EML_TileType TileType = Tile->GetCurrentType();
 		return TileType == GoalType || AllowedSet.Contains(TileType);
 	};
 
-	const FIntPoint Start = GoalAxials[0];
-
 	TSet<FIntPoint> Visited;
 	TMap<FIntPoint, FIntPoint> Parent;
-	RunBFS(Grid, Start, CanTraverse, Visited, Parent);
-
-	TSet<FIntPoint> PathAxials;
-	PathAxials.Reserve(Grid.Num());
-	PathAxials.Add(Start);
+	RunBFS(Grid, GoalAxials[0], CanTraverse, Visited, Parent);
 
 	for (const FIntPoint& GoalAxial : GoalAxials)
 	{
 		if (!Visited.Contains(GoalAxial))
-		{
-			PathTiles.Reset();
 			return false;
-		}
-
-		FIntPoint Node = GoalAxial;
-		PathAxials.Add(Node);
-
-		while (Node != Start)
-		{
-			const FIntPoint* Prev = Parent.Find(Node);
-			if (!Prev)
-			{
-				PathTiles.Reset();
-				return false;
-			}
-
-			Node = *Prev;
-			PathAxials.Add(Node);
-		}
-	}
-
-	PathTiles.Reset();
-	PathTiles.Reserve(PathAxials.Num());
-
-	for (const FIntPoint& Axial : PathAxials)
-	{
-		if (AML_Tile* const* TilePtr = Grid.Find(Axial))
-		{
-			PathTiles.Add(*TilePtr);
-		}
 	}
 
 	return true;
@@ -501,17 +444,6 @@ void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
 	PendingConnectedGoalPathQueue.Reset();
 	QueueReadIndex = 0;
 	GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
-}
-
-void UML_WinLoseSubsystem::RemoveTileFromConnectedGoalPath(AML_Tile* Tile)
-{
-	if (!IsValid(Tile))
-	{
-		return;
-	}
-
-	PreviousConnectedPathTiles.Remove(Tile);
-	PendingConnectedGoalPathQueue.Remove(Tile);
 }
 
 void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)

@@ -14,7 +14,6 @@ struct FML_GameResult;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCheckPaths);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnConnectedGoalPathTile, AML_Tile*, Tile);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDisconnectedGoalPathTile, const TArray<AML_Tile*>&, Tiles);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConnectedGoalPathComplete);
@@ -35,9 +34,6 @@ public:
 	FOnDeath OnDeath;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnCheckPaths OnCheckPaths;
-
-	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnConnectedGoalPathTile OnConnectedGoalPathTile;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
@@ -53,12 +49,6 @@ public:
 	bool CheckPlayerKilled(AML_Tile* CurrentTileOn);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	bool AreAllGoalsConnectedByAllowedPaths(
-		AML_BoardSpawner* Board,
-		EML_TileType GoalType,
-		const TArray<EML_TileType>& AllowedPathTypes);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool FindConnectedGoalGroups(
 		AML_BoardSpawner* Board,
 		EML_TileType GoalType,
@@ -71,9 +61,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void ResetConnectedGoalPathState();
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	void RemoveTileFromConnectedGoalPath(AML_Tile* Tile);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_Tile* GetPlayerCurrentTile() const;
@@ -92,9 +79,6 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	AML_BoardSpawner* CurrentBoardSpawner = nullptr;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
-	TArray<AML_Tile*> PathTiles;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	TArray<FML_TileGroup> ConnectedGoalGroups;
