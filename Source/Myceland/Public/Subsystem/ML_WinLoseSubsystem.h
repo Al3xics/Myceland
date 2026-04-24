@@ -88,7 +88,7 @@ public:
 
 private:
 	UFUNCTION()
-	void HandleBoardChanged(const AML_Tile* NewTile);
+	void HandleBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
 
 	UFUNCTION()
 	void HandleUndoAnimating(bool bIsAnimating);

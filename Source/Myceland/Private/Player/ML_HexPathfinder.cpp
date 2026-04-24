@@ -5,13 +5,14 @@
 #include "Algo/Reverse.h"
 #include "Core/ML_CoreData.h"
 #include "Tiles/ML_Tile.h"
+#include "Core/ML_TileTypeTraits.h"
 
 bool UML_HexPathfinder::IsTileWalkable(const AML_Tile* Tile)
 {
 	if (!IsValid(Tile)) return false;
 
 	const EML_TileType Type = Tile->GetCurrentType();
-	return (Type == EML_TileType::Dirt || Type == EML_TileType::Grass) && !Tile->IsBlocked();
+	return UML_TileTypeTraits::IsWalkable(Type) && !Tile->IsBlocked();
 }
 
 bool UML_HexPathfinder::BuildPath_AxialBFS(const FIntPoint& StartAxial, const FIntPoint& GoalAxial,

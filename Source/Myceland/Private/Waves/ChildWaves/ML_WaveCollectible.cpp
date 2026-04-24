@@ -4,6 +4,7 @@
 #include "Waves/ChildWaves/ML_WaveCollectible.h"
 
 #include "Core/ML_CoreData.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
@@ -51,8 +52,7 @@ void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const
 
             // Spawn condition
             if (!Neighbor->HasCollectible() &&
-                (Neighbor->GetCurrentType() == EML_TileType::Dirt ||
-                 Neighbor->GetCurrentType() == EML_TileType::Grass))
+                UML_TileTypeTraits::CanSpawnCollectible(Neighbor->GetCurrentType()))
             {
                 // Check if this tile is near a parasite that has eaten
                 TArray<AML_Tile*> CheckNeighbors = Board->GetNeighbors(Neighbor);

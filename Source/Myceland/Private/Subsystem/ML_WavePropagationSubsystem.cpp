@@ -2,6 +2,7 @@
 
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_PlayerController.h"
 #include "Collectible/ML_Collectible.h"
@@ -21,6 +22,8 @@ void UML_WavePropagationSubsystem::EnsureInitialized()
 	PlayerController = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController());
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	RollBackSubsystem = GetWorld()->GetSubsystem<UML_RollBackSubsystem>();
+	
+	ensure(PlayerController && WinLoseSubsystem && RollBackSubsystem);
 
 	if (RollBackSubsystem && !bRollbackDelegatesBound)
 	{
@@ -28,8 +31,6 @@ void UML_WavePropagationSubsystem::EnsureInitialized()
 		RollBackSubsystem->OnResetAnimating.AddDynamic(this, &UML_WavePropagationSubsystem::HandleRollbackResetAnimating);
 		bRollbackDelegatesBound = true;
 	}
-
-	ensure(PlayerController && WinLoseSubsystem && RollBackSubsystem);
 }
 
 void UML_WavePropagationSubsystem::CancelAllWaveTimers()
@@ -39,6 +40,7 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 	FTimerManager& TM = GetWorld()->GetTimerManager();
 	TM.ClearTimer(IntraWaveTimerHandle);
 	TM.ClearTimer(InterWaveTimerHandle);
+	TM.ClearTimer(TouchTimerHandle);
 }
 
 void UML_WavePropagationSubsystem::EndTileResolved()
@@ -52,7 +54,11 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 		RollBackSubsystem->CommitTurnRecord();
 
 	if (PlayerController)
+	{
+		if (PlayerController->TransitionComponent)
+			PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
 		PlayerController->EnableInput(PlayerController);
+	}
 }
 
 void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
@@ -63,6 +69,8 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 
 	bIsResolvingTiles = true;
 	PlayerController->DisableInput(PlayerController);
+	if (PlayerController->TransitionComponent)
+		PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(true);
 
 	CurrentOriginTile = HitTile;
 	CurrentWaveIndex = 0;
@@ -73,6 +81,9 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 
 	if (RollBackSubsystem)
 		RollBackSubsystem->BeginTurnRecord(HitTile);
+
+	BuildTouchQueue(HitTile);
+	FireNextTouchRing();
 
 	ProcessNextWave();
 }
@@ -121,8 +132,7 @@ void UML_WavePropagationSubsystem::RunWave()
 
 			// Destroy collectible if the tile changed to something other than dirt or grass
 			// (because on dirt or grass it can stay)
-			if (Change.TargetType != EML_TileType::Dirt &&
-				Change.TargetType != EML_TileType::Grass)
+			if (!UML_TileTypeTraits::CanSpawnCollectible(Change.TargetType))
 			{
 				if (Tile->HasCollectible())
 				{
@@ -134,7 +144,7 @@ void UML_WavePropagationSubsystem::RunWave()
 			}
 
 			// Parasite bookkeeping
-			if (Tile->GetCurrentType() == EML_TileType::Parasite && Tile->bConsumedGrass)
+			if (UML_TileTypeTraits::IsParasiteType(Tile->GetCurrentType()) && Tile->bConsumedGrass)
 			{
 				ParasitesThatAteGrass.Add(Tile);
 				Tile->bConsumedGrass = false;
@@ -284,9 +294,73 @@ void UML_WavePropagationSubsystem::AbortPropagationRuntime()
 	CancelAllWaveTimers();
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
+	PendingTouched.Empty();
+	TouchIndex = 0;
 	CurrentOriginTile = nullptr;
 	CurrentWaveIndex = 0;
 	bCycleHasChanges = false;
+}
+
+void UML_WavePropagationSubsystem::BuildTouchQueue(AML_Tile* OriginTile)
+{
+	if (GetWorld())
+		GetWorld()->GetTimerManager().ClearTimer(TouchTimerHandle);
+
+	PendingTouched.Empty();
+	TouchIndex = 0;
+
+	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
+	if (!Board) return;
+
+	TSet<AML_Tile*> Visited;
+	TQueue<TPair<AML_Tile*, int32>> Queue;
+
+	PendingTouched.Add(FML_WaveChange(OriginTile, OriginTile->GetCurrentType(), 0));
+	Visited.Add(OriginTile);
+	Queue.Enqueue({ OriginTile, 0 });
+
+	while (!Queue.IsEmpty())
+	{
+		TPair<AML_Tile*, int32> Current;
+		Queue.Dequeue(Current);
+
+		for (AML_Tile* Neighbor : Board->GetNeighbors(Current.Key))
+		{
+			if (!IsValid(Neighbor) || Visited.Contains(Neighbor)) continue;
+			Visited.Add(Neighbor);
+			const int32 Dist = Current.Value + 1;
+			PendingTouched.Add(FML_WaveChange(Neighbor, Neighbor->GetCurrentType(), Dist));
+			Queue.Enqueue({ Neighbor, Dist });
+		}
+	}
+
+	// Already sorted by construction (BFS produces non-decreasing distances),
+	// but sort explicitly to guarantee ordering.
+	PendingTouched.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+	{
+		return A.DistanceFromOrigin < B.DistanceFromOrigin;
+	});
+}
+
+void UML_WavePropagationSubsystem::FireNextTouchRing()
+{
+	if (TouchIndex >= PendingTouched.Num() || !GetWorld() || !DevSettings) return;
+
+	const int32 CurrentDist = PendingTouched[TouchIndex].DistanceFromOrigin;
+	while (TouchIndex < PendingTouched.Num() && PendingTouched[TouchIndex].DistanceFromOrigin == CurrentDist)
+	{
+		if (IsValid(PendingTouched[TouchIndex].Tile))
+			PendingTouched[TouchIndex].Tile->OnWaveTouched();
+		TouchIndex++;
+	}
+
+	if (TouchIndex < PendingTouched.Num())
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			TouchTimerHandle, this, &UML_WavePropagationSubsystem::FireNextTouchRing,
+			DevSettings->IntraWaveDelay, false
+		);
+	}
 }
 
 void UML_WavePropagationSubsystem::RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin)

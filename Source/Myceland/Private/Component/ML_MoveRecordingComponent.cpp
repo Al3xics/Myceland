@@ -32,8 +32,10 @@ const TArray<FIntPoint>& UML_MoveRecordingComponent::ExtendMoveRecord(const FInt
 	if (!bMoveInProgress || bUndoMovePlayback)
 		return ActiveMoveAxialPath;
 
-	// NewSubPath must contain at least start + end (i.e. it must be a real path segment).
-	if (NewSubPath.Num() < 2)
+	// NewSubPath can be either:
+	// - a real redirected segment (junction -> ... -> new end)
+	// - a single junction tile, which means "truncate and stop on the current waypoint"
+	if (NewSubPath.Num() < 1)
 		return ActiveMoveAxialPath;
 
 	// Keep the "walked" prefix: everything up to (and including) the waypoint the

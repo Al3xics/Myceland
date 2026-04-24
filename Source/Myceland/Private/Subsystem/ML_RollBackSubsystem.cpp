@@ -19,7 +19,14 @@ void UML_RollBackSubsystem::EnsureInitialized()
 	if (!GetWorld()) return;
 
 	PlayerController = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController());
+	PlayerCharacter = Cast<AML_PlayerCharacter>(PlayerController->GetPawn());
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	
+	if (!bBoardChangedDelegateBound)
+	{
+		PlayerCharacter->OnBoardChanged.AddDynamic(this, &UML_RollBackSubsystem::OnBoardChanged);
+		bBoardChangedDelegateBound = true;
+	}
 
 	ensure(PlayerController);
 }
@@ -46,7 +53,7 @@ void UML_RollBackSubsystem::BeginTurnRecord(AML_Tile* OriginTile)
 
 	bHasActiveTurnRecord = true;
 	CurrentTurnRecord = FML_TurnUndoRecord{};
-	CurrentTurnRecord.EnergyBefore = PlayerController->GetCurrentEnergy() + 1;
+	CurrentTurnRecord.EnergyBefore = PlayerController->EnergyComponent->GetCurrentEnergy() + 1;
 	CurrentTurnRecord.PlayerAxialBefore = PC->CurrentTileOn->GetAxialCoord();
 	CurrentTurnRecord.PlayerWorldBefore = PC->GetActorLocation();
 	CurrentTurnRecord.OriginTile = OriginTile;
@@ -122,6 +129,50 @@ bool UML_RollBackSubsystem::CanUndo() const
 
 	const TArray<FML_ActionUndoRecord>* Stack = BoardUndoStacks.Find(Board);
 	return Stack && Stack->Num() > 0;
+}
+
+void UML_RollBackSubsystem::OnBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile)
+{
+	const bool bWasNull = (OldTile == nullptr);
+	const bool bIsNull  = (NewTile == nullptr);
+
+	if (bWasNull != bIsNull)
+	{
+		if (bIsNull)
+		{
+			if (UWorld* World = GetWorld())
+			{
+				const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
+				if (IsValid(OldTile) && IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
+				{
+					if (UML_RollBackSubsystem* RollBackSubsystem = World->GetSubsystem<UML_RollBackSubsystem>())
+					{
+						RollBackSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
+					}
+				}
+			}
+		}
+	}
+	// Transition board A → board B
+	else if (!bWasNull && !bIsNull)
+	{
+		const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
+		const AML_BoardSpawner* NewBoard = NewTile->GetBoardSpawnerFromTile();
+
+		if (OldBoard != NewBoard)
+		{
+			if (UWorld* World = GetWorld())
+			{
+				if (IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
+				{
+					if (UML_RollBackSubsystem* RollBackSubsystem = World->GetSubsystem<UML_RollBackSubsystem>())
+					{
+						RollBackSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
+					}
+				}
+			}
+		}
+	}
 }
 
 void UML_RollBackSubsystem::RunUndoWave()
@@ -335,7 +386,7 @@ bool UML_RollBackSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Ax
 	Tile->CollectibleActor = SpawnedCollectible;
 	Tile->SetHasCollectible(true);
 
-	PlayerController->AddEnergy(-1);
+	PlayerController->EnergyComponent->AddEnergy(-1);
 
 	if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(SpawnedCollectible->GetRootComponent()))
 	{
@@ -568,7 +619,7 @@ bool UML_RollBackSubsystem::UndoLastAction_Animated()
 		}
 
 		ActiveUndoRecord = Action.Turn;
-		PlayerController->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
+		PlayerController->EnergyComponent->SetCurrentEnergy(ActiveUndoRecord.EnergyBefore);
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
@@ -701,7 +752,7 @@ void UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_BoardSpaw
 	{
 		if ((*Stack)[i].Type == EML_UndoActionType::PlantWaves)
 		{
-			PlayerController->SetCurrentEnergy((*Stack)[i].Turn.EnergyBefore);
+			PlayerController->EnergyComponent->SetCurrentEnergy((*Stack)[i].Turn.EnergyBefore);
 			break;
 		}
 	}

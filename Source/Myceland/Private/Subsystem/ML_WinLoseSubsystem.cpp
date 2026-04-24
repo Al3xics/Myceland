@@ -446,7 +446,7 @@ void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
 	GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
 }
 
-void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)
+void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile)
 {
 	if (PreviousConnectedPathTiles.Num() > 0
 		&& IsValid(CurrentBoardSpawner) && !CurrentBoardSpawner->bIsPuzzleSolved)

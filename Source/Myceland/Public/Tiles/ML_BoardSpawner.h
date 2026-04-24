@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Core/ML_CoreData.h"
 #include "GameFramework/Actor.h"
+#include "PuzzleGeneration/ML_PuzzleGenerationTypes.h"
 #include "ML_BoardSpawner.generated.h"
 
 class UML_BiomeTileSet;
@@ -41,13 +42,17 @@ private:
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
-	
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AML_Tile>> TreeTiles;
+
 	TMap<FIntPoint, TObjectPtr<AML_Tile>> GridMap;
 
 	mutable TMap<FIntPoint, AML_Tile*> GridMapCache;
 	mutable bool bGridMapCacheBuilt = false;
 	
 	// Generators
+	void UpdateCurrentGrid(bool bAllowSpawn = true);
 	void SpawnHexagonRadius();
 	void SpawnRectangleWH();
 
@@ -100,7 +105,7 @@ public:
 	AML_Tile* ExitTile;
 	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
-	void UpdateCurrentGrid(bool bAllowSpawn = true);
+	void UpdateCurrentGridEditor();
 
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Clear & Rebuild Grid"))
 	void RebuildGrid();
@@ -118,6 +123,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AML_Tile*> GetGridTiles();
+
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	TArray<AML_Tile*> GetTreeTiles() const;
 
 	/**
 	 * Returns whichever of EntryTile / ExitTile is closer (2D) to WorldLocation.
@@ -143,4 +151,17 @@ public:
 	
 	UPROPERTY(BlueprintReadWrite)
     bool bIsPuzzleSolved; 
+	
+	// ==================== Myceland Hex Procedural Grid ====================
+	
+	UPROPERTY(EditAnywhere, Category="Myceland Puzzle Generator")
+	FML_PuzzleGenerationSettings PuzzleGenerationSettings;
+
+	UFUNCTION(CallInEditor, Category="Myceland Puzzle Generator")
+	void AnalyzeCurrentPuzzle();
+	
+	
+private:
+	
+	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
 };

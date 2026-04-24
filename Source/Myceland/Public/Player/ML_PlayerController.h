@@ -9,7 +9,6 @@
 #include "Component/ML_EnergyComponent.h"
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
-#include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
 #include "ML_PlayerController.generated.h"
 
@@ -20,8 +19,6 @@ class AML_BoardSpawner;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
-// FOnHoveredTileChanged is declared in ML_HoverPreviewComponent.h (included above)
-// FOnExitCursorHold and FOnBoardMovementStateChanged are declared in ML_BoardTransitionComponent.h (included above)
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -29,21 +26,6 @@ class MYCELAND_API AML_PlayerController : public APlayerController
 	GENERATED_BODY()
 
 private:
-	
-	// ==================== Components ====================
-
-	UPROPERTY()
-	UML_EnergyComponent* EnergyComponent = nullptr;
-
-	UPROPERTY()
-	UML_HoverPreviewComponent* HoverPreviewComponent = nullptr;
-
-	UPROPERTY()
-	UML_MoveRecordingComponent* MoveRecordingComponent = nullptr;
-
-	UPROPERTY()
-	UML_BoardTransitionComponent* TransitionComponent = nullptr;
-
 	// ==================== References ====================
 
 	UPROPERTY()
@@ -52,6 +34,8 @@ private:
 	UPROPERTY()
 	AML_PlayerCharacter* MycelandCharacter;
 
+	
+	
 	// ==================== State ====================
 
 	TArray<FVector> CurrentPathWorld;
@@ -68,16 +52,11 @@ private:
 	float FollowTime = 0.f;
 	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
-	// Mode, action state, exit hold, turn-toward-tile, and all pending state
-	// are owned by TransitionComponent
-
-	// Undo / move recording is managed by MoveRecordingComponent
-
+	
+	
 	// ==================== Helpers ====================
 
 	void SetIsMoving(bool bNewIsMoving);
-
-	// ==================== Cursor / Component Callbacks ====================
 
 public:
 	AML_Tile* GetTileUnderCursor() const;
@@ -95,7 +74,12 @@ public:
 	void SetMovementMode(EML_PlayerMovementMode NewMode);
 
 private:
+	// ==================== Ground ====================
+	
+	bool IsClickableGround(const FHitResult& Hit) const;
 
+	
+	
 	// ==================== Movement ====================
 
 	void TickMoveAlongPath(float DeltaTime);
@@ -115,23 +99,17 @@ private:
 	void ExtendMoveAlongPath(const TArray<FIntPoint>& FullMergedAxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 		int32 PreservedPathIndex);
 
-	// Rotation, exit hold, turn-toward-tile — owned by TransitionComponent
-
+	
+	
 	// ==================== Delegates ====================
+	
+	UFUNCTION()
+	void HandleCurrentTileChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
 
 	UFUNCTION()
-	void HandleBoardStateChanged(const AML_Tile* NewTile);
-
-	UFUNCTION()
-	void ForwardEnergyChanged(int32 NewEnergy);
-
-	UFUNCTION()
-	void ForwardHoveredTileChanged(AML_Tile* HoveredTile, bool bIsReachable);
-
-	// Hover timer management delegated to HoverPreviewComponent
+	void HandleBoardStateChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
 
 protected:
-
 	// ==================== Lifecycle ====================
 
 	AML_PlayerController();
@@ -139,6 +117,8 @@ protected:
 	virtual void PlayerTick(float DeltaTime) override;
 	virtual void OnPossess(APawn* aPawn) override;
 
+	
+	
 	// ==================== Input ====================
 
 	// Bind to OnStarted — one shot per click (BFS, exit hold trigger, board re-entry)
@@ -161,6 +141,8 @@ protected:
 	void HandleInsideBoardClick();
 	void HandleFreeMovementClick();
 
+	
+	
 	// ==================== Movement Tuning ====================
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
@@ -185,61 +167,32 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
 	float ShortPressThreshold = 0.5f;
-	
-	// Hover preview is managed by HoverPreviewComponent
 
 public:
+	// ==================== Components ====================
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UML_EnergyComponent* EnergyComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UML_HoverPreviewComponent* HoverPreviewComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UML_MoveRecordingComponent* MoveRecordingComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UML_BoardTransitionComponent* TransitionComponent = nullptr;
 	
-	// ==================== Delegate ====================
+	
+	
+	// ==================== Delegates ====================
 	
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
 
-	// Called when the 'CurrentEnergy' value changes
-	UPROPERTY(BlueprintAssignable, Category="Myceland Controller|Energy")
-	FOnEnergyChanged OnEnergyChanged;
-
-	// Called when the tile under the cursor changes or its reachability changes.
-	// HoveredTile is null when no tile is hovered. bIsReachable is false when an
-	// obstacle blocks the path from the player to the hovered tile.
-	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Hover")
-	FOnHoveredTileChanged OnHoveredTileChanged;
 	
-	// Called when the player holds cursor to exit board
-	// The float is normalized between 0-1
-	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Exit")
-	FOnExitCursorHold OnExitCursorHold;
 	
-	// Whenever the player starts and stops moving INSIDE a board.
-	// Will not be broadcasted when OUTSIDE the board.
-	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller")
-	FOnBoardMovementStateChanged OnBoardMovementStateChanged;
-
-	// ==================== Energy ====================
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
-	int32 GetCurrentEnergy() const { return EnergyComponent ? EnergyComponent->GetCurrentEnergy() : 0; }
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
-	void SetCurrentEnergy(int32 NewEnergy);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
-	void AddEnergy(int32 Delta);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller|Energy")
-	void InitNumberOfEnergyForLevel(int32 Energy);
-	
-	// ==================== Hover Preview Events (for Blueprints) ====================
-    
-	// Called when hover path changes
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Myceland Controller|Hover")
-	void OnHoverPathUpdated(const TArray<AML_Tile*>& PathTiles);
-    
-	// Called when hover is cleared
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Myceland Controller|Hover")
-	void OnHoverPathCleared();
-
 	// ==================== Actions ====================
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller")
