@@ -2,6 +2,7 @@
 
 #include "Component/ML_BoardTransitionComponent.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -369,7 +370,7 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 
 		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Character->CurrentTileOn);
 		if (Neighbors.Contains(PendingPlantTargetTile) &&
-			PendingPlantTargetTile->GetCurrentType() == EML_TileType::Dirt &&
+			UML_TileTypeTraits::CanPlayerPlant(PendingPlantTargetTile->GetCurrentType()) &&
 			EnergyComponent && EnergyComponent->GetCurrentEnergy() > 0)
 		{
 			StartTurnTowardTile(PendingPlantTargetTile);

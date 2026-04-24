@@ -1,5 +1,6 @@
 ﻿#include "PuzzleGeneration/ML_PuzzleSimulator.h"
 #include "Core/ML_CoreData.h"
+#include "Core/ML_TileTypeTraits.h"
 
 bool FML_PuzzleSimulator::SimulatePlantAction(FML_PuzzleState& State, const FIntPoint& PlantAxial)
 {
@@ -61,7 +62,7 @@ bool FML_PuzzleSimulator::IsWinningState(const FML_PuzzleState& State)
 			}
 
 			const FML_PuzzleCell* NeighborCell = State.FindCell(NeighborAxial);
-			if (!NeighborCell || !IsConnectionType(NeighborCell->Type))
+			if (!NeighborCell || !(UML_TileTypeTraits::IsTreeType(NeighborCell->Type) || UML_TileTypeTraits::IsWinPathTile(NeighborCell->Type)))
 			{
 				continue;
 			}
@@ -98,13 +99,6 @@ void FML_PuzzleSimulator::GetNeighbors(
 			OutNeighbors.Add(NeighborAxial);
 		}
 	}
-}
-
-bool FML_PuzzleSimulator::IsConnectionType(EML_TileType Type)
-{
-	return Type == EML_TileType::Tree
-		|| Type == EML_TileType::Grass
-		|| Type == EML_TileType::Water;
 }
 
 bool FML_PuzzleSimulator::SimulateGrassWave(FML_PuzzleState& State, const FIntPoint& OriginAxial)
@@ -172,7 +166,7 @@ bool FML_PuzzleSimulator::SimulateGrassWave(FML_PuzzleState& State, const FIntPo
 			}
 
 			const FML_PuzzleCell* NeighborCell = State.FindCell(NeighborAxial);
-			if (!NeighborCell || !IsDirtLike(NeighborCell->Type))
+			if (!NeighborCell || !UML_TileTypeTraits::CanGrassPropagateTo(NeighborCell->Type))
 			{
 				continue;
 			}
@@ -211,7 +205,7 @@ bool FML_PuzzleSimulator::SimulateGrassWave(FML_PuzzleState& State, const FIntPo
 			}
 
 			const FML_PuzzleCell* NeighborCell = State.FindCell(NeighborAxial);
-			if (!NeighborCell || !IsDirtLike(NeighborCell->Type))
+			if (!NeighborCell || !UML_TileTypeTraits::CanGrassPropagateTo(NeighborCell->Type))
 			{
 				continue;
 			}
@@ -378,9 +372,4 @@ void FML_PuzzleSimulator::ExpandWaterNetwork(
 			Queue.Enqueue(NeighborAxial);
 		}
 	}
-}
-
-bool FML_PuzzleSimulator::IsDirtLike(EML_TileType Type)
-{
-	return Type == EML_TileType::Dirt || Type == EML_TileType::Obstacle;
 }

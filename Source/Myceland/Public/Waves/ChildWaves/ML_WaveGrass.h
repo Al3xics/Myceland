@@ -15,8 +15,7 @@ class MYCELAND_API UML_WaveGrass : public UML_PropagationWaves
 	
 private:
 	static void ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTile, TSet<AML_Tile*>& WaterConnected);
-	static bool IsDirtLike(const AML_Tile* Tile);
-	
+
 public:
 	virtual void ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges) override;
 };

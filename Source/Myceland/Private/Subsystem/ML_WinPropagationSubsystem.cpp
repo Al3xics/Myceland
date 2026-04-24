@@ -2,6 +2,7 @@
 
 #include "Subsystem/ML_WinPropagationSubsystem.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
@@ -59,7 +60,7 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 			const EML_TileType Type = Neighbor->GetCurrentType();
 
 			// Dirt and Parasite are converted to Grass; all other types are passed through unchanged.
-			const EML_TileType TargetType = (Type == EML_TileType::Dirt || Type == EML_TileType::Parasite)
+			const EML_TileType TargetType = UML_TileTypeTraits::IsWinPropagationConvertible(Type)
 				? EML_TileType::Grass
 				: Type;
 
@@ -92,12 +93,15 @@ void UML_WinPropagationSubsystem::RunWinWave()
 		{
 			Tile->OnWaveTouched();
 
-			if (Entry.TargetType != Tile->GetCurrentType())
+			// Use the tile's live type, not the BFS snapshot — ClearWinPath may have
+			// already converted Water → Grass before this timer fires.
+			const EML_TileType LiveType = Tile->GetCurrentType();
+			if (UML_TileTypeTraits::IsWinPropagationConvertible(LiveType))
 			{
 				const AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 				if (const UML_BiomeTileSet* TileSet = Board ? Board->GetBiomeTileSet() : nullptr)
 				{
-					Tile->UpdateClassAtRuntime(Entry.TargetType, TileSet->GetClassFromTileType(Entry.TargetType));
+					Tile->UpdateClassAtRuntime(EML_TileType::Grass, TileSet->GetClassFromTileType(EML_TileType::Grass));
 				}
 			}
 		}

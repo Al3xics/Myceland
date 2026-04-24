@@ -2,6 +2,7 @@
 
 
 #include "Tiles/ML_BoardSpawner.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_Tile.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -186,7 +187,7 @@ void AML_BoardSpawner::UpdateCurrentGrid(bool bAllowSpawn)
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		SpawnedTiles.Add(Pair.Value);
-		if (Pair.Value && Pair.Value->GetCurrentType() == EML_TileType::Tree)
+		if (Pair.Value && UML_TileTypeTraits::IsTreeType(Pair.Value->GetCurrentType()))
 		{
 			TreeTiles.Add(Pair.Value);
 		}

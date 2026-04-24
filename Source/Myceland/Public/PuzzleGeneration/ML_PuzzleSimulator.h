@@ -15,6 +15,4 @@ private:
 	static bool SimulateWaterWave(FML_PuzzleState& State);
 	static bool SimulateParasiteWave(FML_PuzzleState& State);
 	static void ExpandWaterNetwork(const FML_PuzzleState& State, const FIntPoint& FromAxial, TSet<FIntPoint>& WaterConnected);
-	static bool IsDirtLike(EML_TileType Type);
-	static bool IsConnectionType(EML_TileType Type);
 };

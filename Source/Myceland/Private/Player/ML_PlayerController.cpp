@@ -5,6 +5,7 @@
 #include "Component/ML_EnergyComponent.h"
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
@@ -88,7 +89,7 @@ bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 {
 	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
 		return false;
-    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
+    GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
 	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
 	return ObjectType == ECC_GameTraceChannel1;
 }
@@ -455,7 +456,7 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return false;
-	if (TargetTile->GetCurrentType() != EML_TileType::Dirt) return false;
+	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return false;
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();

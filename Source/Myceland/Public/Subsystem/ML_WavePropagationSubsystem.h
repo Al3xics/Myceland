@@ -111,6 +111,20 @@ private:
 	void EndTileResolved();
 
 	// =========================================================================
+	// Touch wave: fires OnWaveTouched on every board tile, ring by ring,
+	// independently of PendingChanges (which only contains tiles that change).
+	// =========================================================================
+
+	UPROPERTY(Transient)
+	TArray<FML_WaveChange> PendingTouched;
+
+	int32 TouchIndex = 0;
+	FTimerHandle TouchTimerHandle;
+
+	void BuildTouchQueue(AML_Tile* OriginTile);
+	void FireNextTouchRing();
+
+	// =========================================================================
 	// Deterministic ordering for recorded deltas during forward gameplay.
 	int32 CurrentPriorityIndexForRecording = 0;
 

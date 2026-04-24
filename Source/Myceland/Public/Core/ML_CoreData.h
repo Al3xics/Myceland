@@ -57,6 +57,7 @@ enum class EML_TileType : uint8
 	Grass,
 	Parasite,
 	Water,
+	WaterPath,
 	Obstacle,
 	Tree
 };
