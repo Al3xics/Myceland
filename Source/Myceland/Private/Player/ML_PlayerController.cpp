@@ -89,7 +89,7 @@ bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 {
 	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
 		return false;
-    GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
+    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
 	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
 	return ObjectType == ECC_GameTraceChannel1;
 }
