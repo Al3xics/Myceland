@@ -28,7 +28,7 @@ public:
 	FOnWin OnWin;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnLose OnLose;
+	FOnLose OnLose; 
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnDeath OnDeath;

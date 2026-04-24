@@ -381,10 +381,19 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 				CurrentBoardSpawner->ExitTile,
 				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
 
-			ClearWinPath(CurrentBoardSpawner,
-				CurrentBoardSpawner->EntryTile,
-				CurrentBoardSpawner->ExitTile,
-				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+			// Defer the Entry→Exit clear by one tick so UpdateClassAtRuntime changes
+			// from the first call are fully applied before the second BFS runs.
+			AML_BoardSpawner* Board = CurrentBoardSpawner;
+			GetWorld()->GetTimerManager().SetTimerForNextTick([this, Board]()
+			{
+				if (IsValid(Board))
+				{
+					ClearWinPath(Board,
+						Board->EntryTile,
+						Board->ExitTile,
+						{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt});
+				}
+			});
 		}
 
 		return;
