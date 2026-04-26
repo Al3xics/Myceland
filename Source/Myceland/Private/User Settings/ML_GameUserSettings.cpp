@@ -296,7 +296,7 @@ void UML_GameUserSettings::ApplyAudioSettings()
 	USoundClass* VoiceClass = DevSettings->VoiceSoundClass.LoadSynchronous();
 	USoundMix* GameMix = DevSettings->GameSoundMix.LoadSynchronous();
 	
-	if (!ensureMsgf(GameMix, TEXT("Failed to get GameSoundMix from Developer Settings")))
+	if (!GameMix)
 		return;
 
 	// Apply volumes to Sound Mix

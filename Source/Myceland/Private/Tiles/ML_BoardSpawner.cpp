@@ -2,11 +2,13 @@
 
 
 #include "Tiles/ML_BoardSpawner.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_Tile.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
+#include "PuzzleGeneration/ML_PuzzleSolver.h"
 #include "Kismet/GameplayStatics.h"
 #include "Save System/ML_SaveSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
@@ -220,9 +222,14 @@ void AML_BoardSpawner::UpdateCurrentGrid(bool bAllowSpawn)
 	GridMap = MoveTemp(NewTilesByAxial);
 	SpawnedTiles.Empty();
 	SpawnedTiles.Reserve(GridMap.Num());
+	TreeTiles.Empty();
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		SpawnedTiles.Add(Pair.Value);
+		if (Pair.Value && UML_TileTypeTraits::IsTreeType(Pair.Value->GetCurrentType()))
+		{
+			TreeTiles.Add(Pair.Value);
+		}
 	}
 }
 
@@ -244,6 +251,7 @@ void AML_BoardSpawner::ClearTiles()
 	}
 
 	SpawnedTiles.Empty();
+	TreeTiles.Empty();
 	GridMap.Empty();
 }
 
@@ -289,6 +297,17 @@ TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
 		Result.Add(Pair.Value.Get());
+	}
+	return Result;
+}
+
+TArray<AML_Tile*> AML_BoardSpawner::GetTreeTiles() const
+{
+	TArray<AML_Tile*> Result;
+	Result.Reserve(TreeTiles.Num());
+	for (const TObjectPtr<AML_Tile>& Tile : TreeTiles)
+	{
+		Result.Add(Tile.Get());
 	}
 	return Result;
 }
@@ -530,3 +549,56 @@ void AML_BoardSpawner::ReplayPuzzle()
 	bIsPuzzleSolved = false;
 	SaveSys->ResetPuzzle(PuzzleID);
 }
+
+void AML_BoardSpawner::AnalyzeCurrentPuzzle()
+{
+	UpdateCurrentGrid(false);
+
+	const FML_PuzzleState State = BuildPuzzleStateFromCurrentGrid();
+	const FML_PuzzleSolveReport Report = FML_PuzzleSolver::Solve(State, PuzzleGenerationSettings);
+
+	UE_LOG(LogTemp, Error, TEXT("Puzzle analysis: Solvable=%s, Solutions=%d, Shortest=%d"),
+		Report.bSolvable ? TEXT("true") : TEXT("false"),
+		Report.SolutionCount,
+		Report.ShortestSolutionLength);
+
+	for (const FIntPoint& Action : Report.ShortestSolution.PlantActions)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Solution action: Plant at Q=%d R=%d"), Action.X, Action.Y);
+	}
+}
+
+FML_PuzzleState AML_BoardSpawner::BuildPuzzleStateFromCurrentGrid() const
+{
+	FML_PuzzleState State;
+	State.Energy = EnergyForPuzzle;
+
+	if (EntryTile)
+	{
+		State.EntryAxial = EntryTile->GetAxialCoord();
+	}
+
+	if (ExitTile)
+	{
+		State.ExitAxial = ExitTile->GetAxialCoord();
+	}
+
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		const AML_Tile* Tile = Pair.Value.Get();
+		if (!IsValid(Tile))
+		{
+			continue;
+		}
+
+		FML_PuzzleCell Cell;
+		Cell.Axial = Pair.Key;
+		Cell.Type = Tile->GetCurrentType();
+		Cell.bHasCollectible = Tile->HasCollectible();
+
+		State.Cells.Add(Cell);
+	}
+
+	return State;
+}
+ 
