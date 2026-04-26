@@ -80,6 +80,11 @@ void AML_BoardSpawner::BeginPlay()
 	}
 }
 
+void AML_BoardSpawner::UpdateCurrentGridEditor()
+{
+	UpdateCurrentGrid(true);
+}
+
 void AML_BoardSpawner::RebuildGrid()
 {
 	ClearTiles();

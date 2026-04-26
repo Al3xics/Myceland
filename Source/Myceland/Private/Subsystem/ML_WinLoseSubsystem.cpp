@@ -313,7 +313,7 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	}
 }
 
-void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* NewTile)
+void UML_WinLoseSubsystem::HandleBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile)
 {
 	if (!IsValid(NewTile))
 	{
