@@ -648,7 +648,8 @@ void AML_PlayerController::HandleInsideBoardClick()
 	// Click outside the board → hold to exit toward the closest gate tile (EntryTile or ExitTile)
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
-
+	if (!IsClickableGround(Hit)) return;
+	
 	AML_Tile* ExitGate = Board->GetClosestGateTile(Hit.Location);
 	if (!IsValid(ExitGate)) return;
 
