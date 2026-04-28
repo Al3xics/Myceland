@@ -2,6 +2,7 @@
 
 #include "Component/ML_BoardTransitionComponent.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -64,6 +65,9 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitTile, const FVe
 
 	OwningController->SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
 	bIsHoldingExitInput = true;
+	
+	if (OwningController->HoverPreviewComponent)
+		OwningController->HoverPreviewComponent->SetForcedHoverTile(ExitTile);
 
 	// Start exit hold timer
 	ExitHoldTimer        = 0.f;
@@ -107,6 +111,12 @@ void UML_BoardTransitionComponent::TickExitHold()
 			OnExitCursorHold.Broadcast(false, 0.0f);
 			bWasExitingLastFrame  = false;
 			LastBroadcastProgress = -1.f;
+			
+			if (OwningController->HoverPreviewComponent)
+			{
+				OwningController->HoverPreviewComponent->ClearForcedHoverTile();
+				OwningController->HoverPreviewComponent->ClearHoverPreview();
+			}
 
 			// Return to board — SwitchToMode handles clearing exit state
 			OwningController->SetMovementMode(EML_PlayerMovementMode::InsideBoard);
@@ -137,6 +147,10 @@ void UML_BoardTransitionComponent::TickExitHold()
 		LastBroadcastProgress = -1.f;
 
 		OnExitCursorHold.Broadcast(false, 1.0f);
+		
+		if (OwningController->HoverPreviewComponent)
+			OwningController->HoverPreviewComponent->ClearForcedHoverTile();
+		
 		ConfirmExitBoard();
 	}
 }
@@ -356,7 +370,7 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 
 		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Character->CurrentTileOn);
 		if (Neighbors.Contains(PendingPlantTargetTile) &&
-			PendingPlantTargetTile->GetCurrentType() == EML_TileType::Dirt &&
+			UML_TileTypeTraits::CanPlayerPlant(PendingPlantTargetTile->GetCurrentType()) &&
 			EnergyComponent && EnergyComponent->GetCurrentEnergy() > 0)
 		{
 			StartTurnTowardTile(PendingPlantTargetTile);

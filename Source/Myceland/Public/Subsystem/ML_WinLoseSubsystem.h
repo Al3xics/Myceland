@@ -86,7 +86,7 @@ public:
 
 private:
 	UFUNCTION()
-	void HandleBoardChanged(const AML_Tile* NewTile);
+	void HandleBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
 
 	static const FIntPoint HexDirs[6];
 

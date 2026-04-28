@@ -20,7 +20,10 @@ void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode
 
 	// Leaving board mode — clear path preview
 	if (NewMode != EML_PlayerMovementMode::InsideBoard && NewMode != EML_PlayerMovementMode::ExitingBoard)
+	{
 		ClearHoverPreview();
+		ClearForcedHoverTile();
+	}
 }
 
 void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
@@ -50,6 +53,25 @@ void UML_HoverPreviewComponent::StopHoverPreviewTimer()
 	GetWorld()->GetTimerManager().ClearTimer(HoverPreviewTimerHandle);
 	ClearHoverPreview();
 	ClearCursorHoverPreview();
+	ClearForcedHoverTile();
+}
+
+void UML_HoverPreviewComponent::SetForcedHoverTile(AML_Tile* Tile)
+{
+	ForcedHoverTile = Tile;
+	// Force immediate recalculation
+	LastHoveredTile = nullptr;
+	if (HoverPreviewTimerHandle.IsValid())
+		TickHoverPreview();
+}
+
+void UML_HoverPreviewComponent::ClearForcedHoverTile()
+{
+	ForcedHoverTile = nullptr;
+	// Force recalculation to return to normal cursor hover
+	LastHoveredTile = nullptr;
+	if (HoverPreviewTimerHandle.IsValid())
+		TickHoverPreview();
 }
 
 void UML_HoverPreviewComponent::UpdateHoverPreview()
@@ -144,7 +166,7 @@ void UML_HoverPreviewComponent::TickHoverPreview()
 	if (!IsValid(OwningController))
         return;
 
-    AML_Tile* HoveredTile = OwningController->GetTileUnderCursor();
+	AML_Tile* HoveredTile = ForcedHoverTile ? ForcedHoverTile : OwningController->GetTileUnderCursor();
 
     // Same tile as before → no update needed
     if (HoveredTile == LastHoveredTile)
@@ -220,10 +242,7 @@ void UML_HoverPreviewComponent::ClearHoverPreview()
 	CurrentPreviewPath.Empty();
 
 	if (LastHoveredTile != nullptr)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Magenta, TEXT("Hover preview: 4"));
 		SetHoveredTileState(nullptr, false);
-	}
 
 	LastHoveredTile = nullptr;
 }

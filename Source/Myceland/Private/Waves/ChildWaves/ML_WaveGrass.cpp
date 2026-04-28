@@ -3,6 +3,7 @@
 
 #include "Waves/ChildWaves/ML_WaveGrass.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
 #include "Tiles/ML_Tile.h"
@@ -11,9 +12,9 @@ void UML_WaveGrass::ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTi
 {
     TQueue<AML_Tile*> ExpansionQueue;
 
-    for (AML_Tile* Neighbor : Board->GetNeighbors(FromTile))
-    {
-        if (Neighbor && Neighbor->GetCurrentType() == EML_TileType::Water && !WaterConnected.Contains(Neighbor))
+        for (AML_Tile* Neighbor : Board->GetNeighbors(FromTile))
+        {
+            if (Neighbor && UML_TileTypeTraits::IsWaterType(Neighbor->GetCurrentType()) && !WaterConnected.Contains(Neighbor))
         {
             WaterConnected.Add(Neighbor);
             ExpansionQueue.Enqueue(Neighbor);
@@ -27,19 +28,13 @@ void UML_WaveGrass::ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTi
 
         for (AML_Tile* Neighbor : Board->GetNeighbors(CurrentWater))
         {
-            if (Neighbor && Neighbor->GetCurrentType() == EML_TileType::Water && !WaterConnected.Contains(Neighbor))
+            if (Neighbor && UML_TileTypeTraits::IsWaterType(Neighbor->GetCurrentType()) && !WaterConnected.Contains(Neighbor))
             {
                 WaterConnected.Add(Neighbor);
                 ExpansionQueue.Enqueue(Neighbor);
             }
         }
     }
-}
-
-bool UML_WaveGrass::IsDirtLike(const AML_Tile* Tile)
-{
-    const EML_TileType Type = Tile->GetCurrentType();
-    return Type == EML_TileType::Dirt || Type == EML_TileType::Obstacle;
 }
 
 void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
@@ -148,7 +143,7 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
         
         for (AML_Tile* Neighbor : Neighbors)
         {
-            if (!Neighbor || Scheduled.Contains(Neighbor) || !IsDirtLike(Neighbor))
+            if (!Neighbor || Scheduled.Contains(Neighbor) || !UML_TileTypeTraits::CanGrassPropagateTo(Neighbor->GetCurrentType()))
                 continue;
 
             // Retrieving the actual distance from the origin
@@ -178,7 +173,7 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
         
         for (AML_Tile* Neighbor : Neighbors)
         {
-            if (!Neighbor || Scheduled.Contains(Neighbor) || !IsDirtLike(Neighbor))
+            if (!Neighbor || Scheduled.Contains(Neighbor) || !UML_TileTypeTraits::CanGrassPropagateTo(Neighbor->GetCurrentType()))
                 continue;
 
             // Checking if the neighbor is touching the water

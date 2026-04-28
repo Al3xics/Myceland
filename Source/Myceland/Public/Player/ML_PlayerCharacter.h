@@ -12,8 +12,8 @@ class UCameraComponent;
 class USpringArmComponent;
 class AML_Tile;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCurrentTileChanged, AML_Tile*, OldTile, AML_Tile*, NewTile);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardChanged, const AML_Tile*, NewTile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCurrentTileChanged, const AML_Tile*, OldTile, const AML_Tile*, NewTile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBoardChanged, const AML_Tile*, OldTile, const AML_Tile*, NewTile);
 
 UCLASS()
 class MYCELAND_API AML_PlayerCharacter : public ACharacter

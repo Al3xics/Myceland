@@ -56,7 +56,6 @@ private:
 	bool bHasCollectible = false;
 	
 	void SetBlocked(bool bNewBlocked);
-	bool IsTileTypeBlocking(EML_TileType Type);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
@@ -125,6 +124,9 @@ public:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
+	void OnWaveTouched();
 	
 	
 	UFUNCTION()

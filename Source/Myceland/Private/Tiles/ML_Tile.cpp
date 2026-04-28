@@ -3,6 +3,7 @@
 
 #include "Tiles/ML_Tile.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_TileBase.h"
 #include "Tiles/TileBase/ML_TileDirt.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
@@ -54,23 +55,6 @@ void AML_Tile::SetBlocked(bool bNewBlocked)
 	);
 }
 
-bool AML_Tile::IsTileTypeBlocking(const EML_TileType Type)
-{
-	switch (Type)
-	{
-		case EML_TileType::Water:
-		case EML_TileType::Parasite:
-		case EML_TileType::Obstacle:
-		case EML_TileType::Tree:
-			return true;
-
-		case EML_TileType::Grass:
-		case EML_TileType::Dirt:
-		default:
-			return false;
-	}
-}
-
 #if WITH_EDITOR
 void AML_Tile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -101,19 +85,20 @@ void AML_Tile::UpdateClassInEditor(const EML_TileType NewTileType)
 {
 	CurrentType = NewTileType;
 	TSubclassOf<AML_TileBase> TileBase;
-	
+
 	switch (CurrentType)
 	{
 		case EML_TileType::Dirt:		TileBase = DirtClass; break;
 		case EML_TileType::Grass:		TileBase = GrassClass; break;
 		case EML_TileType::Parasite:	TileBase = ParasiteClass; break;
 		case EML_TileType::Water:		TileBase = WaterClass; break;
+		case EML_TileType::WaterPath:	TileBase = WaterClass; break;
 		case EML_TileType::Obstacle:	TileBase = ObstacleClass; break;
 		case EML_TileType::Tree:		TileBase = TreeClass; break;
 	}
-	
+
 	TileChildActor->SetChildActorClass(TileBase);
-	SetBlocked(IsTileTypeBlocking(NewTileType));
+	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 }
 #endif
 
@@ -130,7 +115,7 @@ void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubcl
 	bConsumedGrass = (OldType == EML_TileType::Grass && NewTileType == EML_TileType::Parasite);
 	
 	TileChildActor->SetChildActorClass(NewClass);
-	SetBlocked(IsTileTypeBlocking(NewTileType));
+	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 	OnTileTypeChanged(OldType, NewTileType);
 }
 
@@ -147,7 +132,7 @@ void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const
 	CurrentType = NewTileType;
 
 	TileChildActor->SetChildActorClass(NewClass);
-	SetBlocked(IsTileTypeBlocking(NewTileType));
+	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 
 	// NO OnTileTypeChanged(OldType, NewTileType) in silent mode
 }

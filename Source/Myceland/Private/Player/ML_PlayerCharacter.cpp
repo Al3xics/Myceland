@@ -8,8 +8,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Player/ML_PlayerController.h"
+#include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
+#include "Tiles/ML_TileBase.h"
 
 
 AML_PlayerCharacter::AML_PlayerCharacter()
@@ -64,12 +66,27 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 		ECC_Visibility,
 		Params
 	);
-
+	
 	AML_Tile* OldTile = CurrentTileOn;
 	AML_Tile* NewTile = nullptr;
 
 	if (bHit)
-		NewTile = Cast<AML_Tile>(Hit.GetActor());
+	{
+		if (AActor* HitActor = Hit.GetActor())
+		{
+			if (AML_TileBase* TileBase = Cast<AML_TileBase>(HitActor))
+			{
+				if (AActor* ParentActor = TileBase->GetAttachParentActor())
+				{
+					NewTile = Cast<AML_Tile>(ParentActor);
+				}
+			}
+			else
+			{
+				NewTile = Cast<AML_Tile>(HitActor);
+			}
+		}
+	}
 
 	if (NewTile == OldTile)
 		return;
@@ -101,50 +118,40 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 
 void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const AML_Tile* NewTile) const
 {
-	const bool bWasNull = (OldTile == nullptr);
-	const bool bIsNull  = (NewTile == nullptr);
+	AML_BoardSpawner* OldBoard = OldTile ? OldTile->GetBoardSpawnerFromTile() : nullptr;
+	AML_BoardSpawner* NewBoard = NewTile ? NewTile->GetBoardSpawnerFromTile() : nullptr;
 
-	if (bWasNull != bIsNull)
+	// No meaningful change.
+	if (OldTile == NewTile)
+		return;
+
+	// Same board => internal movement, do not trigger camera / board change logic.
+	if (OldBoard && NewBoard && OldBoard == NewBoard)
+		return;
+
+	auto IsGateTile = [](const AML_BoardSpawner* Board, const AML_Tile* Tile) -> bool
 	{
-		OnBoardChanged.Broadcast(CurrentTileOn);
+		return Board && Tile && (Board->EntryTile == Tile || Board->ExitTile == Tile);
+	};
 
-		if (bIsNull)
-		{
-			if (UWorld* World = GetWorld())
-			{
-				const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
-				if (IsValid(OldTile) && IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
-				{
-					if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
-					{
-						WaveSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
-					}
-				}
-			}
-		}
-	}
-	// Transition board A → board B
-	else if (!bWasNull && !bIsNull)
+	// If we left a board but the last tile was not a gate, ignore it.
+	// This prevents transient nullptrs or internal tile updates from switching camera.
+	if (OldTile && !NewTile)
 	{
-		const AML_BoardSpawner* OldBoard = OldTile->GetBoardSpawnerFromTile();
-		const AML_BoardSpawner* NewBoard = NewTile->GetBoardSpawnerFromTile();
-
-		if (OldBoard != NewBoard)
-		{
-			OnBoardChanged.Broadcast(CurrentTileOn);
-
-			if (UWorld* World = GetWorld())
-			{
-				if (IsValid(OldBoard) && !OldBoard->bIsPuzzleSolved)
-				{
-					if (UML_WavePropagationSubsystem* WaveSubsystem = World->GetSubsystem<UML_WavePropagationSubsystem>())
-					{
-						WaveSubsystem->ResetAllActions_ExcludingMoves_Instant(const_cast<AML_BoardSpawner*>(OldBoard));
-					}
-				}
-			}
-		}
+		if (!IsGateTile(OldBoard, OldTile))
+			return;
 	}
+
+	// If we entered a board but the new tile is not a gate, ignore it.
+	if (!OldTile && NewTile)
+	{
+		if (!IsGateTile(NewBoard, NewTile))
+			return;
+	}
+
+	// If we changed directly from one board to another, keep it.
+	// If we genuinely crossed a gate, keep it too.
+	OnBoardChanged.Broadcast(OldTile, NewTile);
 }
 
 void AML_PlayerCharacter::BeginPlay()
@@ -158,7 +165,9 @@ void AML_PlayerCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	
 	// Only check if the character has moved
-	const FVector CurrentLocation = GetActorLocation();
+	FVector CurrentLocation = GetActorLocation();
+	CurrentLocation.Z = 0.f;
+	AML_Tile* Testtype = CurrentTileOn;
 	if (!LastCheckedLocation.Equals(CurrentLocation, 10.f)) // Tolerance of 10 units
 	{
 		UpdateCurrentTile();
@@ -170,4 +179,3 @@ void AML_PlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
-

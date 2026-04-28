@@ -41,6 +41,9 @@ private:
 	EML_PlayerMovementMode CurrentMovementMode = EML_PlayerMovementMode::FreeMovement;
 
 	FTimerHandle HoverPreviewTimerHandle;
+	
+	UPROPERTY(Transient)
+	AML_Tile* ForcedHoverTile = nullptr;
 
 	void UpdateHoverPreview();
 	void TickHoverPreview();
@@ -62,4 +65,7 @@ public:
 	void ClearHoverPreview();
 	void StartHoverPreviewTimer();
 	void StopHoverPreviewTimer();
+	
+	void SetForcedHoverTile(AML_Tile* Tile);
+	void ClearForcedHoverTile();
 };
