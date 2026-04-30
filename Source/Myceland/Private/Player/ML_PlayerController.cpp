@@ -13,6 +13,7 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
+#include "FMODBlueprintStatics.h"
 #include "Tiles/ML_Tile.h"
 
 class UML_WavePropagationSubsystem;
@@ -447,6 +448,9 @@ bool AML_PlayerController::Move(AML_Tile* TargetTile, int32 StopBeforeTarget)
 
 bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 {
+	
+	UFMODBlueprintStatics::PlayEventAtLocation(GetWorld(), TilePlantEvent, FTransform(TargetTile->GetActorLocation()),true);
+	
 	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return false;
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;

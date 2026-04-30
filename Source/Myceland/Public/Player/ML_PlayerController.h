@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FMODEvent.h"
 #include "Core/ML_CoreData.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/PlayerController.h"
@@ -205,4 +206,9 @@ public:
 
 	bool IsMoveInProgress() const { return MoveRecordingComponent && MoveRecordingComponent->IsMoveInProgress(); }
 	bool IsUndoMovePlayback() const { return MoveRecordingComponent && MoveRecordingComponent->IsUndoMovePlayback(); }
+	
+	// ==================== Sounds =======================
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Feedbacks")
+	UFMODEvent* TilePlantEvent;
 };
