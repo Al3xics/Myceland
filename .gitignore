@@ -100,4 +100,11 @@ Plugins/**/Intermediate/*
 # Allow FMOD plugin binaries
 !Plugins/FMODStudio/Binaries/**
 
+# FMOD project local/cache files
+Myceland_FMOD/.cache/
+Myceland_FMOD/.unsaved/
+Myceland_FMOD/**/*.user.xml
+Myceland_FMOD/**/Workspace.user.xml
+Myceland_FMOD/**/Mixer.user.xml
+
 # End of https://www.toptal.com/developers/gitignore/api/unrealengine
