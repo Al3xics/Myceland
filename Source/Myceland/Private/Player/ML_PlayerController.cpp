@@ -448,9 +448,6 @@ bool AML_PlayerController::Move(AML_Tile* TargetTile, int32 StopBeforeTarget)
 
 bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 {
-	
-	UFMODBlueprintStatics::PlayEventAtLocation(GetWorld(), TilePlantEvent, FTransform(TargetTile->GetActorLocation()),true);
-	
 	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return false;
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
@@ -511,6 +508,7 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 	{
 		OnGrassPlanted.Broadcast(HitTile);
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
+		UFMODBlueprintStatics::PlayEventAtLocation(GetWorld(), TilePlantEvent, FTransform(HitTile->GetActorLocation()),true);
 	}
 }
 
