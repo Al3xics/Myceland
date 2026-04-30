@@ -60,7 +60,7 @@ public:
 	FOnSequenceStart OnSequenceStart;
 	
 	UPROPERTY(BlueprintAssignable, Category="Narrative")
-	FOnSequenceStart OnSequenceEnd;
+	FOnSequenceEnd OnSequenceEnd;
 	
 	
 	
