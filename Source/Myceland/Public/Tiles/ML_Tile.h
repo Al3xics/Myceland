@@ -18,7 +18,7 @@ class AML_TileGrass;
 class AML_TileDirt;
 class AML_BoardSpawner;
 enum class EML_TileType : uint8;
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Tile : public AActor
 {
@@ -77,7 +77,11 @@ protected:
 
 public:
 	bool bConsumedGrass = false;
-	
+	UPROPERTY(BlueprintAssignable, Category="Tile")
+    FOnTileChangedNative OnTileChangedNative;
+    
+    UFUNCTION(BlueprintCallable, Category="Tile")
+    void NotifyTileChangedNative();
 	AML_Tile();
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
@@ -143,4 +147,7 @@ public:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;
+	
+	
+	
 };
