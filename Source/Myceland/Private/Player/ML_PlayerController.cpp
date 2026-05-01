@@ -600,6 +600,7 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
 		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);
 
+		MycelandCharacter->UpdateCurrentTile();
 		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
 			? EML_PlayerMovementMode::InsideBoard
 			: EML_PlayerMovementMode::FreeMovement;
