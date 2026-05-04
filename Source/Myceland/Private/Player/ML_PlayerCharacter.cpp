@@ -28,18 +28,6 @@ AML_PlayerCharacter::AML_PlayerCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->bConstrainToPlane = true;
 	GetCharacterMovement()->bSnapToPlaneAtStart = true;
-	
-	SpringArm = CreateDefaultSubobject<USpringArmComponent>("SpringArm");
-	SpringArm->SetupAttachment(RootComponent);
-	SpringArm->SetRelativeRotation(FRotator(-50.f, 0.f, 0.f));
-	SpringArm->TargetArmLength = 1400.f;
-	SpringArm->bDoCollisionTest = false;
-	SpringArm->bEnableCameraLag = true;
-	SpringArm->CameraLagSpeed = 3.f;
-	
-	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
-	Camera->SetupAttachment(SpringArm);
-	Camera->FieldOfView = 55.f;
 }
 
 void AML_PlayerCharacter::UpdateCurrentTile()
