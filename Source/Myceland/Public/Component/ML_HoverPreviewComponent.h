@@ -42,10 +42,6 @@ private:
 
 	FTimerHandle HoverPreviewTimerHandle;
 	
-	// Overrides cursor-based tile detection. When set, the hover preview (path glow + OnHoveredTileChanged)
-	// is computed against this tile instead of whatever is under the cursor.
-	// Used during board exit: the exit tile is forced so the path highlights even if the cursor is elsewhere.
-	// Cleared when the exit is confirmed, canceled, or the player leaves board mode.
 	UPROPERTY(Transient)
 	AML_Tile* ForcedHoverTile = nullptr;
 

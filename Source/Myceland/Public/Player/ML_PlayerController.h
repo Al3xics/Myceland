@@ -137,9 +137,6 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnMoveAndPlantStarted();
 
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void OnSkipNarrativeLine();
-
 	// ---- Input sub-handlers (called by OnSetDestinationStarted) ----
 	void HandleInsideBoardClick();
 	void HandleFreeMovementClick();

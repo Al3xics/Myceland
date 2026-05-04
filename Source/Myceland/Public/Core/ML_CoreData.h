@@ -135,9 +135,6 @@ struct FML_WaveChange
 	AML_Tile* Neighbor = nullptr; // Collectible
 	
 	UPROPERTY()
-	AML_Tile* SourceParasite = nullptr; // Collectible — the specific parasite that triggered this spawn
-
-	UPROPERTY()
 	FVector SpawnLocation = FVector::ZeroVector; // Collectible
 	
 	UPROPERTY()
