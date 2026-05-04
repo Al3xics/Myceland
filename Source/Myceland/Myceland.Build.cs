@@ -14,10 +14,8 @@ public class Myceland : ModuleRules
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
-			"AIModule", // No need, but still used by unreal's template
-			"NavigationSystem", // No need, but still used by unreal's template
-			"StateTreeModule", // No need, but still used by unreal's template
-			"GameplayStateTreeModule", // No need, but still used by unreal's template
+			"AIModule",
+			"NavigationSystem",
 			"Niagara",
 			"UMG",
 			"Json",

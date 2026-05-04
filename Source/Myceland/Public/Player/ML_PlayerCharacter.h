@@ -21,12 +21,6 @@ class MYCELAND_API AML_PlayerCharacter : public ACharacter
 	GENERATED_BODY()
 	
 private:
-	UPROPERTY(Category="Myceland Character", VisibleAnywhere, BlueprintReadOnly, meta=(AllowPrivateAccess = "true"))
-	TObjectPtr<USpringArmComponent> SpringArm;
-	
-	UPROPERTY(Category="Myceland Character", VisibleAnywhere, BlueprintReadOnly, meta=(AllowPrivateAccess = "true"))
-	TObjectPtr<UCameraComponent> Camera;
-	
 	UPROPERTY()
 	AML_PlayerController* MycelandController;
 	
