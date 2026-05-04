@@ -1,22 +1,34 @@
-﻿// Copyright Myceland Team, All Rights Reserved.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "Tiles/ML_TileBase.h"
+#include "GameFramework/Actor.h"
 #include "ML_TileObstacle.generated.h"
 
+class UML_WinLoseSubsystem;
+class AML_Tile;
+
 UCLASS()
-class MYCELAND_API AML_TileObstacle : public AML_TileBase
+class MYCELAND_API AML_TileObstacle : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this actor's properties
 	AML_TileObstacle();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+private:
+	UPROPERTY()
+	TObjectPtr<AML_Tile> OwnerTile;
+
+	UFUNCTION()
+	void HandleWin();
+
+	AML_Tile* ResolveOwnerTile() const;
+
+public:
+	// THIS is what you use in BP
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland")
+	void SwitchAlive();
 };
