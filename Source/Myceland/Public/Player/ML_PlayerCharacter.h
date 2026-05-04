@@ -32,11 +32,12 @@ private:
 	
 	FVector LastCheckedLocation = FVector::ZeroVector;
 	
-	void UpdateCurrentTile();
 	void HandleTileStateChange(const AML_Tile* OldTile, const AML_Tile* NewTile) const;
 
 public:
 	virtual void BeginPlay() override;
+	
+	void UpdateCurrentTile();
 
 	UPROPERTY(BlueprintReadOnly, Category="Myceland Character")
 	AML_Tile* CurrentTileOn = nullptr;
