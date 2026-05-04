@@ -3,6 +3,7 @@
 #include "Player/ML_PlayerController.h"
 
 #include "Component/ML_EnergyComponent.h"
+#include "Subsystem/ML_NarrativeSubsystem.h"
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Core/ML_TileTypeTraits.h"
@@ -599,6 +600,7 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
 		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);
 
+		MycelandCharacter->UpdateCurrentTile();
 		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
 			? EML_PlayerMovementMode::InsideBoard
 			: EML_PlayerMovementMode::FreeMovement;
@@ -741,6 +743,12 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 {
 	AML_Tile* TargetTile = GetTileUnderCursor();
 	Plant(TargetTile);
+}
+
+void AML_PlayerController::OnSkipNarrativeLine()
+{
+	if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
+		SubSys->SkipCurrentLine();
 }
 
 
