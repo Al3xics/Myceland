@@ -21,22 +21,17 @@ class MYCELAND_API AML_PlayerCharacter : public ACharacter
 	GENERATED_BODY()
 	
 private:
-	UPROPERTY(Category="Myceland Character", VisibleAnywhere, BlueprintReadOnly, meta=(AllowPrivateAccess = "true"))
-	TObjectPtr<USpringArmComponent> SpringArm;
-	
-	UPROPERTY(Category="Myceland Character", VisibleAnywhere, BlueprintReadOnly, meta=(AllowPrivateAccess = "true"))
-	TObjectPtr<UCameraComponent> Camera;
-	
 	UPROPERTY()
 	AML_PlayerController* MycelandController;
 	
 	FVector LastCheckedLocation = FVector::ZeroVector;
 	
-	void UpdateCurrentTile();
 	void HandleTileStateChange(const AML_Tile* OldTile, const AML_Tile* NewTile) const;
 
 public:
 	virtual void BeginPlay() override;
+	
+	void UpdateCurrentTile();
 
 	UPROPERTY(BlueprintReadOnly, Category="Myceland Character")
 	AML_Tile* CurrentTileOn = nullptr;

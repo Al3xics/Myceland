@@ -56,6 +56,8 @@ void UML_HoverPreviewComponent::StopHoverPreviewTimer()
 	ClearForcedHoverTile();
 }
 
+// Bypasses cursor detection and locks the hover preview onto the given tile until cleared.
+// Invalidates LastHoveredTile so TickHoverPreview immediately recomputes the path.
 void UML_HoverPreviewComponent::SetForcedHoverTile(AML_Tile* Tile)
 {
 	ForcedHoverTile = Tile;
@@ -65,6 +67,7 @@ void UML_HoverPreviewComponent::SetForcedHoverTile(AML_Tile* Tile)
 		TickHoverPreview();
 }
 
+// Removes the forced tile override and hands control back to cursor-based detection.
 void UML_HoverPreviewComponent::ClearForcedHoverTile()
 {
 	ForcedHoverTile = nullptr;
@@ -166,6 +169,7 @@ void UML_HoverPreviewComponent::TickHoverPreview()
 	if (!IsValid(OwningController))
         return;
 
+	// ForcedHoverTile takes priority over the cursor (e.g. locked to the exit tile during board exit hold)
 	AML_Tile* HoveredTile = ForcedHoverTile ? ForcedHoverTile : OwningController->GetTileUnderCursor();
 
     // Same tile as before → no update needed
@@ -225,7 +229,7 @@ void UML_HoverPreviewComponent::TickHoverPreview()
 
     SetHoveredTileState(HoveredTile, bReachable);
 
-    const bool bIsOnPlayerTile = (StartTile == HoveredTile);
+	const bool bIsOnPlayerTile = IsValid(PlayerCharacter->CurrentTileOn) && HoveredTile == PlayerCharacter->CurrentTileOn;
 
     if (bReachable && !bIsOnPlayerTile)
     {
