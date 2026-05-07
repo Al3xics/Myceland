@@ -1,12 +1,11 @@
-﻿#include "Tiles/TileBase/ML_TileObstacle.h"
+﻿// Copyright Myceland Team, All Rights Reserved.
 
-#include "Subsystems/GameInstanceSubsystem.h"
+#include "Tiles/TileBase/ML_TileObstacle.h"
+
 #include "Components/ChildActorComponent.h"
-#include "Kismet/GameplayStatics.h"
-
-#include "Tiles/ML_Tile.h"
-#include "Tiles/ML_BoardSpawner.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
+#include "Tiles/ML_BoardSpawner.h"
+#include "Tiles/ML_Tile.h"
 
 AML_TileObstacle::AML_TileObstacle()
 {
@@ -19,22 +18,32 @@ void AML_TileObstacle::BeginPlay()
 
 	OwnerTile = ResolveOwnerTile();
 
-	UML_WinLoseSubsystem* Subsystem = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>();
-	if (Subsystem)
+	WinLoseSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UML_WinLoseSubsystem>() : nullptr;
+
+	if (WinLoseSubsystem)
 	{
-		Subsystem->OnWin.AddDynamic(this, &AML_TileObstacle::HandleWin);
+		WinLoseSubsystem->OnWin.RemoveDynamic(this, &AML_TileObstacle::HandleWin);
+		WinLoseSubsystem->OnWin.AddDynamic(this, &AML_TileObstacle::HandleWin);
 	}
+}
+
+void AML_TileObstacle::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (WinLoseSubsystem)
+	{
+		WinLoseSubsystem->OnWin.RemoveDynamic(this, &AML_TileObstacle::HandleWin);
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
 
 AML_Tile* AML_TileObstacle::ResolveOwnerTile() const
 {
-	// CORRECT WAY for ChildActorComponent
-	if (const UChildActorComponent* CAC = Cast<UChildActorComponent>(GetParentComponent()))
+	if (const UChildActorComponent* ChildActorComponent = Cast<UChildActorComponent>(GetParentComponent()))
 	{
-		return Cast<AML_Tile>(CAC->GetOwner());
+		return Cast<AML_Tile>(ChildActorComponent->GetOwner());
 	}
 
-	// fallback (rare cases)
 	return Cast<AML_Tile>(GetOwner());
 }
 
@@ -45,13 +54,29 @@ void AML_TileObstacle::HandleWin()
 		OwnerTile = ResolveOwnerTile();
 	}
 
-	if (!IsValid(OwnerTile))
+	if (!IsValid(OwnerTile) || !IsValid(WinLoseSubsystem))
 	{
 		return;
 	}
 
-	// OPTIONAL: if you want board filtering later
-	// AML_BoardSpawner* Board = OwnerTile->GetBoardSpawnerFromTile();
+	AML_Tile* PlayerTile = WinLoseSubsystem->GetPlayerCurrentTile();
+	if (!IsValid(PlayerTile))
+	{
+		return;
+	}
 
-	SwitchAlive(); // BP event
+	AML_BoardSpawner* ObstacleBoard = OwnerTile->GetBoardSpawnerFromTile();
+	AML_BoardSpawner* PlayerBoard = PlayerTile->GetBoardSpawnerFromTile();
+
+	if (!IsValid(ObstacleBoard) || !IsValid(PlayerBoard))
+	{
+		return;
+	}
+
+	if (ObstacleBoard != PlayerBoard)
+	{
+		return;
+	}
+
+	SwitchAlive();
 }

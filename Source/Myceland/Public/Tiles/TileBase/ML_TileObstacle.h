@@ -1,14 +1,17 @@
-﻿#pragma once
+﻿// Copyright Myceland Team, All Rights Reserved.
+
+#pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "Tiles/ML_TileBase.h"
 #include "ML_TileObstacle.generated.h"
 
 class UML_WinLoseSubsystem;
 class AML_Tile;
+class AML_BoardSpawner;
 
 UCLASS()
-class MYCELAND_API AML_TileObstacle : public AActor
+class MYCELAND_API AML_TileObstacle : public AML_TileBase
 {
 	GENERATED_BODY()
 
@@ -17,18 +20,20 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Obstacle")
+	void SwitchAlive();
 
 private:
 	UPROPERTY()
-	TObjectPtr<AML_Tile> OwnerTile;
+	TObjectPtr<UML_WinLoseSubsystem> WinLoseSubsystem = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<AML_Tile> OwnerTile = nullptr;
 
 	UFUNCTION()
 	void HandleWin();
 
 	AML_Tile* ResolveOwnerTile() const;
-
-public:
-	// THIS is what you use in BP
-	UFUNCTION(BlueprintImplementableEvent, Category="Myceland")
-	void SwitchAlive();
 };
