@@ -6,6 +6,7 @@
 #include "Tiles/ML_Tile.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Actors/ML_CameraRail.h"
 #include "Components/StaticMeshComponent.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
@@ -285,6 +286,20 @@ AML_Tile* AML_BoardSpawner::GetClosestGateTile(const FVector& WorldLocation) con
 	const float DistEntry = FVector::DistSquared2D(WorldLocation, EntryTile->GetActorLocation());
 	const float DistExit  = FVector::DistSquared2D(WorldLocation, ExitTile->GetActorLocation());
 	return (DistEntry <= DistExit) ? EntryTile : ExitTile;
+}
+
+AML_CameraRail* AML_BoardSpawner::GetClosestCameraRailFromBoard(const FVector& WorldLocation) const
+{
+	const bool bEntryValid = IsValid(EntryCameraRail);
+	const bool bExitValid  = IsValid(ExitCameraRail);
+	
+	if (!bEntryValid && !bExitValid) return nullptr;
+	if (!bEntryValid) return ExitCameraRail;
+	if (!bExitValid)  return EntryCameraRail;
+	
+	const float DistEntry = FVector::DistSquared2D(WorldLocation, EntryCameraRail->GetActorLocation());
+	const float DistExit  = FVector::DistSquared2D(WorldLocation, ExitCameraRail->GetActorLocation());
+	return (DistEntry <= DistExit) ? EntryCameraRail : ExitCameraRail;
 }
 
 FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const

@@ -4,6 +4,7 @@
 #include "Actors/ML_CameraRail.h"
 
 #include "Camera/CameraComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/SplineComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -38,6 +39,7 @@ void AML_CameraRail::BeginPlay()
 	Super::BeginPlay();
 
 	Player = Cast<AML_PlayerCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+	PlayerController = Cast<AML_PlayerController>(UGameplayStatics::GetPlayerController(this, 0));
 
 	if (IsValid(Player))
 	{
@@ -45,10 +47,13 @@ void AML_CameraRail::BeginPlay()
 		const float LookAtDist = LookAt->GetDistanceAlongSplineAtSplineInputKey(LookAt->FindInputKeyClosestToWorldLocation(Player->GetActorLocation()));
 		CurrentCompletion = LookAtDist / LookAt->GetSplineLength();
 	}
-
-	// Take control of the player's view immediately
-	AML_PlayerController* PC = Cast<AML_PlayerController>(UGameplayStatics::GetPlayerController(this, 0));
-	PC->SetViewTarget(this);
+	
+	// Bind all triggers in the array for the camera blend
+	for (const auto& Transition : Transitions)
+	{
+		if (IsValid(Transition.TriggerBox))
+			Transition.TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &AML_CameraRail::OnTriggerEnter);
+	}
 }
 
 void AML_CameraRail::Tick(float DeltaTime)
@@ -99,6 +104,21 @@ void AML_CameraRail::PlaceCamera(const FVector& CameraPosition, const FVector& L
 	Camera->SetWorldRotation(UKismetMathLibrary::FindLookAtRotation(CameraPosition, LookAtPosition));
 }
 
+void AML_CameraRail::OnTriggerEnter(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor != Player) return;
+	
+	for (const auto& Transition : Transitions)
+	{
+		if (Transition.TriggerBox == OverlappedComponent)
+		{
+			if (IsValid(Transition.NextRail) && PlayerController->GetViewTarget() != Transition.NextRail)
+				PlayerController->SetViewTargetWithBlend(Transition.NextRail, Transition.BlendTime,  Transition.BlendFunc);
+		}
+	}
+}
+
 // Editor preview: PreviewCompletion (0-1) scrubs both splines with the same completion value,
 // matching exactly the logic used at runtime.
 void AML_CameraRail::OnConstruction(const FTransform& Transform)
@@ -110,4 +130,31 @@ void AML_CameraRail::OnConstruction(const FTransform& Transform)
 		LookAt->GetLocationAtDistanceAlongSpline(PreviewCompletion * LookAt->GetSplineLength(), ESplineCoordinateSpace::World)
 	);
 }
+
+#if WITH_EDITOR
+void AML_CameraRail::AddTransition()
+{
+	// Create the trigger box component
+	FName TriggerName = FName(*FString::Printf(TEXT("TransitionTrigger_%d"), Transitions.Num()));
+	UBoxComponent* NewTrigger = NewObject<UBoxComponent>(this, UBoxComponent::StaticClass());
+	
+	// Register the trigger box
+	NewTrigger->RegisterComponent();
+	NewTrigger->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+	NewTrigger->SetBoxExtent(FVector(200.f, 200.f, 200.f));
+	NewTrigger->SetLineThickness(3.0);
+	NewTrigger->ShapeColor = FColor::Turquoise;
+	
+	// Assign the trigger box to the array to have the associated camera rail 
+	FCameraRailTransition NewTransition;
+	NewTransition.TriggerBox = NewTrigger;
+	Transitions.Add(NewTransition);
+}
+
+void AML_CameraRail::RemoveLastTransition()
+{
+	Transitions.Last().TriggerBox->DestroyComponent();
+	Transitions.RemoveAt(Transitions.Num() - 1);
+}
+#endif
 
