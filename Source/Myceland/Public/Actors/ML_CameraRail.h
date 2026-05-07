@@ -6,9 +6,30 @@
 #include "GameFramework/Actor.h"
 #include "ML_CameraRail.generated.h"
 
+class AML_PlayerController;
+class UBoxComponent;
+class AML_CameraRail;
 class UCameraComponent;
 class AML_PlayerCharacter;
 class USplineComponent;
+
+USTRUCT(BlueprintType)
+struct FCameraRailTransition
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transition")
+	float BlendTime = 2.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transition")
+	TEnumAsByte<EViewTargetBlendFunction> BlendFunc = VTBlend_Linear;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transition")
+	TObjectPtr<AML_CameraRail> NextRail = nullptr;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transition")
+	TObjectPtr<UBoxComponent> TriggerBox = nullptr;
+};
 
 UCLASS()
 class MYCELAND_API AML_CameraRail : public AActor
@@ -27,6 +48,9 @@ private:
 	
 	UPROPERTY()
 	AML_PlayerCharacter* Player = nullptr;
+	
+	UPROPERTY()
+	AML_PlayerController* PlayerController = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="Camera Rail", meta=(ClampMin=0.f, ClampMax=1.f))
 	float PreviewCompletion = 0.f;
@@ -37,6 +61,9 @@ private:
 	// Higher = faster catch-up, lower = more lag. 0 = frozen.
 	UPROPERTY(EditAnywhere, Category="Camera Rail", meta=(ClampMin=0.f, ClampMax=20.f, EditCondition="bEnableCameraLag"))
 	float CameraLagSpeed = 3.f;
+	
+	UPROPERTY(EditAnywhere, Category="Camera Rail", EditFixedSize)
+	TArray<FCameraRailTransition> Transitions;
 
 	float CurrentCompletion = 0.f;
 
@@ -45,6 +72,10 @@ private:
 
 protected:
 	virtual void BeginPlay() override;
+	
+	UFUNCTION()
+	void OnTriggerEnter(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	
 
 public:
 	AML_CameraRail();
@@ -56,4 +87,10 @@ public:
 
 	UFUNCTION(CallInEditor, Category="Camera Rail", meta = (DisplayName = "Sync LookAt -> Rail", ToolTip = "Copies LookAt's spline points structure to Rail. Rail keeps its own world offset. WARNING: overwrites Rail points permanently."))
 	void SyncLookAtToRailSpline() const { SyncSplines(LookAt, Rail); }
+	
+	UFUNCTION(CallInEditor, Category="Camera Rail", meta = (DisplayName = "Add Transition"))
+	void AddTransition();
+	
+	UFUNCTION(CallInEditor, Category="Camera Rail", meta = (DisplayName = "Remove Last Transition"))
+	void RemoveLastTransition();
 };

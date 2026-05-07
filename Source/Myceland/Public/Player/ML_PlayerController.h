@@ -12,6 +12,7 @@
 #include "Component/ML_BoardTransitionComponent.h"
 #include "ML_PlayerController.generated.h"
 
+class AML_CameraRail;
 class UML_MycelandDeveloperSettings;
 struct FInputActionValue;
 class AML_PlayerCharacter;
@@ -98,6 +99,12 @@ private:
 	 */
 	void ExtendMoveAlongPath(const TArray<FIntPoint>& FullMergedAxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 		int32 PreservedPathIndex);
+	
+	
+	
+	// ==================== Camera ====================
+	
+	AML_CameraRail* FindClosestCameraRailFromPlayer(const FVector& WorldLocation);
 
 	
 	
@@ -185,6 +192,13 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_BoardTransitionComponent* TransitionComponent = nullptr;
+	
+	
+	
+	// ==================== Camera ====================
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
+	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
 	
 	
 	

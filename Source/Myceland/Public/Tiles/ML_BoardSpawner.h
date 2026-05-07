@@ -9,6 +9,7 @@
 #include "ML_BoardSpawner.generated.h"
 
 class UML_BiomeTileSet;
+class AML_CameraRail;
 class AML_Collectible;
 class AML_TileBase;
 class AML_TileWater;
@@ -95,11 +96,17 @@ public:
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Tile")
 	AML_Tile* EntryTile;
 	
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Tile")
 	AML_Tile* ExitTile;
+
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Camera Rail")
+	AML_CameraRail* EntryCameraRail;
+	
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Camera Rail")
+	AML_CameraRail* ExitCameraRail;
 	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
 	void UpdateCurrentGridEditor();
@@ -128,6 +135,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
 	AML_Tile* GetClosestGateTile(const FVector& WorldLocation) const;
+
+	/**
+	 * Returns whichever of EntryCameraRail / ExitCameraRail is closer (2D) to WorldLocation.
+	 * Returns nullptr if both are invalid.
+	 */
+	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	AML_CameraRail* GetClosestCameraRailFromBoard(const FVector& WorldLocation) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
