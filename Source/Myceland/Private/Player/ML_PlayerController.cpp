@@ -622,7 +622,7 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		// Make the closest camera rail the active camera
 		AML_CameraRail* CameraRail = FindClosestCameraRailFromPlayer(MycelandCharacter->GetActorLocation());
 		ensureMsgf(IsValid(CameraRail), TEXT("No camera rail found for player %s. Make sure there is one in the level."), *MycelandCharacter->GetName());
-		SetViewTarget(CameraRail);
+		BlendToViewTarget(CameraRail, 0.f);
 		
 		MycelandCharacter->OnCurrentTileChanged.AddDynamic(this, &AML_PlayerController::HandleCurrentTileChanged);
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
@@ -781,11 +781,24 @@ void AML_PlayerController::OnSkipNarrativeLine()
 }
 
 
-// ==================== Actions ====================
+// ==================== Camera ====================
 
 void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendTime, EViewTargetBlendFunction BlendFunc)
 {
+	// Deactivate the tick of the old camera rail
+	if (AML_CameraRail* OldRail = Cast<AML_CameraRail>(GetViewTarget()))
+		OldRail->SetActorTickEnabled(false);
+	
+	
+	// Activate the tick of the new camera rail
+	if (AML_CameraRail* NewRail = Cast<AML_CameraRail>(NewViewTarget))
+		NewRail->SetActorTickEnabled(true);
+	
+	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc);
 }
+
+
+// ==================== Actions ====================
 
 bool AML_PlayerController::MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport,
                                              const FVector& TeleportFallbackWorld)

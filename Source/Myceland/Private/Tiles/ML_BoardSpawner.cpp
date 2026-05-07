@@ -290,16 +290,12 @@ AML_Tile* AML_BoardSpawner::GetClosestGateTile(const FVector& WorldLocation) con
 
 AML_CameraRail* AML_BoardSpawner::GetClosestCameraRailFromBoard(const FVector& WorldLocation) const
 {
-	const bool bEntryValid = IsValid(EntryCameraRail);
-	const bool bExitValid  = IsValid(ExitCameraRail);
+	const AML_Tile* GateTile = GetClosestGateTile(WorldLocation);
 	
-	if (!bEntryValid && !bExitValid) return nullptr;
-	if (!bEntryValid) return ExitCameraRail;
-	if (!bExitValid)  return EntryCameraRail;
+	if (GateTile == EntryTile) return EntryCameraRail;
+	if (GateTile == ExitTile)  return ExitCameraRail;
 	
-	const float DistEntry = FVector::DistSquared2D(WorldLocation, EntryCameraRail->GetActorLocation());
-	const float DistExit  = FVector::DistSquared2D(WorldLocation, ExitCameraRail->GetActorLocation());
-	return (DistEntry <= DistExit) ? EntryCameraRail : ExitCameraRail;
+	return nullptr;
 }
 
 FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
