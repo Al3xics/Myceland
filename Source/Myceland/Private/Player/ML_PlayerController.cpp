@@ -12,6 +12,7 @@
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Camera/CameraActor.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -619,11 +620,6 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 	MycelandCharacter = Cast<AML_PlayerCharacter>(aPawn);
 	if (MycelandCharacter)
 	{
-		// Make the closest camera rail the active camera
-		AML_CameraRail* CameraRail = FindClosestCameraRailFromPlayer(MycelandCharacter->GetActorLocation());
-		ensureMsgf(IsValid(CameraRail), TEXT("No camera rail found for player %s. Make sure there is one in the level."), *MycelandCharacter->GetName());
-		BlendToViewTarget(CameraRail, 0.f);
-		
 		MycelandCharacter->OnCurrentTileChanged.AddDynamic(this, &AML_PlayerController::HandleCurrentTileChanged);
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
@@ -634,6 +630,29 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 			? EML_PlayerMovementMode::InsideBoard
 			: EML_PlayerMovementMode::FreeMovement;
 		TransitionComponent->SwitchToMode(InitialMode);
+		
+		switch (InitialMode)
+		{
+			case EML_PlayerMovementMode::InsideBoard:
+				{
+					ACameraActor* CameraBoard = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()->GetAssociatedCamera();
+					ensureMsgf(IsValid(CameraBoard), TEXT("No camera associated to board %s found. Make sure there sis one associated."), *MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()->GetName());
+					SetViewTarget(CameraBoard);
+					break;
+				}
+			case EML_PlayerMovementMode::FreeMovement:
+				{
+					// Make the closest camera rail the active camera
+					AML_CameraRail* CameraRail = FindClosestCameraRailFromPlayer(MycelandCharacter->GetActorLocation());
+					ensureMsgf(IsValid(CameraRail), TEXT("No camera rail found for player %s. Make sure there is one in the level."), *MycelandCharacter->GetName());
+					BlendToViewTarget(CameraRail, 0.f);
+					break;
+				}
+				
+			case EML_PlayerMovementMode::EnteringBoard:
+			case EML_PlayerMovementMode::ExitingBoard:
+				break;
+		}
 		
 		// Always start hover timer for cursor glow
 		HoverPreviewComponent->StartHoverPreviewTimer();
