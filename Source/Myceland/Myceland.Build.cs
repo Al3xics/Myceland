@@ -19,6 +19,7 @@ public class Myceland : ModuleRules
 			"Niagara",
 			"UMG",
 			"Json",
+			"Foliage",
 			"DeveloperSettings",
             "ProceduralMeshComponent",
             "GameplayTags"

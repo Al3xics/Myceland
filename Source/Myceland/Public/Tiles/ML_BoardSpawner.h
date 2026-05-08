@@ -40,6 +40,8 @@ private:
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	AActor* AssociatedObstacle;
 	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	AActor* AssociatedNatureZone;
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
@@ -154,6 +156,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	AActor* GetAssociatedNatureZone() const { return AssociatedNatureZone; }
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	TSubclassOf<AML_TileBase> WaterChangeTile;
