@@ -8,6 +8,8 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "ML_NarrativeSubsystem.generated.h"
 
+class IML_DialogueSpeaker;
+class AML_PlayerController;
 class AML_TalkingThing;
 class AML_NarrativeTrigger;
 class UML_NarrativeSequence;
@@ -25,10 +27,9 @@ class MYCELAND_API UML_NarrativeSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 	
 private:
-	UPROPERTY(Transient)
-	TMap<ESpeakerTag, AML_TalkingThing*> RegisteredSpeakers;
-
 	FTimerHandle DialogueTimerHandle;
+    FTimerHandle CameraBlendTimerHandle;
+	
 	int32 CurrentLineIndex = 0;
 	bool bCurrentLineStarted = false;
 
@@ -40,12 +41,26 @@ private:
 
 	UPROPERTY()
 	AML_NarrativeTrigger* CurrentNarrativeTrigger = nullptr;
+	
+	UPROPERTY()
+	mutable AML_PlayerController* PlayerController = nullptr;
+	
+	UPROPERTY()
+	AActor* PreviousViewTarget = nullptr;
+	
+	// Cinematic setup tracking
+	bool bWaitingForCinematicSetup = false;
+	bool bCameraBlendFinished = false;
+	bool bPlayerMovementFinished = false;
 
+	AML_PlayerController* GetPlayerController() const;
 	void PlayNextLine();
 	void OnLineFinished();
 	void SetupCinematicMode();
-	void RestorePlayerControl();
+	void RestorePlayerControl() const;
 	void OnCinematicMoveFinished(FAIRequestID RequestID, const FPathFollowingResult& Result);
+	void OnCameraBlendCompleted();
+	void CheckCinematicSetupComplete();
 	
 public:
 	// ==================== Events ====================
@@ -81,11 +96,5 @@ public:
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	bool IsSequencePlaying() const { return CurrentSequence != nullptr; }
 	
-	
-	
-	// ==================== Registry ====================
-	
-	void RegisterTalkingThing(AML_TalkingThing* Thing);
-	void UnregisterTalkingThing(const AML_TalkingThing* Thing);
-	AML_TalkingThing* GetSpeaker(ESpeakerTag Tag) const;
+	IML_DialogueSpeaker* GetSpeaker(ESpeakerTag Tag) const;
 };
