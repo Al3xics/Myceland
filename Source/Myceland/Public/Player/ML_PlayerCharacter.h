@@ -82,6 +82,7 @@ public:
 			}
 		}
 	}
-	virtual bool IsTalking() const override { return bIsTalking; }
+	UFUNCTION(BlueprintCallable, Category="Dialogue")
+    bool IsTalking() const { return bIsTalking; }
 	// ~End IML_DialogueSpeaker Implementation
 };
