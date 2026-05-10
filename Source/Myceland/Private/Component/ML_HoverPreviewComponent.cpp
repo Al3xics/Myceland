@@ -106,13 +106,7 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 								  IsValid(PlayerCharacter->CurrentTileOn) &&
 								  CursorHoveredTile == PlayerCharacter->CurrentTileOn;
 
-	// Suppress cursor glow when the tile is unreachable in board mode.
-	// TickHoverPreview already ran this frame and set bCurrentHoveredTileReachable.
-	// Also suppress if hovering the player's current tile.
-	const bool bIsInBoardMode = (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard ||
-								 CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard);
-
-	if (!bIsOnPlayerTile && (!bIsInBoardMode || bCurrentHoveredTileReachable))
+	if (!bIsOnPlayerTile && bCurrentHoveredTileReachable)
 		CursorHoveredTile->GlowCursorHovered();
 
 	LastCursorHoveredTile = CursorHoveredTile;

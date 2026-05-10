@@ -59,26 +59,17 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	AML_Tile* NewTile = nullptr;
 
 	if (bHit)
-	{
 		if (AActor* HitActor = Hit.GetActor())
-		{
 			if (AML_TileBase* TileBase = Cast<AML_TileBase>(HitActor))
-			{
 				if (AActor* ParentActor = TileBase->GetAttachParentActor())
-				{
 					NewTile = Cast<AML_Tile>(ParentActor);
-				}
-			}
 			else
-			{
 				NewTile = Cast<AML_Tile>(HitActor);
-			}
-		}
-	}
 
 	if (NewTile == OldTile)
 		return;
 
+	// todo --> remove because we don't want to glow neighbor tile anymore
 	if (CurrentTileOn)
 	{
 		for (AML_Tile* Neighbor : CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn))
@@ -92,6 +83,8 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	OnCurrentTileChanged.Broadcast(OldTile, NewTile);
 	HandleTileStateChange(OldTile, NewTile);
 
+	
+	// todo --> remove because we don't want to glow neighbor tile anymore
 	if (CurrentTileOn)
 	{
 		for (AML_Tile* Neighbor : CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn))
@@ -155,7 +148,6 @@ void AML_PlayerCharacter::Tick(float DeltaTime)
 	// Only check if the character has moved
 	FVector CurrentLocation = GetActorLocation();
 	CurrentLocation.Z = 0.f;
-	AML_Tile* Testtype = CurrentTileOn;
 	if (!LastCheckedLocation.Equals(CurrentLocation, 10.f)) // Tolerance of 10 units
 	{
 		UpdateCurrentTile();

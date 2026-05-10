@@ -15,6 +15,7 @@
 AML_CameraRail::AML_CameraRail()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
@@ -114,7 +115,7 @@ void AML_CameraRail::OnTriggerEnter(UPrimitiveComponent* OverlappedComponent, AA
 		if (Transition.TriggerBox == OverlappedComponent)
 		{
 			if (IsValid(Transition.NextRail) && PlayerController->GetViewTarget() != Transition.NextRail)
-				PlayerController->SetViewTargetWithBlend(Transition.NextRail, Transition.BlendTime,  Transition.BlendFunc);
+				PlayerController->BlendToViewTarget(Transition.NextRail, Transition.BlendTime,  Transition.BlendFunc);
 		}
 	}
 }

@@ -195,18 +195,18 @@ public:
 	
 	
 	
-	// ==================== Camera ====================
-	
-	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
-	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
-	
-	
-	
 	// ==================== Delegates ====================
 	
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
+	
+	
+	
+	// ==================== Camera ====================
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
+	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
 
 	
 	
