@@ -9,6 +9,8 @@
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Core/ML_TileTypeTraits.h"
+#include "NavigationPath.h"
+#include "NavigationSystem.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
@@ -64,6 +66,44 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 	return nullptr;
 }
 
+AML_Tile* AML_PlayerController::PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const
+{
+	if (!IsValid(Board) || !IsValid(MycelandCharacter))
+		return nullptr;
+
+	UNavigationPath* Path = UNavigationSystemV1::FindPathToLocationSynchronously(GetWorld(), MycelandCharacter->GetActorLocation(), Destination);
+
+	if (!IsCompleteNavMeshPath(Path, Destination))
+		return nullptr;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	constexpr float SampleSpacing = 50.f;
+
+	for (int32 PointIndex = 1; PointIndex < Path->PathPoints.Num(); ++PointIndex)
+	{
+		const FVector SegmentStart = Path->PathPoints[PointIndex - 1];
+		const FVector SegmentEnd = Path->PathPoints[PointIndex];
+		const float SegmentLength = FVector::Dist2D(SegmentStart, SegmentEnd);
+		const int32 StepCount = FMath::Max(1, FMath::CeilToInt(SegmentLength / SampleSpacing));
+
+		for (int32 Step = 1; Step <= StepCount; ++Step)
+		{
+			const float Alpha = static_cast<float>(Step) / static_cast<float>(StepCount);
+			const FVector SamplePoint = FMath::Lerp(SegmentStart, SegmentEnd, Alpha);
+			const FIntPoint Axial = Board->WorldToAxial(SamplePoint);
+
+			if (AML_Tile* const* TilePtr = GridMap.Find(Axial))
+			{
+				AML_Tile* Tile = *TilePtr;
+				if (IsValid(Tile) && Tile->IsBorderTile() && UML_HexPathfinder::IsTileWalkable(Tile))
+					return Tile;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 
 void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
 {
@@ -85,8 +125,11 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 	HoverPreviewComponent->NotifyMovementModeChanged(NewMode);
 
 	// Controller-side reaction: stop NavMesh when entering the board
-	if (OldMode == EML_PlayerMovementMode::FreeMovement)
+	if (NewMode == EML_PlayerMovementMode::InsideBoard &&
+		(OldMode == EML_PlayerMovementMode::FreeMovement || OldMode == EML_PlayerMovementMode::EnteringBoard))
+	{
 		StopNavMeshMovement();
+	}
 }
 
 bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
@@ -221,6 +264,57 @@ void AML_PlayerController::StopNavMeshMovement()
 		bIsUsingNavMeshMovement = false;
 		bHasFreeMovementTarget = false;
 	}
+}
+
+bool AML_PlayerController::IsCompleteNavMeshPath(const UNavigationPath* Path, const FVector& Destination) const
+{
+	if (!Path || !Path->IsValid() || Path->PathPoints.Num() == 0 || Path->IsPartial())
+		return false;
+
+	const FVector LastPoint = Path->PathPoints.Last();
+	return FVector::DistSquared2D(LastPoint, Destination) <= FMath::Square(NavMeshAcceptanceRadius);
+}
+
+AML_Tile* AML_PlayerController::FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const
+{
+	if (!IsValid(Board) || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
+		return nullptr;
+
+	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
+	const FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
+	if (!GridMap.Contains(StartAxial))
+		return nullptr;
+
+	float MinDistSq = FLT_MAX;
+	AML_Tile* ClosestReachableBorderTile = nullptr;
+
+	for (const TPair<FIntPoint, AML_Tile*>& Pair : GridMap)
+	{
+		AML_Tile* Tile = Pair.Value;
+		if (!IsValid(Tile) || !Tile->IsBorderTile() || !UML_HexPathfinder::IsTileWalkable(Tile))
+			continue;
+
+		TArray<FIntPoint> BoardPath;
+		if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, Pair.Key, GridMap, BoardPath))
+			continue;
+
+		UNavigationPath* NavPath = UNavigationSystemV1::FindPathToLocationSynchronously(
+			GetWorld(),
+			Tile->GetActorLocation(),
+			OutsideDestination);
+
+		if (!IsCompleteNavMeshPath(NavPath, OutsideDestination))
+			continue;
+
+		const float DistSq = FVector::DistSquared(Tile->GetActorLocation(), OutsideDestination);
+		if (DistSq < MinDistSq)
+		{
+			MinDistSq = DistSq;
+			ClosestReachableBorderTile = Tile;
+		}
+	}
+
+	return ClosestReachableBorderTile;
 }
 
 void AML_PlayerController::TickNavMeshMovement(float DeltaTime)
@@ -556,9 +650,9 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 
 	// ---------- Automatic transition: Free ↔ InsideBoard ----------
 	const bool bShouldBeInBoard = IsValid(NewTile);
-	const bool bCurrentlyInFreeMovement = (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement);
+	const bool bCurrentlyOutsideBoard = TransitionComponent->IsOutsideBoardMovementMode();
 
-	if (bShouldBeInBoard && bCurrentlyInFreeMovement)
+	if (bShouldBeInBoard && bCurrentlyOutsideBoard)
 	{
 		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
@@ -575,7 +669,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 		CurrentPathIndex = 0;
 		SetIsMoving(true);
 	}
-	else if (!bShouldBeInBoard && !bCurrentlyInFreeMovement)
+	else if (!bShouldBeInBoard && !bCurrentlyOutsideBoard)
 	{
 		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 	}
@@ -686,7 +780,6 @@ void AML_PlayerController::HandleInsideBoardClick()
 	// TurningToPlant locks all input — propagation is imminent
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	AML_Tile* TargetTile = GetTileUnderCursor();
 
 	if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
@@ -695,19 +788,13 @@ void AML_PlayerController::HandleInsideBoardClick()
 		return;
 	}
 
-	// Click outside the board → hold to exit toward the closest gate tile (EntryTile or ExitTile)
+	// Click outside the board -> hold to exit toward the closest reachable border tile.
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
 	if (!IsClickableGround(Hit)) return;
 	
-	AML_Tile* ExitGate = Board->GetClosestGateTile(Hit.Location);
+	AML_Tile* ExitGate = FindReachableExitBorderTile(Board, Hit.Location);
 	if (!IsValid(ExitGate)) return;
-
-	// If the path to the gate is blocked (e.g. obstacles in the way), don't start the hold
-	const FIntPoint CurrentAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint ExitAxial    = ExitGate->GetAxialCoord();
-	TArray<FIntPoint> TestPath;
-	if (!UML_HexPathfinder::BuildPath_AxialBFS(CurrentAxial, ExitAxial, GridMap, TestPath)) return;
 
 	TransitionComponent->RequestExitHold(ExitGate, Hit.Location);
 }
@@ -722,12 +809,8 @@ void AML_PlayerController::HandleFreeMovementClick()
 		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) return;
 
-		if (!IsValid(MycelandCharacter)) return;
-		AML_Tile* GateTile = Board->GetClosestGateTile(MycelandCharacter->GetActorLocation());
-		if (!IsValid(GateTile)) return;
-
 		TransitionComponent->RequestBoardEntry(TargetTile);
-		StartNavMeshMovement(GateTile->GetActorLocation());
+		StartNavMeshMovement(TargetTile->GetActorLocation());
 		return;
 	}
 

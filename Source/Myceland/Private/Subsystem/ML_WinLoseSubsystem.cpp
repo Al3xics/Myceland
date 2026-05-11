@@ -27,6 +27,7 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 	}
 	
 	FML_GameResult NoResult;
+	if (!IsValid(CurrentBoardSpawner)) return NoResult;
     if (CurrentBoardSpawner->bIsPuzzleSolved == true) return NoResult;
 
 	
@@ -54,17 +55,16 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		OnWin.Broadcast();
 
-		ClearWinPath(
-			CurrentBoardSpawner,
-			GetPlayerCurrentTile(),
-			CurrentBoardSpawner->ExitTile,
-			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+		const AML_Tile* PlayerTile = GetPlayerCurrentTile();
+		const AML_Tile* ClosestBorderTile = IsValid(PlayerTile)
+			? CurrentBoardSpawner->FindClosestWalkableBorderTile(PlayerTile->GetActorLocation())
+			: nullptr;
 
 		ClearWinPath(
-	CurrentBoardSpawner,
-	CurrentBoardSpawner->EntryTile,
-	CurrentBoardSpawner->ExitTile,
-	{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+			CurrentBoardSpawner,
+			PlayerTile,
+			ClosestBorderTile,
+			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
 
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}

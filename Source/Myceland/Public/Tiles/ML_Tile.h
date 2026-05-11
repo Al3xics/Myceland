@@ -55,6 +55,9 @@ private:
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bHasCollectible = false;
 	
+	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
+	bool bIsBorderTile = false;
+	
 	void SetBlocked(bool bNewBlocked);
 
 protected:
@@ -98,6 +101,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	bool IsBlocked() const { return bBlocked; }
+
+	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
+	void SetBorderTile(const bool Value) { bIsBorderTile = Value; }
+
+	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
+	bool IsBorderTile() const { return bIsBorderTile; }
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Collectible")
 	void SetHasCollectible(const bool bNewValue) { bHasCollectible = bNewValue; }
@@ -147,7 +156,4 @@ public:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;
-	
-	
-	
 };
