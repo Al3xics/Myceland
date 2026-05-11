@@ -13,6 +13,7 @@
 #include "ML_PlayerController.generated.h"
 
 class AML_CameraRail;
+class UNavigationPath;
 class UML_MycelandDeveloperSettings;
 struct FInputActionValue;
 class AML_PlayerCharacter;
@@ -62,6 +63,8 @@ private:
 public:
 	AML_Tile* GetTileUnderCursor() const;
 
+	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
+
 	/** Called by TransitionComponent when turn-toward-tile completes. */
 	void ConfirmTurn(AML_Tile* HitTile);
 
@@ -87,6 +90,8 @@ private:
 	void TickNavMeshMovement(float DeltaTime);
 	void OnPathFinished();
 	void StopNavMeshMovement();
+	bool IsCompleteNavMeshPath(const UNavigationPath* Path, const FVector& Destination) const;
+	AML_Tile* FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const;
 	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
 	bool Plant(AML_Tile* TargetTile);
 	void ExecutePlant(AML_Tile* HitTile);

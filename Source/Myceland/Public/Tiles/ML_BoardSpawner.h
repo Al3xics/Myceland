@@ -22,9 +22,6 @@ class MYCELAND_API AML_BoardSpawner : public AActor
 {
 	GENERATED_BODY()
 
-public:
-	AML_BoardSpawner();
-
 private:
 	// ==================== Myceland Runtime ====================
 	
@@ -55,17 +52,23 @@ private:
 	void UpdateCurrentGrid(bool bAllowSpawn = true);
 	void SpawnHexagonRadius();
 	void SpawnRectangleWH();
+	void RefreshTileCaches();
 
 	// Conversions
 	FVector AxialToWorld(int32 Q, int32 R) const;
-	FIntPoint WorldToAxial(const FVector& WorldLocation) const;
 	FIntPoint OffsetToAxial(int32 Col, int32 Row) const;
+	
+	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
 
 protected:
 	virtual void Destroyed() override;
 	virtual void BeginPlay() override;
 
 public:
+	AML_BoardSpawner();
+	FIntPoint WorldToAxial(const FVector& WorldLocation) const;
+	
+	
 	// ==================== Myceland Hex Grid ====================
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
@@ -97,18 +100,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
-
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Tile")
-	AML_Tile* EntryTile;
 	
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Tile")
-	AML_Tile* ExitTile;
-
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Camera Rail")
-	AML_CameraRail* EntryCameraRail;
-	
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Camera Rail")
-	AML_CameraRail* ExitCameraRail;
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	TArray<AML_CameraRail*> AssociatedCameraRails;
 	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
 	void UpdateCurrentGridEditor();
@@ -131,19 +125,11 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AML_Tile*> GetTreeTiles() const;
 
-	/**
-	 * Returns whichever of EntryTile / ExitTile is closer (2D) to WorldLocation.
-	 * Returns nullptr if both are invalid.
-	 */
 	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
-	AML_Tile* GetClosestGateTile(const FVector& WorldLocation) const;
+	AML_Tile* FindClosestWalkableBorderTile(const FVector& WorldLocation) const;
 
-	/**
-	 * Returns whichever of EntryCameraRail / ExitCameraRail is closer (2D) to WorldLocation.
-	 * Returns nullptr if both are invalid.
-	 */
 	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
-	AML_CameraRail* GetClosestCameraRailFromBoard(const FVector& WorldLocation) const;
+	AML_CameraRail* GetClosestCameraRail(const FVector& WorldLocation) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
@@ -173,9 +159,4 @@ public:
 
 	UFUNCTION(CallInEditor, Category="Myceland Puzzle Generator")
 	void AnalyzeCurrentPuzzle();
-	
-	
-private:
-	
-	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
 };

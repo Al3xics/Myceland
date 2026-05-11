@@ -127,37 +127,6 @@ void UML_HoverPreviewComponent::SetHoveredTileState(AML_Tile* HoveredTile, bool 
 	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
 }
 
-AML_Tile* UML_HoverPreviewComponent::FindClosestEntryExitTile(const AML_BoardSpawner* Board, const FVector& PlayerLocation) const
-{
-	if (!IsValid(Board))
-		return nullptr;
-	
-	TArray<AML_Tile*> EntryExitTiles;
-	EntryExitTiles.Add(Board->EntryTile);
-	EntryExitTiles.Add(Board->ExitTile);
-    
-	if (EntryExitTiles.Num() == 0)
-		return nullptr;
-
-	AML_Tile* ClosestTile = nullptr;
-	float MinDistanceSq = TNumericLimits<float>::Max();
-
-	for (AML_Tile* Tile : EntryExitTiles)
-	{
-		if (!IsValid(Tile) || !UML_HexPathfinder::IsTileWalkable(Tile))
-			continue;
-
-		const float DistSq = FVector::DistSquared(PlayerLocation, Tile->GetActorLocation());
-		if (DistSq < MinDistanceSq)
-		{
-			MinDistanceSq = DistSq;
-			ClosestTile = Tile;
-		}
-	}
-
-	return ClosestTile;
-}
-
 void UML_HoverPreviewComponent::TickHoverPreview()
 {
 	if (!IsValid(OwningController))
@@ -198,10 +167,10 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     {
         StartTile = PlayerCharacter->CurrentTileOn;
     }
-    // Alternatively, find the entry/exit tile closest to the player
+    // Otherwise, predict the first border tile that the NavMesh path would enter through.
     else if (IsValid(PlayerCharacter))
     {
-        StartTile = FindClosestEntryExitTile(Board, PlayerCharacter->GetActorLocation());
+        StartTile = OwningController->PredictNavMeshEntryTile(Board, HoveredTile->GetActorLocation());
     }
 
     if (!IsValid(StartTile))
