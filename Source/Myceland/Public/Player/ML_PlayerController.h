@@ -10,10 +10,10 @@
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Component/ML_BoardTransitionComponent.h"
+#include "Component/ML_NavigationBridgeComponent.h"
 #include "ML_PlayerController.generated.h"
 
 class AML_CameraRail;
-class UNavigationPath;
 class UML_MycelandDeveloperSettings;
 struct FInputActionValue;
 class AML_PlayerCharacter;
@@ -45,12 +45,6 @@ private:
 
 	bool bIsMoving = false;
 
-	// Free movement target (SimpleMoveToLocation)
-	UPROPERTY(Transient)
-	FVector PendingFreeMovementTarget = FVector::ZeroVector;
-
-	bool bHasFreeMovementTarget = false;
-	bool bIsUsingNavMeshMovement = false;
 	float FollowTime = 0.f;
 	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
@@ -62,8 +56,6 @@ private:
 
 public:
 	AML_Tile* GetTileUnderCursor() const;
-
-	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
 
 	/** Called by TransitionComponent when turn-toward-tile completes. */
 	void ConfirmTurn(AML_Tile* HitTile);
@@ -87,11 +79,7 @@ private:
 	// ==================== Movement ====================
 
 	void TickMoveAlongPath(float DeltaTime);
-	void TickNavMeshMovement(float DeltaTime);
 	void OnPathFinished();
-	void StopNavMeshMovement();
-	bool IsCompleteNavMeshPath(const UNavigationPath* Path, const FVector& Destination) const;
-	AML_Tile* FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const;
 	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
 	bool Plant(AML_Tile* TargetTile);
 	void ExecutePlant(AML_Tile* HitTile);
@@ -197,6 +185,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_BoardTransitionComponent* TransitionComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UML_NavigationBridgeComponent* NavigationBridgeComponent = nullptr;
 	
 	
 	

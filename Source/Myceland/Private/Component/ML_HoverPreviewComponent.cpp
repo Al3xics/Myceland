@@ -170,7 +170,9 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     // Otherwise, predict the first border tile that the NavMesh path would enter through.
     else if (IsValid(PlayerCharacter))
     {
-        StartTile = OwningController->PredictNavMeshEntryTile(Board, HoveredTile->GetActorLocation());
+        StartTile = OwningController->NavigationBridgeComponent
+        	? OwningController->NavigationBridgeComponent->PredictNavMeshEntryTile(Board, HoveredTile->GetActorLocation())
+        	: nullptr;
     }
 
     if (!IsValid(StartTile))
