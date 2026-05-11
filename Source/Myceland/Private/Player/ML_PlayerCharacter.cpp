@@ -3,13 +3,9 @@
 
 #include "Player/ML_PlayerCharacter.h"
 
-#include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "Player/ML_PlayerController.h"
-#include "Subsystem/ML_RollBackSubsystem.h"
-#include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 
@@ -109,26 +105,6 @@ void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const A
 	// Same board => internal movement, do not trigger camera / board change logic.
 	if (OldBoard && NewBoard && OldBoard == NewBoard)
 		return;
-
-	auto IsGateTile = [](const AML_BoardSpawner* Board, const AML_Tile* Tile) -> bool
-	{
-		return Board && Tile && (Board->EntryTile == Tile || Board->ExitTile == Tile);
-	};
-
-	// If we left a board but the last tile was not a gate, ignore it.
-	// This prevents transient nullptrs or internal tile updates from switching camera.
-	if (OldTile && !NewTile)
-	{
-		if (!IsGateTile(OldBoard, OldTile))
-			return;
-	}
-
-	// If we entered a board but the new tile is not a gate, ignore it.
-	if (!OldTile && NewTile)
-	{
-		if (!IsGateTile(NewBoard, NewTile))
-			return;
-	}
 
 	// If we changed directly from one board to another, keep it.
 	// If we genuinely crossed a gate, keep it too.

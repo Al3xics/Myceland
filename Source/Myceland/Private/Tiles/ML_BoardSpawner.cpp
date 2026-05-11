@@ -8,10 +8,8 @@
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
 #include "Components/StaticMeshComponent.h"
+#include "Player/ML_HexPathfinder.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
-#include "Tiles/TileBase/ML_TileGrass.h"
-#include "Tiles/TileBase/ML_TileParasite.h"
-#include "Tiles/TileBase/ML_TileWater.h"
 
 
 AML_BoardSpawner::AML_BoardSpawner()
@@ -51,6 +49,8 @@ void AML_BoardSpawner::RebuildGrid()
 	case EML_HexGridLayout::HexagonRadius: SpawnHexagonRadius(); break;
 	case EML_HexGridLayout::RectangleWH:   SpawnRectangleWH();   break;
 	}
+
+	RefreshTileCaches();
 }
 
 void AML_BoardSpawner::UpdateCurrentGrid(bool bAllowSpawn)
@@ -182,15 +182,37 @@ void AML_BoardSpawner::UpdateCurrentGrid(bool bAllowSpawn)
 	}
 
 	GridMap = MoveTemp(NewTilesByAxial);
+	RefreshTileCaches();
+}
+
+void AML_BoardSpawner::RefreshTileCaches()
+{
 	SpawnedTiles.Empty();
 	SpawnedTiles.Reserve(GridMap.Num());
 	TreeTiles.Empty();
+
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
-		SpawnedTiles.Add(Pair.Value);
-		if (Pair.Value && UML_TileTypeTraits::IsTreeType(Pair.Value->GetCurrentType()))
+		AML_Tile* Tile = Pair.Value.Get();
+		if (!IsValid(Tile))
+			continue;
+
+		SpawnedTiles.Add(Tile);
+		Tile->SetBorderTile(false);
+
+		if (UML_TileTypeTraits::IsTreeType(Tile->GetCurrentType()))
 		{
-			TreeTiles.Add(Pair.Value);
+			TreeTiles.Add(Tile);
+		}
+
+		for (const FIntPoint& Dir : Directions)
+		{
+			const FIntPoint NeighborAxial = Pair.Key + Dir;
+			if (!GridMap.Contains(NeighborAxial))
+			{
+				Tile->SetBorderTile(true);
+				break;
+			}
 		}
 	}
 }
@@ -274,28 +296,49 @@ TArray<AML_Tile*> AML_BoardSpawner::GetTreeTiles() const
 	return Result;
 }
 
-AML_Tile* AML_BoardSpawner::GetClosestGateTile(const FVector& WorldLocation) const
+AML_Tile* AML_BoardSpawner::FindClosestWalkableBorderTile(const FVector& WorldLocation) const
 {
-	const bool bEntryValid = IsValid(EntryTile);
-	const bool bExitValid  = IsValid(ExitTile);
+	float MinDistSq = FLT_MAX;
+	AML_Tile* ClosestBorderTile = nullptr;
 
-	if (!bEntryValid && !bExitValid) return nullptr;
-	if (!bEntryValid) return ExitTile;
-	if (!bExitValid)  return EntryTile;
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		AML_Tile* Tile = Pair.Value.Get();
+		if (!IsValid(Tile) || !UML_HexPathfinder::IsTileWalkable(Tile))
+			continue;
 
-	const float DistEntry = FVector::DistSquared2D(WorldLocation, EntryTile->GetActorLocation());
-	const float DistExit  = FVector::DistSquared2D(WorldLocation, ExitTile->GetActorLocation());
-	return (DistEntry <= DistExit) ? EntryTile : ExitTile;
+		// Check if it's a border tile (doesn't have all 6 of its neighbors)
+		// If it's not a border tile, continue
+		if (!Tile->IsBorderTile())
+			continue;
+
+		float DistSq = FVector::DistSquared(WorldLocation, Tile->GetActorLocation());
+		if (DistSq < MinDistSq)
+		{
+			MinDistSq = DistSq;
+			ClosestBorderTile = Tile;
+		}
+	}
+
+	return ClosestBorderTile;
 }
 
-AML_CameraRail* AML_BoardSpawner::GetClosestCameraRailFromBoard(const FVector& WorldLocation) const
+AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocation) const
 {
-	const AML_Tile* GateTile = GetClosestGateTile(WorldLocation);
+	float MinDistSq = FLT_MAX;
+	AML_CameraRail* ClosestCameraRail = nullptr;
 	
-	if (GateTile == EntryTile) return EntryCameraRail;
-	if (GateTile == ExitTile)  return ExitCameraRail;
+	for (const auto& Rail : AssociatedCameraRails)
+	{
+		float Dist = FVector::DistSquared(WorldLocation, Rail->GetActorLocation());
+		if (Dist < MinDistSq)
+		{
+			MinDistSq = Dist;
+			ClosestCameraRail = Rail;
+		}
+	}
 	
-	return nullptr;
+	return ClosestCameraRail;
 }
 
 FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
@@ -483,16 +526,6 @@ FML_PuzzleState AML_BoardSpawner::BuildPuzzleStateFromCurrentGrid() const
 {
 	FML_PuzzleState State;
 	State.Energy = EnergyForPuzzle;
-
-	if (EntryTile)
-	{
-		State.EntryAxial = EntryTile->GetAxialCoord();
-	}
-
-	if (ExitTile)
-	{
-		State.ExitAxial = ExitTile->GetAxialCoord();
-	}
 
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{

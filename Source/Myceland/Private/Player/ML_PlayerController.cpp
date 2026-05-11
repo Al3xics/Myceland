@@ -11,7 +11,6 @@
 #include "Core/ML_TileTypeTraits.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Camera/CameraActor.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -30,6 +29,7 @@ AML_PlayerController::AML_PlayerController()
 	HoverPreviewComponent = CreateDefaultSubobject<UML_HoverPreviewComponent>(TEXT("HoverPreviewComponent"));
 	MoveRecordingComponent = CreateDefaultSubobject<UML_MoveRecordingComponent>(TEXT("MoveRecordingComponent"));
 	TransitionComponent = CreateDefaultSubobject<UML_BoardTransitionComponent>(TEXT("TransitionComponent"));
+	NavigationBridgeComponent = CreateDefaultSubobject<UML_NavigationBridgeComponent>(TEXT("NavigationBridgeComponent"));
 }
 
 // ==================== Helpers ====================
@@ -64,7 +64,6 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 	return nullptr;
 }
 
-
 void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
 {
 	bIsMoving = bNewIsMoving;
@@ -85,8 +84,12 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 	HoverPreviewComponent->NotifyMovementModeChanged(NewMode);
 
 	// Controller-side reaction: stop NavMesh when entering the board
-	if (OldMode == EML_PlayerMovementMode::FreeMovement)
-		StopNavMeshMovement();
+	if (NewMode == EML_PlayerMovementMode::InsideBoard &&
+		(OldMode == EML_PlayerMovementMode::FreeMovement || OldMode == EML_PlayerMovementMode::EnteringBoard))
+	{
+		if (NavigationBridgeComponent)
+			NavigationBridgeComponent->StopNavMeshMovement();
+	}
 }
 
 bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
@@ -105,7 +108,8 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
                                               const TMap<FIntPoint, AML_Tile*>& GridMap)
 {
 	// Stop any nav mesh movement when starting tile-by-tile movement
-	StopNavMeshMovement();
+	if (NavigationBridgeComponent)
+		NavigationBridgeComponent->StopNavMeshMovement();
 	
 	CurrentPathWorld.Reset();
 	CurrentPathIndex = 0;
@@ -193,62 +197,9 @@ void AML_PlayerController::ExtendMoveAlongPath(const TArray<FIntPoint>& FullMerg
 
 void AML_PlayerController::StartNavMeshMovement(const FVector& WorldLocation)
 {
-	if (!IsValid(MycelandCharacter))
-		return;
-
-	// Use SimpleMoveToLocation for nav mesh movement
-	UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, WorldLocation);
-	
-	PendingFreeMovementTarget = WorldLocation;
-	bHasFreeMovementTarget = true;
-	bIsUsingNavMeshMovement = true;
+	if (NavigationBridgeComponent)
+		NavigationBridgeComponent->StartNavMeshMovement(WorldLocation);
 	SetIsMoving(true);
-}
-
-void AML_PlayerController::StopNavMeshMovement()
-{
-	if (bIsUsingNavMeshMovement)
-	{
-		// Stop the AI movement
-		if (IsValid(MycelandCharacter))
-		{
-			if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
-			{
-				MC->StopMovementImmediately();
-			}
-		}
-		
-		bIsUsingNavMeshMovement = false;
-		bHasFreeMovementTarget = false;
-	}
-}
-
-void AML_PlayerController::TickNavMeshMovement(float DeltaTime)
-{
-	if (!bIsUsingNavMeshMovement || !bHasFreeMovementTarget)
-		return;
-
-	if (!IsValid(MycelandCharacter))
-	{
-		StopNavMeshMovement();
-		return;
-	}
-
-	// Check if we've reached the destination
-	const FVector CurrentLoc = MycelandCharacter->GetActorLocation();
-	const float DistSq = FVector::DistSquared2D(CurrentLoc, PendingFreeMovementTarget);
-
-	if (DistSq <= FMath::Square(NavMeshAcceptanceRadius))
-	{
-		StopNavMeshMovement();
-		SetIsMoving(false);
-		
-		// Trigger OnPathFinished for board entry transitions
-		if (TransitionComponent->IsPendingBoardEntry())
-		{
-			OnPathFinished();
-		}
-	}
 }
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
@@ -261,7 +212,14 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 	if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement ||
 	    TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::EnteringBoard)
 	{
-		TickNavMeshMovement(DeltaTime);
+		if (NavigationBridgeComponent && NavigationBridgeComponent->TickNavMeshMovement(DeltaTime))
+		{
+			SetIsMoving(false);
+			if (TransitionComponent->IsPendingBoardEntry())
+			{
+				OnPathFinished();
+			}
+		}
 		return;
 	}
 
@@ -556,9 +514,9 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 
 	// ---------- Automatic transition: Free ↔ InsideBoard ----------
 	const bool bShouldBeInBoard = IsValid(NewTile);
-	const bool bCurrentlyInFreeMovement = (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement);
+	const bool bCurrentlyOutsideBoard = TransitionComponent->IsOutsideBoardMovementMode();
 
-	if (bShouldBeInBoard && bCurrentlyInFreeMovement)
+	if (bShouldBeInBoard && bCurrentlyOutsideBoard)
 	{
 		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
@@ -575,7 +533,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 		CurrentPathIndex = 0;
 		SetIsMoving(true);
 	}
-	else if (!bShouldBeInBoard && !bCurrentlyInFreeMovement)
+	else if (!bShouldBeInBoard && !bCurrentlyOutsideBoard)
 	{
 		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 	}
@@ -624,6 +582,7 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
 		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);
+		NavigationBridgeComponent->Initialize(this, MycelandCharacter, NavMeshAcceptanceRadius);
 
 		MycelandCharacter->UpdateCurrentTile();
 		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
@@ -686,7 +645,6 @@ void AML_PlayerController::HandleInsideBoardClick()
 	// TurningToPlant locks all input — propagation is imminent
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	AML_Tile* TargetTile = GetTileUnderCursor();
 
 	if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
@@ -695,19 +653,15 @@ void AML_PlayerController::HandleInsideBoardClick()
 		return;
 	}
 
-	// Click outside the board → hold to exit toward the closest gate tile (EntryTile or ExitTile)
+	// Click outside the board -> hold to exit toward the closest reachable border tile.
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
 	if (!IsClickableGround(Hit)) return;
 	
-	AML_Tile* ExitGate = Board->GetClosestGateTile(Hit.Location);
+	AML_Tile* ExitGate = NavigationBridgeComponent
+		? NavigationBridgeComponent->FindReachableExitBorderTile(Board, Hit.Location)
+		: nullptr;
 	if (!IsValid(ExitGate)) return;
-
-	// If the path to the gate is blocked (e.g. obstacles in the way), don't start the hold
-	const FIntPoint CurrentAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint ExitAxial    = ExitGate->GetAxialCoord();
-	TArray<FIntPoint> TestPath;
-	if (!UML_HexPathfinder::BuildPath_AxialBFS(CurrentAxial, ExitAxial, GridMap, TestPath)) return;
 
 	TransitionComponent->RequestExitHold(ExitGate, Hit.Location);
 }
@@ -722,12 +676,8 @@ void AML_PlayerController::HandleFreeMovementClick()
 		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) return;
 
-		if (!IsValid(MycelandCharacter)) return;
-		AML_Tile* GateTile = Board->GetClosestGateTile(MycelandCharacter->GetActorLocation());
-		if (!IsValid(GateTile)) return;
-
 		TransitionComponent->RequestBoardEntry(TargetTile);
-		StartNavMeshMovement(GateTile->GetActorLocation());
+		StartNavMeshMovement(TargetTile->GetActorLocation());
 		return;
 	}
 

@@ -10,6 +10,7 @@
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Component/ML_BoardTransitionComponent.h"
+#include "Component/ML_NavigationBridgeComponent.h"
 #include "ML_PlayerController.generated.h"
 
 class AML_CameraRail;
@@ -44,12 +45,6 @@ private:
 
 	bool bIsMoving = false;
 
-	// Free movement target (SimpleMoveToLocation)
-	UPROPERTY(Transient)
-	FVector PendingFreeMovementTarget = FVector::ZeroVector;
-
-	bool bHasFreeMovementTarget = false;
-	bool bIsUsingNavMeshMovement = false;
 	float FollowTime = 0.f;
 	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
@@ -84,9 +79,7 @@ private:
 	// ==================== Movement ====================
 
 	void TickMoveAlongPath(float DeltaTime);
-	void TickNavMeshMovement(float DeltaTime);
 	void OnPathFinished();
-	void StopNavMeshMovement();
 	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
 	bool Plant(AML_Tile* TargetTile);
 	void ExecutePlant(AML_Tile* HitTile);
@@ -192,6 +185,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_BoardTransitionComponent* TransitionComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UML_NavigationBridgeComponent* NavigationBridgeComponent = nullptr;
 	
 	
 	
