@@ -104,6 +104,15 @@ public:
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	TArray<AML_CameraRail*> AssociatedCameraRails;
 	
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	TArray<FML_WaterPath> WaterPaths;
+
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	TSubclassOf<AML_TileBase> WaterChangeTile;
+	
+	UPROPERTY(BlueprintReadWrite)
+    bool bIsPuzzleSolved;
+	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
 	void UpdateCurrentGridEditor();
 
@@ -129,6 +138,9 @@ public:
 	AML_Tile* FindClosestWalkableBorderTile(const FVector& WorldLocation) const;
 
 	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	AML_Tile* FindClosestWaterPathTile(const AML_Tile* Tile);
+
+	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
 	AML_CameraRail* GetClosestCameraRail(const FVector& WorldLocation) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
@@ -144,13 +156,7 @@ public:
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
-	AActor* GetAssociatedNatureZone() const { return AssociatedNatureZone; }
-
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
-	TSubclassOf<AML_TileBase> WaterChangeTile;
-	
-	UPROPERTY(BlueprintReadWrite)
-    bool bIsPuzzleSolved; 
+	AActor* GetAssociatedNatureZone() const { return AssociatedNatureZone; } 
 	
 	// ==================== Myceland Hex Procedural Grid ====================
 	
