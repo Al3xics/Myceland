@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
+#include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Player/ML_HexPathfinder.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
@@ -323,6 +324,39 @@ AML_Tile* AML_BoardSpawner::FindClosestWalkableBorderTile(const FVector& WorldLo
 	return ClosestBorderTile;
 }
 
+AML_Tile* AML_BoardSpawner::FindClosestWaterPathTile(const AML_Tile* Tile)
+{
+	if (WaterPaths.Num() == 0) return nullptr;
+	
+	AML_Tile* ClosestPathTile = nullptr;
+	float ClosestDistance = FLT_MAX;
+    
+	for (const auto& [EntryTile, ExitTile] : WaterPaths)
+	{
+		if (IsValid(EntryTile))
+		{
+			float Distance = FVector::Dist(Tile->GetActorLocation(), EntryTile->GetActorLocation());
+			if (Distance < ClosestDistance)
+			{
+				ClosestDistance = Distance;
+				ClosestPathTile = EntryTile;
+			}
+		}
+        
+		if (IsValid(ExitTile))
+		{
+			float Distance = FVector::Dist(Tile->GetActorLocation(), ExitTile->GetActorLocation());
+			if (Distance < ClosestDistance)
+			{
+				ClosestDistance = Distance;
+				ClosestPathTile = ExitTile;
+			}
+		}
+	}
+	
+	return ClosestPathTile;
+}
+
 AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocation) const
 {
 	float MinDistSq = FLT_MAX;
@@ -330,7 +364,11 @@ AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocat
 	
 	for (const auto& Rail : AssociatedCameraRails)
 	{
-		float Dist = FVector::DistSquared(WorldLocation, Rail->GetActorLocation());
+		// Get the closest key from the LooAt spline from the WorldLocation parameter, then get the world location of this key
+		float InputKey = Rail->GetLookAtFromCameraRail()->FindInputKeyClosestToWorldLocation(WorldLocation);
+		FVector LookAtLocation = Rail->GetLookAtFromCameraRail()->GetLocationAtSplineInputKey(InputKey, ESplineCoordinateSpace::World);
+		
+		float Dist = FVector::DistSquared(WorldLocation, LookAtLocation);
 		if (Dist < MinDistSq)
 		{
 			MinDistSq = Dist;

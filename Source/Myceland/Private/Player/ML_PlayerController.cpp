@@ -12,6 +12,7 @@
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
 #include "Camera/CameraActor.h"
+#include "Components/SplineComponent.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -484,14 +485,19 @@ AML_CameraRail* AML_PlayerController::FindClosestCameraRailFromPlayer(const FVec
 	for (TActorIterator<AML_CameraRail> It(GetWorld()); It; ++It)
 	{
 		AML_CameraRail* CameraRail = *It;
-		float Distance = FVector::DistSquared2D(CameraRail->GetActorLocation(), WorldLocation);
 		
+		// Get the closest key from the LooAt spline from the WorldLocation parameter, then get the world location of this key
+		float InputKey = CameraRail->GetLookAtFromCameraRail()->FindInputKeyClosestToWorldLocation(WorldLocation);
+		FVector LookAtLocation = CameraRail->GetLookAtFromCameraRail()->GetLocationAtSplineInputKey(InputKey, ESplineCoordinateSpace::World);
+		
+		float Distance = FVector::DistSquared(WorldLocation, LookAtLocation);
 		if (Distance < ClosestDistance)
 		{
 			ClosestDistance = Distance;
 			ClosestCameraRail = CameraRail;
 		}
 	}
+	
 	return ClosestCameraRail;
 }
 
