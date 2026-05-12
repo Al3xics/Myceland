@@ -82,6 +82,15 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
 	
+	UFUNCTION(BlueprintPure, Category="Camera Rail")
+	USplineComponent* GetRailFromCameraRail() const { return Rail; }
+
+	UFUNCTION(BlueprintPure, Category="Camera Rail")
+	USplineComponent* GetLookAtFromCameraRail() const { return LookAt; }
+
+	UFUNCTION(BlueprintPure, Category="Camera Rail")
+	UCameraComponent* GetCameraFromCameraRail() const { return Camera; }
+	
 	UFUNCTION(CallInEditor, Category="Camera Rail", meta = (DisplayName = "Sync Rail -> LookAt", ToolTip = "Copies Rail's spline points structure to LookAt. LookAt keeps its own world offset. WARNING: overwrites LookAt points permanently."))
 	void SyncRailToLookAtSpline() const { SyncSplines(Rail, LookAt); }
 

@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
+#include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Player/ML_HexPathfinder.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
@@ -330,7 +331,11 @@ AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocat
 	
 	for (const auto& Rail : AssociatedCameraRails)
 	{
-		float Dist = FVector::DistSquared(WorldLocation, Rail->GetActorLocation());
+		// Get the closest key from the LooAt spline from the WorldLocation parameter, then get the world location of this key
+		float InputKey = Rail->GetLookAtFromCameraRail()->FindInputKeyClosestToWorldLocation(WorldLocation);
+		FVector LookAtLocation = Rail->GetLookAtFromCameraRail()->GetLocationAtSplineInputKey(InputKey, ESplineCoordinateSpace::World);
+		
+		float Dist = FVector::DistSquared(WorldLocation, LookAtLocation);
 		if (Dist < MinDistSq)
 		{
 			MinDistSq = Dist;
