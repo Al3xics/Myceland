@@ -36,7 +36,7 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 
 	FVector Start = ActorLocation;
 	FVector End = ActorLocation;
-	End.Z = (ActorLocation.Z - (CapsuleHalfHeight - 10.f)) - 20.f;
+	End.Z = ActorLocation.Z - CapsuleHalfHeight - RaycastDistance;
 
 	FHitResult Hit;
 	FCollisionQueryParams Params;

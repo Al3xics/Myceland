@@ -27,6 +27,7 @@ private:
 	
 	FVector LastCheckedLocation = FVector::ZeroVector;
 	bool bIsTalking = false;
+	const float RaycastDistance = 50.f;
 	
 	void HandleTileStateChange(const AML_Tile* OldTile, const AML_Tile* NewTile) const;
 
