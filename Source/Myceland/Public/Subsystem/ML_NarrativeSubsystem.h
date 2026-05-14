@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/ML_NarrativeData.h"
+#include "Data Asset/ML_NarrativeSequence.h"
 #include "Kismet/GameplayStatics.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "ML_NarrativeSubsystem.generated.h"
@@ -12,7 +13,6 @@ class IML_DialogueSpeaker;
 class AML_PlayerController;
 class AML_TalkingThing;
 class AML_NarrativeTrigger;
-class UML_NarrativeSequence;
 struct FAIRequestID;
 struct FPathFollowingResult;
 
@@ -33,9 +33,6 @@ private:
 	int32 CurrentLineIndex = 0;
 	bool bCurrentLineStarted = false;
 
-	UPROPERTY(Transient)
-	UAudioComponent* ActiveAudioComponent = nullptr;
-
 	UPROPERTY()
 	UML_NarrativeSequence* CurrentSequence = nullptr;
 
@@ -55,12 +52,17 @@ private:
 
 	AML_PlayerController* GetPlayerController() const;
 	void PlayNextLine();
+	void StartLine(const FDialogueLine& Line);
 	void OnLineFinished();
+	void CleanupCurrentSequence();
 	void SetupCinematicMode();
 	void RestorePlayerControl() const;
 	void OnCinematicMoveFinished(FAIRequestID RequestID, const FPathFollowingResult& Result);
 	void OnCameraBlendCompleted();
 	void CheckCinematicSetupComplete();
+	
+	UFUNCTION()
+	void OnFMODEventStopped();
 	
 public:
 	// ==================== Events ====================
@@ -95,6 +97,18 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	bool IsSequencePlaying() const { return CurrentSequence != nullptr; }
+	
+	UFUNCTION(BlueprintPure, Category="Narrative")
+	int32 GetCurrentLineIndex() const { return CurrentLineIndex; }
+
+	UFUNCTION(BlueprintPure, Category="Narrative")
+	int32 GetTotalLines() const { return CurrentSequence ? CurrentSequence->DialogueLines.Num() : 0; }
+
+	UFUNCTION(BlueprintPure, Category="Narrative")
+	float GetSequenceProgress() const;
+
+	UFUNCTION(BlueprintCallable, Category="Narrative")
+	void StopSequence();
 	
 	IML_DialogueSpeaker* GetSpeaker(ESpeakerTag Tag) const;
 };

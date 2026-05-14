@@ -4,6 +4,7 @@
 #include "Player/ML_PlayerCharacter.h"
 
 #include "Components/CapsuleComponent.h"
+#include "FMODAudioComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerController.h"
 #include "Tiles/ML_Tile.h"
@@ -24,6 +25,9 @@ AML_PlayerCharacter::AML_PlayerCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->bConstrainToPlane = true;
 	GetCharacterMovement()->bSnapToPlaneAtStart = true;
+	
+	AudioComponent = CreateDefaultSubobject<UFMODAudioComponent>(TEXT("FMODAudioComponent"));
+	AudioComponent->SetupAttachment(RootComponent);
 }
 
 void AML_PlayerCharacter::UpdateCurrentTile()

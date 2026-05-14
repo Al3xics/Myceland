@@ -22,6 +22,9 @@ class MYCELAND_API AML_PlayerCharacter : public ACharacter, public IML_DialogueS
 	GENERATED_BODY()
 	
 private:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UFMODAudioComponent* AudioComponent;
+    	
 	UPROPERTY()
 	AML_PlayerController* MycelandController;
 	
@@ -83,7 +86,11 @@ public:
 			}
 		}
 	}
+	
 	UFUNCTION(BlueprintCallable, Category="Dialogue")
-    bool IsTalking() const { return bIsTalking; }
+    virtual bool IsTalking() const override { return bIsTalking; }
+	
+	UFUNCTION(BlueprintCallable, Category="Dialogue")
+	virtual UFMODAudioComponent* GetAudioComponent() const override { return AudioComponent; }
 	// ~End IML_DialogueSpeaker Implementation
 };

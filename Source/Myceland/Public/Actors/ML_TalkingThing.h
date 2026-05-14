@@ -16,6 +16,9 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* MeshComponent;
 	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UFMODAudioComponent* AudioComponent;
+	
 	bool bIsTalking = false;
 
 protected:
@@ -58,6 +61,11 @@ public:
 			}
 		}
 	}
+	
+	UFUNCTION(BlueprintCallable, Category="Dialogue")
 	virtual bool IsTalking() const override { return bIsTalking; }
+	
+	UFUNCTION(BlueprintCallable, Category="Dialogue")
+	virtual UFMODAudioComponent* GetAudioComponent() const override { return AudioComponent; }
 	// ~End IML_DialogueSpeaker Implementation
 };

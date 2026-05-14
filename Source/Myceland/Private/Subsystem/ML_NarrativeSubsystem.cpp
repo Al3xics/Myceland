@@ -7,10 +7,10 @@
 #include "Actors/ML_TalkingThing.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Camera/CameraComponent.h"
-#include "Components/AudioComponent.h"
 #include "Data Asset/ML_NarrativeSequence.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "EnhancedInputSubsystems.h"
+#include "FMODAudioComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Player/ML_PlayerController.h"
@@ -23,6 +23,42 @@ AML_PlayerController* UML_NarrativeSubsystem::GetPlayerController() const
 		ensureMsgf(PlayerController, TEXT("No player controller found"));
 	}
 	return PlayerController;
+}
+
+void UML_NarrativeSubsystem::CleanupCurrentSequence()
+{
+	// Clear all timers
+	GetWorld()->GetTimerManager().ClearTimer(DialogueTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(CameraBlendTimerHandle);
+
+	// Unbind all audio callbacks and stop audio
+	if (CurrentSequence && CurrentLineIndex < CurrentSequence->DialogueLines.Num())
+	{
+		const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
+		if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
+		{
+			if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
+			{
+				AudioComp->OnEventStopped.RemoveAll(this);
+				if (AudioComp->IsPlaying())
+					AudioComp->Stop();
+			}
+			Speaker->SetIsTalking(false);
+		}
+	}
+
+	// If in cinematic mode, restore player control
+	if (CurrentSequence && CurrentSequence->bIsCinematicMode)
+		RestorePlayerControl();
+
+	// Reset all state variables
+	CurrentSequence = nullptr;
+	CurrentNarrativeTrigger = nullptr;
+	CurrentLineIndex = 0;
+	bCurrentLineStarted = false;
+	bWaitingForCinematicSetup = false;
+	bCameraBlendFinished = false;
+	bPlayerMovementFinished = false;
 }
 
 void UML_NarrativeSubsystem::PlayNextLine()
@@ -46,41 +82,58 @@ void UML_NarrativeSubsystem::PlayNextLine()
     }
 
     const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
-
-	auto StartLine = [this, Line]()
-	{
-		bCurrentLineStarted = true;
-
-		if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
-			Speaker->SetIsTalking(true);
-
-		OnDialogueLineStart.Broadcast(Line, Line.SpeakerTag);
-
-		ActiveAudioComponent = Line.Sound ? UGameplayStatics::SpawnSound2D(this, Line.Sound) : nullptr;
-
-		const float LineDuration = Line.Sound ? Line.Sound->GetDuration() : 1.0f;
-		GetWorld()->GetTimerManager().SetTimer(
-			DialogueTimerHandle,
-			this,
-			&UML_NarrativeSubsystem::OnLineFinished,
-			LineDuration + Line.PostDelay,
-			false
-		);
-	};
-
     if (Line.PreDelay > 0.f)
     {
         GetWorld()->GetTimerManager().SetTimer(
             DialogueTimerHandle,
-            [this, StartLine]() { StartLine(); },
+            [this, Line]() { StartLine(Line); },
             Line.PreDelay,
             false
         );
     }
     else
-    {
-    	StartLine();
-    }
+    	StartLine(Line);
+}
+
+void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
+{
+	if (!CurrentSequence)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartLine called but CurrentSequence is null"));
+		return;
+	}
+	
+	// Validate and set speaker talking
+	IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag);
+	if (Speaker)
+		Speaker->SetIsTalking(true);
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("No speaker found for tag %d in line %d of trigger %s"), static_cast<int32>(Line.SpeakerTag), CurrentLineIndex, *CurrentNarrativeTrigger->GetName());
+		return;
+	}
+	
+	bCurrentLineStarted = true;
+	OnDialogueLineStart.Broadcast(Line, Line.SpeakerTag);
+
+	if (!Line.Sound)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No sound found for line %d in sequence %s"), CurrentLineIndex, *CurrentSequence->GetName());
+		OnFMODEventStopped();
+		return;
+	}
+
+	UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent();
+	if (!AudioComp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Speaker for line %d has no audio component"), CurrentLineIndex);
+		OnFMODEventStopped();
+		return;
+	}
+
+	AudioComp->SetEvent(Line.Sound);
+	AudioComp->OnEventStopped.AddDynamic(this, &UML_NarrativeSubsystem::OnFMODEventStopped);
+	AudioComp->Play();
 }
 
 void UML_NarrativeSubsystem::OnLineFinished()
@@ -89,10 +142,19 @@ void UML_NarrativeSubsystem::OnLineFinished()
 
 	const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
 
-	ActiveAudioComponent = nullptr;
-
 	if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
+	{
+		if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
+		{
+			// Unbind callback to prevent double-triggering
+			AudioComp->OnEventStopped.RemoveAll(this);
+			
+			if (AudioComp->IsPlaying())
+				AudioComp->Stop();
+		}
+		
 		Speaker->SetIsTalking(false);
+	}
 
 	OnDialogueLineEnd.Broadcast(Line, Line.SpeakerTag);
 
@@ -105,18 +167,29 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 	if (!CurrentSequence) return false;
 	if (!CurrentSequence->bAllowSkip) return false;
 
+	// In cinematic mode, only allow skip when camera has reached its position
+	if (CurrentSequence->bIsCinematicMode && !bCameraBlendFinished)
+		return false;
+
 	GetWorld()->GetTimerManager().ClearTimer(DialogueTimerHandle);
 
 	if (bCurrentLineStarted && CurrentLineIndex < CurrentSequence->DialogueLines.Num())
 	{
 		const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
 
-		if (ActiveAudioComponent && ActiveAudioComponent->IsPlaying())
-			ActiveAudioComponent->Stop();
-		ActiveAudioComponent = nullptr;
-
 		if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
+		{
+			if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
+			{
+				// Unbind callback BEFORE stopping to prevent async OnEventStopped call
+				AudioComp->OnEventStopped.RemoveAll(this);
+				
+				if (AudioComp->IsPlaying())
+					AudioComp->Stop();
+			}
+			
 			Speaker->SetIsTalking(false);
+		}
 
 		OnDialogueLineEnd.Broadcast(Line, Line.SpeakerTag);
 	}
@@ -253,7 +326,15 @@ void UML_NarrativeSubsystem::RestorePlayerControl() const
 
 void UML_NarrativeSubsystem::PlaySequence(UML_NarrativeSequence* Sequence, AML_NarrativeTrigger* Trigger)
 {
-	if (!Sequence || Sequence->DialogueLines.Num() == 0) return;
+	if (!Sequence || Sequence->DialogueLines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PlaySequence called with invalid sequence"));
+		return;
+	}
+
+	// Clean up any existing sequence first
+	if (CurrentSequence)
+		CleanupCurrentSequence();
 	
 	CurrentSequence = Sequence;
 	CurrentNarrativeTrigger = Trigger;
@@ -279,4 +360,55 @@ void UML_NarrativeSubsystem::PlaySequence(UML_NarrativeSequence* Sequence, AML_N
 IML_DialogueSpeaker* UML_NarrativeSubsystem::GetSpeaker(const ESpeakerTag Tag) const
 {
 	return CurrentNarrativeTrigger ? CurrentNarrativeTrigger->GetSpeaker(Tag) : nullptr;
+}
+
+void UML_NarrativeSubsystem::OnFMODEventStopped()
+{
+	// Validate that we still have a valid sequence and line index
+	if (!CurrentSequence || CurrentLineIndex >= CurrentSequence->DialogueLines.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnFMODEventStopped called but sequence or line index is invalid"));
+		return;
+	}
+
+	const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
+	
+	// Unbind le callback
+	if (const IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
+		if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
+			AudioComp->OnEventStopped.RemoveAll(this);
+	
+	// If PostDelay, then wait
+	if (Line.PostDelay > 0.f)
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			DialogueTimerHandle,
+			this,
+			&UML_NarrativeSubsystem::OnLineFinished,
+			Line.PostDelay,
+			false
+		);
+	}
+	else
+		OnLineFinished();
+}
+
+float UML_NarrativeSubsystem::GetSequenceProgress() const
+{
+	if (!CurrentSequence || CurrentSequence->DialogueLines.Num() == 0)
+		return 0.0f;
+	
+	return static_cast<float>(CurrentLineIndex) / static_cast<float>(CurrentSequence->DialogueLines.Num());
+}
+
+void UML_NarrativeSubsystem::StopSequence()
+{
+	if (!CurrentSequence)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StopSequence called but no sequence is playing"));
+		return;
+	}
+
+	OnSequenceEnd.Broadcast(CurrentSequence);
+	CleanupCurrentSequence();
 }

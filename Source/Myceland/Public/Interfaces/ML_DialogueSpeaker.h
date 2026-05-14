@@ -21,4 +21,5 @@ class MYCELAND_API IML_DialogueSpeaker
 public:
 	virtual void SetIsTalking(const bool bTalking) = 0;
 	virtual bool IsTalking() const = 0;
+	virtual class UFMODAudioComponent* GetAudioComponent() const = 0;
 };
