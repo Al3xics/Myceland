@@ -2,6 +2,21 @@
 .vsconfig
 *.sln.DotSettings.user
 
+
+# FMOD Project - Generated/Temp files
+Myceland_FMOD/.cache/*
+Myceland_FMOD/.user/*
+Myceland_FMOD/Build/*
+
+# FMOD Plugin - Generated files
+Plugins/FMODStudio/Binaries/*
+Plugins/FMODStudio/Intermediate/*
+Plugins/FMODStudio/Content/*
+Plugins/FMODStudio/Docs/*
+
+
+
+
 # Created by https://www.toptal.com/developers/gitignore/api/unrealengine
 # Edit at https://www.toptal.com/developers/gitignore?templates=unrealengine
 
@@ -96,15 +111,5 @@ Build/Android/res/*/*
 # Ignore plugins binaries on deep subfolders
 Plugins/**/Binaries/*
 Plugins/**/Intermediate/*
-
-# Allow FMOD plugin binaries
-!Plugins/FMODStudio/Binaries/**
-
-# FMOD project local/cache files
-Myceland_FMOD/.cache/
-Myceland_FMOD/.unsaved/
-Myceland_FMOD/**/*.user.xml
-Myceland_FMOD/**/Workspace.user.xml
-Myceland_FMOD/**/Mixer.user.xml
 
 # End of https://www.toptal.com/developers/gitignore/api/unrealengine
