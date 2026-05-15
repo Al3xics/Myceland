@@ -6,6 +6,7 @@
 # FMOD Project - Generated/Temp files
 Myceland_FMOD/.cache/*
 Myceland_FMOD/.user/*
+Myceland_FMOD/.unsaved/*
 Myceland_FMOD/Build/*
 
 # FMOD Plugin - Generated files
