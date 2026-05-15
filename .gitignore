@@ -2,6 +2,21 @@
 .vsconfig
 *.sln.DotSettings.user
 
+
+# FMOD Project - Generated/Temp files
+Myceland_FMOD/.cache/*
+Myceland_FMOD/.user/*
+Myceland_FMOD/Build/*
+
+# FMOD Plugin - Generated files
+Plugins/FMODStudio/Binaries/*
+Plugins/FMODStudio/Intermediate/*
+Plugins/FMODStudio/Content/*
+Plugins/FMODStudio/Docs/*
+
+
+
+
 # Created by https://www.toptal.com/developers/gitignore/api/unrealengine
 # Edit at https://www.toptal.com/developers/gitignore?templates=unrealengine
 

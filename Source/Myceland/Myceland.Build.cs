@@ -22,13 +22,13 @@ public class Myceland : ModuleRules
 			"Foliage",
 			"DeveloperSettings",
             "ProceduralMeshComponent",
-            "GameplayTags"
+            "GameplayTags", "FMODStudio"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Slate",
-			"SlateCore"
+			"SlateCore", "FMODStudio"
 		});
 
 		// Uncomment if you are using online features
