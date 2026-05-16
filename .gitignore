@@ -10,7 +10,8 @@ Myceland_FMOD/.unsaved/*
 Myceland_FMOD/Build/*
 
 # FMOD Plugin - Generated files
-Plugins/FMODStudio/Binaries/*
+# Binaries ARE tracked for team compilation compatibility
+# Plugins/FMODStudio/Binaries/*
 Plugins/FMODStudio/Intermediate/*
 Plugins/FMODStudio/Content/*
 Plugins/FMODStudio/Docs/*
