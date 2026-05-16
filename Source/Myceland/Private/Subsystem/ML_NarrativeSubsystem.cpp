@@ -297,6 +297,8 @@ void UML_NarrativeSubsystem::RestorePlayerControl() const
 		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
 			InputSub->AddMappingContext(MainIMC, DevSettings->DefaultInputMappingContext.Priority);
 	}
+	
+	GetPlayerController()->NotifyCinematicModeChanged(false); // false because cinematic ends
 
 	GetPlayerController()->BlendToViewTarget(
 		PreviousViewTarget,
@@ -347,6 +349,8 @@ void UML_NarrativeSubsystem::PlaySequence(UML_NarrativeSequence* Sequence, AML_N
 		bWaitingForCinematicSetup = true;
 		bCameraBlendFinished = !CurrentSequence->bWaitForCameraBlendToFinish; // if bWaitForCameraBlendToFinish is false, then tell bCameraBlendFinished that it is already considered finished
 		bPlayerMovementFinished = !CurrentSequence->bWaitForPlayerMovementToFinish; // if bWaitForPlayerMovementToFinish is false, then tell bPlayerMovementFinished that it is already considered finished
+		
+		GetPlayerController()->NotifyCinematicModeChanged(true); // true because cinematic starts
 		
 		SetupCinematicMode();
 		CheckCinematicSetupComplete();

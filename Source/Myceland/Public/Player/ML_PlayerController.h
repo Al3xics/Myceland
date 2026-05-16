@@ -58,6 +58,8 @@ private:
 public:
 	AML_Tile* GetTileUnderCursor() const;
 
+	static AML_Tile* ExtractTileFromHit(const FHitResult& Hit);
+
 	/** Called by TransitionComponent when turn-toward-tile completes. */
 	void ConfirmTurn(AML_Tile* HitTile);
 
@@ -69,6 +71,9 @@ public:
 
 	/** Called by TransitionComponent to change the movement mode and notify other systems. */
 	void SetMovementMode(EML_PlayerMovementMode NewMode);
+
+	void UpdateCursorVisibility(const bool bVisible);
+	void NotifyCinematicModeChanged(const bool bInCinematicMode);
 
 private:
 	// ==================== Ground ====================

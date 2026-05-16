@@ -45,6 +45,11 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 	if (!IsClickableGround(Hit))
 		return nullptr;
 
+	return ExtractTileFromHit(Hit);
+}
+
+AML_Tile* AML_PlayerController::ExtractTileFromHit(const FHitResult& Hit)
+{
 	if (AML_Tile* Tile = Cast<AML_Tile>(Hit.GetActor()))
 		return Tile;
 
@@ -678,6 +683,10 @@ void AML_PlayerController::HandleInsideBoardClick()
 // Re-enters a board if a board tile is clicked; otherwise caches the ground destination.
 void AML_PlayerController::HandleFreeMovementClick()
 {
+	// Stop any active NavMesh movement to allow new input
+	if (NavigationBridgeComponent)
+		NavigationBridgeComponent->StopNavMeshMovement();
+
 	AML_Tile* TargetTile = GetTileUnderCursor();
 	if (IsValid(TargetTile))
 	{
@@ -755,6 +764,23 @@ void AML_PlayerController::OnSkipNarrativeLine()
 {
 	if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
 		SubSys->SkipCurrentLine();
+}
+
+void AML_PlayerController::UpdateCursorVisibility(const bool bVisible)
+{
+	if (!IsLocalController())
+		return;
+
+	bShowMouseCursor = bVisible;
+	bEnableClickEvents = bVisible;
+	bEnableMouseOverEvents = bVisible;
+}
+
+void AML_PlayerController::NotifyCinematicModeChanged(const bool bInCinematicMode)
+{
+	UpdateCursorVisibility(!bInCinematicMode);
+	if (HoverPreviewComponent)
+		HoverPreviewComponent->UpdateShowPreviews(!bInCinematicMode);
 }
 
 
