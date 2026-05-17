@@ -45,28 +45,6 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		bPendingClearWinPath = true;
 		OnWin.Broadcast();
-		
-		if (CurrentBoardSpawner->WaterPaths.Num() > 0)
-		{
-			ClearWinPath(
-				CurrentBoardSpawner,
-				GetPlayerCurrentTile(),
-				CurrentBoardSpawner->FindClosestWaterPathTile(GetPlayerCurrentTile()),
-				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
-	        );
-		}
-		
-		for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
-		{
-            ClearWinPath(
-            	CurrentBoardSpawner,
-            	WaterPath.EntryTile,
-            	WaterPath.ExitTile,
-            	{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
-            );
-		}
-
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 
 	return GameResult;
@@ -401,7 +379,7 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 			{
 				ClearWinPath(
 					CurrentBoardSpawner,
-					WaterPath.EntryTile,
+					GetPlayerCurrentTile(),
 					WaterPath.ExitTile,
 					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
 				);
@@ -412,7 +390,7 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 			AML_BoardSpawner* Board = CurrentBoardSpawner;
 			GetWorld()->GetTimerManager().SetTimerForNextTick([this, Board]()
 			{
-				if (IsValid(Board))
+				if (IsValid(CurrentBoardSpawner))
 				{
 					for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
 					{
