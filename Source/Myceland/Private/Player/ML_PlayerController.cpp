@@ -108,6 +108,23 @@ bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 	return ObjectType == ECC_GameTraceChannel1;
 }
 
+void AML_PlayerController::UpdateCursorVisibility(const bool bVisible)
+{
+	if (!IsLocalController())
+		return;
+
+	bShowMouseCursor = bVisible;
+	bEnableClickEvents = bVisible;
+	bEnableMouseOverEvents = bVisible;
+}
+
+void AML_PlayerController::NotifyCinematicModeChanged(const bool bInCinematicMode)
+{
+	UpdateCursorVisibility(!bInCinematicMode);
+	if (HoverPreviewComponent)
+		HoverPreviewComponent->UpdateShowPreviews(!bInCinematicMode);
+}
+
 
 // ==================== Movement ====================
 
@@ -764,23 +781,6 @@ void AML_PlayerController::OnSkipNarrativeLine()
 {
 	if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
 		SubSys->SkipCurrentLine();
-}
-
-void AML_PlayerController::UpdateCursorVisibility(const bool bVisible)
-{
-	if (!IsLocalController())
-		return;
-
-	bShowMouseCursor = bVisible;
-	bEnableClickEvents = bVisible;
-	bEnableMouseOverEvents = bVisible;
-}
-
-void AML_PlayerController::NotifyCinematicModeChanged(const bool bInCinematicMode)
-{
-	UpdateCursorVisibility(!bInCinematicMode);
-	if (HoverPreviewComponent)
-		HoverPreviewComponent->UpdateShowPreviews(!bInCinematicMode);
 }
 
 
