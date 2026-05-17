@@ -42,6 +42,11 @@ AML_Tile::AML_Tile()
 	HexagonCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
+void AML_Tile::NotifyTileChangedNative()
+{
+	OnTileChangedNative.Broadcast(this);
+}
+
 void AML_Tile::SetBlocked(bool bNewBlocked)
 {
 	bBlocked = bNewBlocked;
@@ -111,12 +116,13 @@ void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubcl
 	
 	CurrentType = NewTileType;
 	
-	// If there is a change from grass to parasite
 	bConsumedGrass = (OldType == EML_TileType::Grass && NewTileType == EML_TileType::Parasite);
 	
 	TileChildActor->SetChildActorClass(NewClass);
 	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
+
 	OnTileTypeChanged(OldType, NewTileType);
+	NotifyTileChangedNative();
 }
 
 void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const TSubclassOf<AML_TileBase> NewClass)

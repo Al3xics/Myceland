@@ -34,7 +34,7 @@ void UML_BoardTransitionComponent::SwitchToMode(EML_PlayerMovementMode NewMode)
 		NewMode  == EML_PlayerMovementMode::InsideBoard &&
 		!bPendingFreeMovementOnArrival)
 	{
-		PendingExitTile = nullptr;
+		PendingExitBorderTile = nullptr;
 		bHasExitTargetWorld = false;
 	}
 }
@@ -55,11 +55,17 @@ void UML_BoardTransitionComponent::NotifyIsMoving(bool bIsMoving)
 	}
 }
 
+bool UML_BoardTransitionComponent::IsOutsideBoardMovementMode() const
+{
+	return CurrentMovementMode == EML_PlayerMovementMode::FreeMovement ||
+		CurrentMovementMode == EML_PlayerMovementMode::EnteringBoard;
+}
+
 // ==================== Exit hold ====================
 
-void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitTile, const FVector& WorldTarget)
+void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, const FVector& WorldTarget)
 {
-	PendingExitTile       = ExitTile;
+	PendingExitBorderTile = ExitBorderTile;
 	PendingExitTargetWorld = WorldTarget;
 	bHasExitTargetWorld    = true;
 
@@ -67,7 +73,7 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitTile, const FVe
 	bIsHoldingExitInput = true;
 	
 	if (OwningController->HoverPreviewComponent)
-		OwningController->HoverPreviewComponent->SetForcedHoverTile(ExitTile);
+		OwningController->HoverPreviewComponent->SetForcedHoverTile(ExitBorderTile);
 
 	// Start exit hold timer
 	ExitHoldTimer        = 0.f;
@@ -159,14 +165,14 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 {
 	UE_LOG(LogTemp, Warning, TEXT("[EXIT] ConfirmExitBoard called"));
 
-	if (!IsValid(PendingExitTile) || !IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return;
+	if (!IsValid(PendingExitBorderTile) || !IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return;
 
 	AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return;
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	const FIntPoint StartAxial = PlayerCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint GoalAxial  = PendingExitTile->GetAxialCoord();
+	const FIntPoint GoalAxial  = PendingExitBorderTile->GetAxialCoord();
 
 	UE_LOG(LogTemp, Warning, TEXT("[EXIT] StartAxial=%s, GoalAxial=%s"),
 		*StartAxial.ToString(), *GoalAxial.ToString());
@@ -182,7 +188,7 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 			bHasExitTargetWorld = false;
 		}
 
-		PendingExitTile = nullptr;
+		PendingExitBorderTile = nullptr;
 		return;
 	}
 
@@ -197,7 +203,7 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 	bPendingFreeMovementOnArrival = true;
 	// Walk to border inside board; FreeMovement triggers on arrival via HandlePathFinished
 	OwningController->SetMovementMode(EML_PlayerMovementMode::InsideBoard);
-	// Don't clear PendingExitTile — HandlePathFinished needs bHasExitTargetWorld / PendingExitTargetWorld
+	// Don't clear pending exit state: HandlePathFinished needs PendingExitTargetWorld.
 
 	OwningController->StartMoveAlongPath(AxialPath, GridMap);
 }
@@ -311,7 +317,7 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 			UE_LOG(LogTemp, Error, TEXT("[EXIT] ERROR: bHasExitTargetWorld is FALSE!"));
 		}
 
-		PendingExitTile = nullptr;
+		PendingExitBorderTile = nullptr;
 		return Cmd;
 	}
 

@@ -9,6 +9,7 @@
 #include "ML_BoardSpawner.generated.h"
 
 class UML_BiomeTileSet;
+class AML_CameraRail;
 class AML_Collectible;
 class AML_TileBase;
 class AML_TileWater;
@@ -20,9 +21,6 @@ UCLASS()
 class MYCELAND_API AML_BoardSpawner : public AActor
 {
 	GENERATED_BODY()
-
-public:
-	AML_BoardSpawner();
 
 private:
 	// ==================== Myceland Runtime ====================
@@ -39,6 +37,8 @@ private:
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	AActor* AssociatedObstacle;
 	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	AActor* AssociatedNatureZone;
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
@@ -55,17 +55,23 @@ private:
 	void UpdateCurrentGrid(bool bAllowSpawn = true);
 	void SpawnHexagonRadius();
 	void SpawnRectangleWH();
+	void RefreshTileCaches();
 
 	// Conversions
 	FVector AxialToWorld(int32 Q, int32 R) const;
-	FIntPoint WorldToAxial(const FVector& WorldLocation) const;
 	FIntPoint OffsetToAxial(int32 Col, int32 Row) const;
+	
+	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
 
 protected:
 	virtual void Destroyed() override;
 	virtual void BeginPlay() override;
 
 public:
+	AML_BoardSpawner();
+	FIntPoint WorldToAxial(const FVector& WorldLocation) const;
+	
+	
 	// ==================== Myceland Hex Grid ====================
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
@@ -97,12 +103,18 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
-
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
-	AML_Tile* EntryTile;
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
-	AML_Tile* ExitTile;
+	TArray<AML_CameraRail*> AssociatedCameraRails;
+	
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	TArray<FML_WaterPath> WaterPaths;
+
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	TSubclassOf<AML_TileBase> WaterChangeTile;
+	
+	UPROPERTY(BlueprintReadWrite)
+    bool bIsPuzzleSolved;
 	
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
 	void UpdateCurrentGridEditor();
@@ -127,12 +139,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AML_Tile*> GetTreeTiles() const;
 
-	/**
-	 * Returns whichever of EntryTile / ExitTile is closer (2D) to WorldLocation.
-	 * Returns nullptr if both are invalid.
-	 */
 	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
-	AML_Tile* GetClosestGateTile(const FVector& WorldLocation) const;
+	AML_Tile* FindClosestWalkableBorderTile(const FVector& WorldLocation) const;
+
+	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	AML_Tile* FindClosestWaterPathTile(const AML_Tile* Tile);
+
+	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	AML_CameraRail* GetClosestCameraRail(const FVector& WorldLocation) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
@@ -145,12 +159,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
-
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
-	TSubclassOf<AML_TileBase> WaterChangeTile;
 	
-	UPROPERTY(BlueprintReadWrite)
-    bool bIsPuzzleSolved; 
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	AActor* GetAssociatedNatureZone() const { return AssociatedNatureZone; } 
 	
 	// ==================== Myceland Hex Procedural Grid ====================
 	
@@ -159,9 +170,4 @@ public:
 
 	UFUNCTION(CallInEditor, Category="Myceland Puzzle Generator")
 	void AnalyzeCurrentPuzzle();
-	
-	
-private:
-	
-	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
 };

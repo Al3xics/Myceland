@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayTagContainer.h"
 #include "ML_CoreData.generated.h"
 
 // ==================== STATIC ====================
@@ -135,6 +134,9 @@ struct FML_WaveChange
 	AML_Tile* Neighbor = nullptr; // Collectible
 	
 	UPROPERTY()
+	AML_Tile* SourceParasite = nullptr; // Collectible — the specific parasite that triggered this spawn
+
+	UPROPERTY()
 	FVector SpawnLocation = FVector::ZeroVector; // Collectible
 	
 	UPROPERTY()
@@ -218,4 +220,16 @@ struct FML_WavePriorityEntry
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="If true and this wave has no changes, the propagation will stop entirely. If false, continues to next wave."))
 	bool bCanStopHereIfNoChanges = true;
+};
+
+USTRUCT(BlueprintType)
+struct FML_WaterPath
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Water Path")
+	TObjectPtr<AML_Tile> EntryTile;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Water Path")
+	TObjectPtr<AML_Tile> ExitTile;
 };

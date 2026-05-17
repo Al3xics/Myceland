@@ -10,8 +10,10 @@
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Component/ML_BoardTransitionComponent.h"
+#include "Component/ML_NavigationBridgeComponent.h"
 #include "ML_PlayerController.generated.h"
 
+class AML_CameraRail;
 class UML_MycelandDeveloperSettings;
 struct FInputActionValue;
 class AML_PlayerCharacter;
@@ -43,12 +45,6 @@ private:
 
 	bool bIsMoving = false;
 
-	// Free movement target (SimpleMoveToLocation)
-	UPROPERTY(Transient)
-	FVector PendingFreeMovementTarget = FVector::ZeroVector;
-
-	bool bHasFreeMovementTarget = false;
-	bool bIsUsingNavMeshMovement = false;
 	float FollowTime = 0.f;
 	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
@@ -83,9 +79,7 @@ private:
 	// ==================== Movement ====================
 
 	void TickMoveAlongPath(float DeltaTime);
-	void TickNavMeshMovement(float DeltaTime);
 	void OnPathFinished();
-	void StopNavMeshMovement();
 	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
 	bool Plant(AML_Tile* TargetTile);
 	void ExecutePlant(AML_Tile* HitTile);
@@ -98,6 +92,12 @@ private:
 	 */
 	void ExtendMoveAlongPath(const TArray<FIntPoint>& FullMergedAxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 		int32 PreservedPathIndex);
+	
+	
+	
+	// ==================== Camera ====================
+	
+	AML_CameraRail* FindClosestCameraRailFromPlayer(const FVector& WorldLocation);
 
 	
 	
@@ -136,6 +136,9 @@ protected:
 	// Bind to OnStarted - for Plant and Move only
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnMoveAndPlantStarted();
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnSkipNarrativeLine();
 
 	// ---- Input sub-handlers (called by OnSetDestinationStarted) ----
 	void HandleInsideBoardClick();
@@ -182,6 +185,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_BoardTransitionComponent* TransitionComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UML_NavigationBridgeComponent* NavigationBridgeComponent = nullptr;
 	
 	
 	
@@ -190,6 +196,13 @@ public:
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
+	
+	
+	
+	// ==================== Camera ====================
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
+	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
 
 	
 	

@@ -45,6 +45,28 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		bPendingClearWinPath = true;
 		OnWin.Broadcast();
+		
+		if (CurrentBoardSpawner->WaterPaths.Num() > 0)
+		{
+			ClearWinPath(
+				CurrentBoardSpawner,
+				GetPlayerCurrentTile(),
+				CurrentBoardSpawner->FindClosestWaterPathTile(GetPlayerCurrentTile()),
+				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
+	        );
+		}
+		
+		for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
+		{
+            ClearWinPath(
+            	CurrentBoardSpawner,
+            	WaterPath.EntryTile,
+            	WaterPath.ExitTile,
+            	{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
+            );
+		}
+
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You Won!"));
 	}
 
 	return GameResult;
@@ -375,11 +397,15 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 		if (bPendingClearWinPath)
 		{
 			bPendingClearWinPath = false;
-			ClearWinPath(
-				CurrentBoardSpawner,
-				GetPlayerCurrentTile(),
-				CurrentBoardSpawner->ExitTile,
-				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt});
+			for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
+			{
+				ClearWinPath(
+					CurrentBoardSpawner,
+					WaterPath.EntryTile,
+					WaterPath.ExitTile,
+					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
+				);
+			}
 
 			// Defer the Entry→Exit clear by one tick so UpdateClassAtRuntime changes
 			// from the first call are fully applied before the second BFS runs.
@@ -388,10 +414,15 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 			{
 				if (IsValid(Board))
 				{
-					ClearWinPath(Board,
-						Board->EntryTile,
-						Board->ExitTile,
-						{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt});
+					for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
+					{
+						ClearWinPath(
+							CurrentBoardSpawner,
+							WaterPath.EntryTile,
+							WaterPath.ExitTile,
+							{EML_TileType::Grass, EML_TileType::Water,EML_TileType::WaterPath, EML_TileType::Dirt}
+						);
+					}
 				}
 			});
 		}

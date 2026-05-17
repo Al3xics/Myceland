@@ -177,6 +177,7 @@ void UML_WavePropagationSubsystem::RunWave()
 			{
 				// Configure BEFORE the spawn
 				Collectible->SetOwningTile(Change.Neighbor);
+				Collectible->SetSourceParasite(Change.SourceParasite);
 				Change.Neighbor->CollectibleActor = Collectible;
 
 				// Finish spawning

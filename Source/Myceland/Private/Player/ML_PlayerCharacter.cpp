@@ -3,13 +3,9 @@
 
 #include "Player/ML_PlayerCharacter.h"
 
-#include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "Player/ML_PlayerController.h"
-#include "Subsystem/ML_RollBackSubsystem.h"
-#include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 
@@ -28,18 +24,6 @@ AML_PlayerCharacter::AML_PlayerCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->bConstrainToPlane = true;
 	GetCharacterMovement()->bSnapToPlaneAtStart = true;
-	
-	SpringArm = CreateDefaultSubobject<USpringArmComponent>("SpringArm");
-	SpringArm->SetupAttachment(RootComponent);
-	SpringArm->SetRelativeRotation(FRotator(-50.f, 0.f, 0.f));
-	SpringArm->TargetArmLength = 1400.f;
-	SpringArm->bDoCollisionTest = false;
-	SpringArm->bEnableCameraLag = true;
-	SpringArm->CameraLagSpeed = 3.f;
-	
-	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
-	Camera->SetupAttachment(SpringArm);
-	Camera->FieldOfView = 55.f;
 }
 
 void AML_PlayerCharacter::UpdateCurrentTile()
@@ -52,7 +36,7 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 
 	FVector Start = ActorLocation;
 	FVector End = ActorLocation;
-	End.Z = (ActorLocation.Z - (CapsuleHalfHeight - 10.f)) - 20.f;
+	End.Z = ActorLocation.Z - CapsuleHalfHeight - RaycastDistance;
 
 	FHitResult Hit;
 	FCollisionQueryParams Params;
@@ -71,26 +55,17 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	AML_Tile* NewTile = nullptr;
 
 	if (bHit)
-	{
 		if (AActor* HitActor = Hit.GetActor())
-		{
 			if (AML_TileBase* TileBase = Cast<AML_TileBase>(HitActor))
-			{
 				if (AActor* ParentActor = TileBase->GetAttachParentActor())
-				{
 					NewTile = Cast<AML_Tile>(ParentActor);
-				}
-			}
 			else
-			{
 				NewTile = Cast<AML_Tile>(HitActor);
-			}
-		}
-	}
 
 	if (NewTile == OldTile)
 		return;
 
+	// todo --> remove because we don't want to glow neighbor tile anymore
 	if (CurrentTileOn)
 	{
 		for (AML_Tile* Neighbor : CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn))
@@ -104,6 +79,8 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	OnCurrentTileChanged.Broadcast(OldTile, NewTile);
 	HandleTileStateChange(OldTile, NewTile);
 
+	
+	// todo --> remove because we don't want to glow neighbor tile anymore
 	if (CurrentTileOn)
 	{
 		for (AML_Tile* Neighbor : CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn))
@@ -129,26 +106,6 @@ void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const A
 	if (OldBoard && NewBoard && OldBoard == NewBoard)
 		return;
 
-	auto IsGateTile = [](const AML_BoardSpawner* Board, const AML_Tile* Tile) -> bool
-	{
-		return Board && Tile && (Board->EntryTile == Tile || Board->ExitTile == Tile);
-	};
-
-	// If we left a board but the last tile was not a gate, ignore it.
-	// This prevents transient nullptrs or internal tile updates from switching camera.
-	if (OldTile && !NewTile)
-	{
-		if (!IsGateTile(OldBoard, OldTile))
-			return;
-	}
-
-	// If we entered a board but the new tile is not a gate, ignore it.
-	if (!OldTile && NewTile)
-	{
-		if (!IsGateTile(NewBoard, NewTile))
-			return;
-	}
-
 	// If we changed directly from one board to another, keep it.
 	// If we genuinely crossed a gate, keep it too.
 	OnBoardChanged.Broadcast(OldTile, NewTile);
@@ -167,7 +124,6 @@ void AML_PlayerCharacter::Tick(float DeltaTime)
 	// Only check if the character has moved
 	FVector CurrentLocation = GetActorLocation();
 	CurrentLocation.Z = 0.f;
-	AML_Tile* Testtype = CurrentTileOn;
 	if (!LastCheckedLocation.Equals(CurrentLocation, 10.f)) // Tolerance of 10 units
 	{
 		UpdateCurrentTile();

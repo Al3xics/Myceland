@@ -56,6 +56,8 @@ void UML_HoverPreviewComponent::StopHoverPreviewTimer()
 	ClearForcedHoverTile();
 }
 
+// Bypasses cursor detection and locks the hover preview onto the given tile until cleared.
+// Invalidates LastHoveredTile so TickHoverPreview immediately recomputes the path.
 void UML_HoverPreviewComponent::SetForcedHoverTile(AML_Tile* Tile)
 {
 	ForcedHoverTile = Tile;
@@ -65,6 +67,7 @@ void UML_HoverPreviewComponent::SetForcedHoverTile(AML_Tile* Tile)
 		TickHoverPreview();
 }
 
+// Removes the forced tile override and hands control back to cursor-based detection.
 void UML_HoverPreviewComponent::ClearForcedHoverTile()
 {
 	ForcedHoverTile = nullptr;
@@ -103,13 +106,7 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 								  IsValid(PlayerCharacter->CurrentTileOn) &&
 								  CursorHoveredTile == PlayerCharacter->CurrentTileOn;
 
-	// Suppress cursor glow when the tile is unreachable in board mode.
-	// TickHoverPreview already ran this frame and set bCurrentHoveredTileReachable.
-	// Also suppress if hovering the player's current tile.
-	const bool bIsInBoardMode = (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard ||
-								 CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard);
-
-	if (!bIsOnPlayerTile && (!bIsInBoardMode || bCurrentHoveredTileReachable))
+	if (!bIsOnPlayerTile && bCurrentHoveredTileReachable)
 		CursorHoveredTile->GlowCursorHovered();
 
 	LastCursorHoveredTile = CursorHoveredTile;
@@ -130,42 +127,12 @@ void UML_HoverPreviewComponent::SetHoveredTileState(AML_Tile* HoveredTile, bool 
 	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
 }
 
-AML_Tile* UML_HoverPreviewComponent::FindClosestEntryExitTile(const AML_BoardSpawner* Board, const FVector& PlayerLocation) const
-{
-	if (!IsValid(Board))
-		return nullptr;
-	
-	TArray<AML_Tile*> EntryExitTiles;
-	EntryExitTiles.Add(Board->EntryTile);
-	EntryExitTiles.Add(Board->ExitTile);
-    
-	if (EntryExitTiles.Num() == 0)
-		return nullptr;
-
-	AML_Tile* ClosestTile = nullptr;
-	float MinDistanceSq = TNumericLimits<float>::Max();
-
-	for (AML_Tile* Tile : EntryExitTiles)
-	{
-		if (!IsValid(Tile) || !UML_HexPathfinder::IsTileWalkable(Tile))
-			continue;
-
-		const float DistSq = FVector::DistSquared(PlayerLocation, Tile->GetActorLocation());
-		if (DistSq < MinDistanceSq)
-		{
-			MinDistanceSq = DistSq;
-			ClosestTile = Tile;
-		}
-	}
-
-	return ClosestTile;
-}
-
 void UML_HoverPreviewComponent::TickHoverPreview()
 {
 	if (!IsValid(OwningController))
         return;
 
+	// ForcedHoverTile takes priority over the cursor (e.g. locked to the exit tile during board exit hold)
 	AML_Tile* HoveredTile = ForcedHoverTile ? ForcedHoverTile : OwningController->GetTileUnderCursor();
 
     // Same tile as before → no update needed
@@ -200,10 +167,12 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     {
         StartTile = PlayerCharacter->CurrentTileOn;
     }
-    // Alternatively, find the entry/exit tile closest to the player
+    // Otherwise, predict the first border tile that the NavMesh path would enter through.
     else if (IsValid(PlayerCharacter))
     {
-        StartTile = FindClosestEntryExitTile(Board, PlayerCharacter->GetActorLocation());
+        StartTile = OwningController->NavigationBridgeComponent
+        	? OwningController->NavigationBridgeComponent->PredictNavMeshEntryTile(Board, HoveredTile->GetActorLocation())
+        	: nullptr;
     }
 
     if (!IsValid(StartTile))
@@ -225,7 +194,7 @@ void UML_HoverPreviewComponent::TickHoverPreview()
 
     SetHoveredTileState(HoveredTile, bReachable);
 
-    const bool bIsOnPlayerTile = (StartTile == HoveredTile);
+	const bool bIsOnPlayerTile = IsValid(PlayerCharacter->CurrentTileOn) && HoveredTile == PlayerCharacter->CurrentTileOn;
 
     if (bReachable && !bIsOnPlayerTile)
     {
