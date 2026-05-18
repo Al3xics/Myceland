@@ -38,7 +38,7 @@ private:
 	AActor* AssociatedObstacle;
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
-	AActor* AssociatedNatureZone;
+	TArray<AActor*> AssociatedNatureZones;
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
@@ -161,7 +161,7 @@ public:
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
-	AActor* GetAssociatedNatureZone() const { return AssociatedNatureZone; } 
+	TArray<AActor*> GetAssociatedNatureZones() const { return AssociatedNatureZones; } 
 	
 	// ==================== Myceland Hex Procedural Grid ====================
 	
