@@ -39,18 +39,33 @@ void AML_BoardSpawner::BeginPlay()
 	// Never spawn new ones — the designer may have intentionally deleted some tiles.
 	UpdateCurrentGrid(false);
 
+#if !UE_BUILD_SHIPPING
+	if (PuzzleID.IsValid())
+	{
+		for (TActorIterator<AML_BoardSpawner> It(GetWorld()); It; ++It)
+		{
+			if (*It != this && (*It)->PuzzleID == PuzzleID)
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("[BoardSpawner] Duplicate PuzzleID '%s' on '%s' and '%s' — save data will collide!"),
+					*PuzzleID.ToString(), *GetName(), *(*It)->GetName());
+			}
+		}
+	}
+#endif
+
 	// ---- Save / Load integration ----
-	if (PuzzleID.IsNone()) return;
+	if (!PuzzleID.IsValid()) return;
 
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
 	if (!SaveSys) return;
 
 	// Capture the authored tile layout and store it the first time this puzzle is seen.
 	const TArray<FML_TileSaveEntry> Snapshot = SnapshotGrid();
-	SaveSys->EnsureInitialGridSaved(PuzzleID, Snapshot);
+	SaveSys->EnsureInitialGridSaved(PuzzleID.GetTagName(), Snapshot);
 
 	// If this puzzle was already solved, restore the solved grid so the player sees it.
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID);
+	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
 	if (Record.bIsSolved && Record.SolvedGrid.Num() > 0)
 	{
 		int32 Applied = 0;
@@ -525,21 +540,21 @@ void AML_BoardSpawner::HandlePuzzleWon()
 		if (WinLose->CurrentBoardSpawner != this) return;
 	}
 
-	if (PuzzleID.IsNone()) return;
+	if (!PuzzleID.IsValid()) return;
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
 	if (!SaveSys) return;
 
-	SaveSys->MarkPuzzleSolved(PuzzleID, SnapshotGrid());
+	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid());
 }
 
 void AML_BoardSpawner::ReplayPuzzle()
 {
-	if (PuzzleID.IsNone()) return;
+	if (!PuzzleID.IsValid()) return;
 
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
 	if (!SaveSys) return;
 
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID);
+	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
 	if (Record.InitialGrid.IsEmpty()) return;
 
 	for (const FML_TileSaveEntry& Entry : Record.InitialGrid)
@@ -552,7 +567,7 @@ void AML_BoardSpawner::ReplayPuzzle()
 	}
 
 	bIsPuzzleSolved = false;
-	SaveSys->ResetPuzzle(PuzzleID);
+	SaveSys->ResetPuzzle(PuzzleID.GetTagName());
 }
 
 void AML_BoardSpawner::AnalyzeCurrentPuzzle()

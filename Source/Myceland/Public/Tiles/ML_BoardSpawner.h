@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Core/ML_CoreData.h"
 #include "GameFramework/Actor.h"
+#include "GameplayTagContainer.h"
 #include "Save System/ML_GameSaveData.h"
 #include "PuzzleGeneration/ML_PuzzleGenerationTypes.h"
 #include "ML_BoardSpawner.generated.h"
@@ -98,9 +99,9 @@ public:
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
 
 	// Unique identifier for this puzzle used to key save data.
-	// Must be set by the designer; boards with PuzzleID = None are not saved.
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
-	FName PuzzleID;
+	// Must be set by the designer; boards with no valid tag are not saved.
+	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(Categories="Puzzle"))
+	FGameplayTag PuzzleID;
 
 	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
 	AML_Tile* EntryTile;
