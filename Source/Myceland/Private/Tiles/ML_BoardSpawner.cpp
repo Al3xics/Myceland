@@ -79,6 +79,11 @@ void AML_BoardSpawner::BeginPlay()
 			}
 		}
 		bIsPuzzleSolved = true;
+		if (IsValid(AssociatedObstacle))
+		{
+			AssociatedObstacle->SetActorHiddenInGame(true);
+			AssociatedObstacle->SetActorEnableCollision(false);
+		}
 		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — solved state loaded (%d/%d tiles restored)."),
 			*PuzzleID.ToString(), Applied, Record.SolvedGrid.Num());
 	}
@@ -567,6 +572,11 @@ void AML_BoardSpawner::ReplayPuzzle()
 	}
 
 	bIsPuzzleSolved = false;
+	if (IsValid(AssociatedObstacle))
+	{
+		AssociatedObstacle->SetActorHiddenInGame(false);
+		AssociatedObstacle->SetActorEnableCollision(true);
+	}
 	SaveSys->ResetPuzzle(PuzzleID.GetTagName());
 }
 
