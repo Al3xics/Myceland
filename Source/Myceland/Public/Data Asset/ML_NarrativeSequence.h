@@ -15,14 +15,20 @@ class MYCELAND_API UML_NarrativeSequence : public UPrimaryDataAsset
 	
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dialogue")
-	TArray<FDialogueLine> DialogueLines;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dialogue")
 	bool bAllowSkip = true;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dialogue")
+	TArray<FDialogueLine> DialogueLines;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cinematic")
 	bool bIsCinematicMode = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode", ClampMin = "0.1", ClampMax = "5.0"))
 	float CameraBlendTime = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode", ToolTip = "If true, the sequence will wait for the camera blend to finish before starting with the first line."))
+	bool bWaitForCameraBlendToFinish = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode", ToolTip = "If true, the sequence will wait for the player movement to finish before starting with the first line."))
+	bool bWaitForPlayerMovementToFinish = true;
 };

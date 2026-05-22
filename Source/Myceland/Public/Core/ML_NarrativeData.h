@@ -12,7 +12,16 @@ enum class ESpeakerTag : uint8
 {
 	None,
 	Player,
-	TalkingTree
+	Thing0,
+	Thing1,
+	Thing2,
+	Thing3,
+	Thing4,
+	Thing5,
+	Thing6,
+	Thing7,
+	Thing8,
+	Thing9
 };
 
 // ==================== STRUCT ====================

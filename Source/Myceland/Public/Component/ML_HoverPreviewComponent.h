@@ -54,7 +54,6 @@ private:
 	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();
 	void SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable);
-	AML_Tile* FindClosestEntryExitTile(const AML_BoardSpawner* Board, const FVector& PlayerLocation) const;
 	TArray<AML_Tile*> BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const;
 
 public:

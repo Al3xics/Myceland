@@ -44,17 +44,6 @@ void AML_NarrativeTrigger::BeginPlay()
         TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &AML_NarrativeTrigger::OnTriggerBeginOverlap);
 
     // Bind to subsystem events
-    BindToSubsystemEvents();
-}
-
-void AML_NarrativeTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-    UnbindFromSubsystemEvents();
-    Super::EndPlay(EndPlayReason);
-}
-
-void AML_NarrativeTrigger::BindToSubsystemEvents()
-{
     if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
     {
         SubSys->OnSequenceStart.AddDynamic(this, &AML_NarrativeTrigger::HandleSequenceStart);
@@ -62,10 +51,12 @@ void AML_NarrativeTrigger::BindToSubsystemEvents()
     }
 }
 
-void AML_NarrativeTrigger::UnbindFromSubsystemEvents()
+void AML_NarrativeTrigger::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
         SubSys->OnSequenceEnd.RemoveDynamic(this, &AML_NarrativeTrigger::HandleSequenceEnd);
+    
+    Super::EndPlay(EndPlayReason);
 }
 
 void AML_NarrativeTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -118,4 +109,18 @@ void AML_NarrativeTrigger::OnSequenceEnded_Implementation(UML_NarrativeSequence*
 void AML_NarrativeTrigger::ResetTrigger()
 {
     bHasBeenPlayed = false;
+}
+
+IML_DialogueSpeaker* AML_NarrativeTrigger::GetSpeaker(const ESpeakerTag Tag) const
+{
+    if (Tag == ESpeakerTag::Player)
+    {
+        AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
+        return Cast<IML_DialogueSpeaker>(PlayerCharacter);
+    }
+    
+    if (AActor* const* Found = Speakers.Find(Tag))
+        return Cast<IML_DialogueSpeaker>(*Found);
+    
+    return nullptr;
 }

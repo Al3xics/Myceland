@@ -4,9 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Components/ArrowComponent.h"
+#include "Core/ML_NarrativeData.h"
 #include "GameFramework/Actor.h"
+#include "Interfaces/ML_DialogueSpeaker.h"
 #include "ML_NarrativeTrigger.generated.h"
 
+class AML_TalkingThing;
 class UML_NarrativeSequence;
 class UBoxComponent;
 class UCameraComponent;
@@ -18,9 +21,6 @@ class MYCELAND_API AML_NarrativeTrigger : public AActor
     GENERATED_BODY()
 
 private:
-    void BindToSubsystemEvents();
-    void UnbindFromSubsystemEvents();
-
     UFUNCTION()
     void HandleSequenceStart(UML_NarrativeSequence* Sequence);
 
@@ -66,6 +66,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative")
     bool bPlayOnce = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative", meta = (ToolTip="All speakers related to this narrative trigger.\n\n⚠️ DON'T ADD THE PLAYER TAG! It's handled automatically.\n\nOnly add actors that implement IML_DialogueSpeaker interface (e.g., TalkingThing actors)."))
+    TMap<ESpeakerTag, AActor*> Speakers;
+
     UPROPERTY(BlueprintReadOnly, Category = "Narrative")
     bool bHasBeenPlayed = false;
 
@@ -78,4 +81,6 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Narrative")
     UCameraComponent* GetCinematicCamera() const { return CinematicCamera; }
+    
+    IML_DialogueSpeaker* GetSpeaker(ESpeakerTag Tag) const;
 };

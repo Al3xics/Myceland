@@ -46,7 +46,6 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
 	WinLoseSubsystem->CheckWinLose();
-	WinLoseSubsystem->OnCheckPaths.Broadcast();
 	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 
 	bIsResolvingTiles = false;

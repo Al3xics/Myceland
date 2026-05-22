@@ -15,6 +15,16 @@
 #include "Navigation/PathFollowingComponent.h"
 #include "Player/ML_PlayerController.h"
 
+AML_PlayerController* UML_NarrativeSubsystem::GetPlayerController() const
+{
+	if (!PlayerController)
+	{
+		PlayerController = Cast<AML_PlayerController>(UGameplayStatics::GetPlayerController(this, 0));
+		ensureMsgf(PlayerController, TEXT("No player controller found"));
+	}
+	return PlayerController;
+}
+
 void UML_NarrativeSubsystem::PlayNextLine()
 {
 	bCurrentLineStarted = false;
@@ -31,6 +41,7 @@ void UML_NarrativeSubsystem::PlayNextLine()
         CurrentSequence = nullptr;
         CurrentNarrativeTrigger = nullptr;
         CurrentLineIndex = 0;
+		bWaitingForCinematicSetup = false;
         return;
     }
 
@@ -40,7 +51,7 @@ void UML_NarrativeSubsystem::PlayNextLine()
 	{
 		bCurrentLineStarted = true;
 
-		if (AML_TalkingThing* Speaker = GetSpeaker(Line.SpeakerTag))
+		if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
 			Speaker->SetIsTalking(true);
 
 		OnDialogueLineStart.Broadcast(Line, Line.SpeakerTag);
@@ -80,7 +91,7 @@ void UML_NarrativeSubsystem::OnLineFinished()
 
 	ActiveAudioComponent = nullptr;
 
-	if (AML_TalkingThing* Speaker = GetSpeaker(Line.SpeakerTag))
+	if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
 		Speaker->SetIsTalking(false);
 
 	OnDialogueLineEnd.Broadcast(Line, Line.SpeakerTag);
@@ -104,7 +115,7 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 			ActiveAudioComponent->Stop();
 		ActiveAudioComponent = nullptr;
 
-		if (AML_TalkingThing* Speaker = GetSpeaker(Line.SpeakerTag))
+		if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
 			Speaker->SetIsTalking(false);
 
 		OnDialogueLineEnd.Broadcast(Line, Line.SpeakerTag);
@@ -117,12 +128,9 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 
 void UML_NarrativeSubsystem::SetupCinematicMode()
 {
-	AML_PlayerController* PC = Cast<AML_PlayerController>(UGameplayStatics::GetPlayerController(this, 0));
-	if (!PC) return;
-
 	// Swap IMCs: remove main (no movement/click) and add cinematic-only (skip only)
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
-	if (UEnhancedInputLocalPlayerSubsystem* InputSub = PC->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
 		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
 			InputSub->RemoveMappingContext(MainIMC);
@@ -131,59 +139,84 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 			InputSub->AddMappingContext(CinematicIMC, DevSettings->CinematicInputMappingContext.Priority);
 	}
 
-	UAIBlueprintHelperLibrary::SimpleMoveToLocation(PC, CurrentNarrativeTrigger->TargetArrow->GetComponentLocation());
+	UAIBlueprintHelperLibrary::SimpleMoveToLocation(GetPlayerController(), CurrentNarrativeTrigger->TargetArrow->GetComponentLocation());
 
 	// Bind to the movement end to apply rotation
-	if (UPathFollowingComponent* PFC = PC->FindComponentByClass<UPathFollowingComponent>())
+	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
 		PFC->OnRequestFinished.AddUObject(this, &UML_NarrativeSubsystem::OnCinematicMoveFinished);
 
 	// Activate the camera component so CalcCamera finds it (bAutoActivate is false by default)
 	if (CurrentNarrativeTrigger && CurrentNarrativeTrigger->GetCinematicCamera())
 	{
 		CurrentNarrativeTrigger->GetCinematicCamera()->Activate();
-		PC->SetViewTargetWithBlend(
+		PreviousViewTarget = GetPlayerController()->GetViewTarget();
+		GetPlayerController()->BlendToViewTarget(
 			CurrentNarrativeTrigger,
 			CurrentSequence->CameraBlendTime,
 			VTBlend_Linear
 		);
+		
+		// Start timer for camera blend completion
+		if (CurrentSequence->bWaitForCameraBlendToFinish)
+		{
+			GetWorld()->GetTimerManager().SetTimer(
+				CameraBlendTimerHandle,
+				this,
+				&UML_NarrativeSubsystem::OnCameraBlendCompleted,
+				CurrentSequence->CameraBlendTime,
+				false
+			);
+		}
 	}
 }
 
 void UML_NarrativeSubsystem::OnCinematicMoveFinished(FAIRequestID, const FPathFollowingResult&)
 {
-	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-	if (!PC) return;
-
 	// Unbind immediatly to not react to the next movements
-	if (UPathFollowingComponent* PFC = PC->FindComponentByClass<UPathFollowingComponent>())
+	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
 		PFC->OnRequestFinished.RemoveAll(this);
 
 	if (!CurrentNarrativeTrigger) return;
 
-	APawn* Pawn = PC->GetPawn();
+	APawn* Pawn = GetPlayerController()->GetPawn();
 	if (!Pawn) return;
 
 	const FRotator CurrentRot = Pawn->GetActorRotation();
 	const float TargetYaw = CurrentNarrativeTrigger->TargetArrow->GetComponentRotation().Yaw;
 	Pawn->SetActorRotation(FRotator(CurrentRot.Pitch, TargetYaw, CurrentRot.Roll));
+	
+	// Mark player movement as finished
+	bPlayerMovementFinished = true;
+	CheckCinematicSetupComplete();
 }
 
-void UML_NarrativeSubsystem::RestorePlayerControl()
+void UML_NarrativeSubsystem::OnCameraBlendCompleted()
 {
-	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-	if (!PC) return;
+	bCameraBlendFinished = true;
+	CheckCinematicSetupComplete();
+}
 
+void UML_NarrativeSubsystem::CheckCinematicSetupComplete()
+{
+	if (!bWaitingForCinematicSetup)
+		return;
+
+	if (bCameraBlendFinished && bPlayerMovementFinished)
+	{
+		bWaitingForCinematicSetup = false;
+		PlayNextLine();
+	}
+}
+
+void UML_NarrativeSubsystem::RestorePlayerControl() const
+{
 	// Unbind if the sequence ends before arriving
-	if (UPathFollowingComponent* PFC = PC->FindComponentByClass<UPathFollowingComponent>())
+	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
 		PFC->OnRequestFinished.RemoveAll(this);
-
-	// Deactivate the cinematic camera so it doesn't interfere with future view targets
-	if (CurrentNarrativeTrigger && CurrentNarrativeTrigger->GetCinematicCamera())
-		CurrentNarrativeTrigger->GetCinematicCamera()->Deactivate();
 
 	// Swap IMCs back: remove cinematic, restore main
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
-	if (UEnhancedInputLocalPlayerSubsystem* InputSub = PC->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
 		if (UInputMappingContext* CinematicIMC = DevSettings->CinematicInputMappingContext.Mapping.LoadSynchronous())
 			InputSub->RemoveMappingContext(CinematicIMC);
@@ -192,11 +225,30 @@ void UML_NarrativeSubsystem::RestorePlayerControl()
 			InputSub->AddMappingContext(MainIMC, DevSettings->DefaultInputMappingContext.Priority);
 	}
 
-	PC->SetViewTargetWithBlend(
-		PC->GetPawn(),
+	GetPlayerController()->BlendToViewTarget(
+		PreviousViewTarget,
 		CurrentSequence->CameraBlendTime,
 		VTBlend_Linear
 	);
+
+	// Deactivate the cinematic camera AFTER THE BLEND so it doesn't interfere with future view targets 
+	UCameraComponent* CamToDeactivate = CurrentNarrativeTrigger ? CurrentNarrativeTrigger->GetCinematicCamera() : nullptr;
+	const float BlendTime = CurrentSequence->CameraBlendTime;
+
+	if (CamToDeactivate)
+	{
+		FTimerHandle TempHandle;
+		GetWorld()->GetTimerManager().SetTimer(
+			TempHandle,
+			[CamToDeactivate]()
+			{
+				if (IsValid(CamToDeactivate))
+					CamToDeactivate->Deactivate();
+			},
+			BlendTime + 0.1f,
+			false
+		);
+	}
 }
 
 void UML_NarrativeSubsystem::PlaySequence(UML_NarrativeSequence* Sequence, AML_NarrativeTrigger* Trigger)
@@ -207,29 +259,24 @@ void UML_NarrativeSubsystem::PlaySequence(UML_NarrativeSequence* Sequence, AML_N
 	CurrentNarrativeTrigger = Trigger;
 	CurrentLineIndex = 0;
 	
-	if (CurrentSequence->bIsCinematicMode)
-		SetupCinematicMode();
-	
 	OnSequenceStart.Broadcast(CurrentSequence);
-	PlayNextLine();
-}
-
-void UML_NarrativeSubsystem::RegisterTalkingThing(AML_TalkingThing* Thing)
-{
-	if (!Thing) return;
-	RegisteredSpeakers.Add(Thing->GetSpeakerTag(), Thing);
-}
-
-void UML_NarrativeSubsystem::UnregisterTalkingThing(const AML_TalkingThing* Thing)
-{
-	if (!Thing) return;
-	RegisteredSpeakers.Remove(Thing->GetSpeakerTag());
-}
-
-AML_TalkingThing* UML_NarrativeSubsystem::GetSpeaker(const ESpeakerTag Tag) const
-{
-	if (AML_TalkingThing* const* Found = RegisteredSpeakers.Find(Tag))
-		return *Found;
 	
-	return nullptr;
+	if (CurrentSequence->bIsCinematicMode)
+	{
+		bWaitingForCinematicSetup = true;
+		bCameraBlendFinished = !CurrentSequence->bWaitForCameraBlendToFinish; // if bWaitForCameraBlendToFinish is false, then tell bCameraBlendFinished that it is already considered finished
+		bPlayerMovementFinished = !CurrentSequence->bWaitForPlayerMovementToFinish; // if bWaitForPlayerMovementToFinish is false, then tell bPlayerMovementFinished that it is already considered finished
+		
+		SetupCinematicMode();
+		CheckCinematicSetupComplete();
+	}
+	else
+	{
+		PlayNextLine();
+	}
+}
+
+IML_DialogueSpeaker* UML_NarrativeSubsystem::GetSpeaker(const ESpeakerTag Tag) const
+{
+	return CurrentNarrativeTrigger ? CurrentNarrativeTrigger->GetSpeaker(Tag) : nullptr;
 }
