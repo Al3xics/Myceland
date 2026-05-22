@@ -34,8 +34,15 @@
 			"Enabled": true
 		},
 		{
-			"Name": "WindowsDualsense_ds5w",
+			"Name": "GeometryScripting",
 			"Enabled": true
+		},
+		{
+			"Name": "WinDualShock",
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64"
+			]
 		}
 	]
 }
