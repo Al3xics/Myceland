@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FMODEvent.h"
 #include "ML_NarrativeData.generated.h"
 
 // ==================== ENUM ====================
@@ -35,7 +36,7 @@ struct FDialogueLine
 	FText SubtitleText = FText();
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	USoundBase* Sound = nullptr;
+	TObjectPtr<UFMODEvent> Sound = nullptr;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float PreDelay = 0.0f;

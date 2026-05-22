@@ -48,7 +48,9 @@ private:
 	// Cleared when the exit is confirmed, canceled, or the player leaves board mode.
 	UPROPERTY(Transient)
 	AML_Tile* ForcedHoverTile = nullptr;
-
+	
+	bool bShowPreviews = true;
+	
 	void UpdateHoverPreview();
 	void TickHoverPreview();
 	void TickCursorHoverPreview();
@@ -71,4 +73,6 @@ public:
 	
 	void SetForcedHoverTile(AML_Tile* Tile);
 	void ClearForcedHoverTile();
+
+	void UpdateShowPreviews(const bool Value);
 };

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FMODEvent.h"
 #include "Core/ML_CoreData.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/PlayerController.h"
@@ -36,8 +37,6 @@ private:
 	UPROPERTY()
 	AML_PlayerCharacter* MycelandCharacter;
 
-	
-	
 	// ==================== State ====================
 
 	TArray<FVector> CurrentPathWorld;
@@ -48,41 +47,20 @@ private:
 	float FollowTime = 0.f;
 	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
-	
-	
-	// ==================== Helpers ====================
-
-	void SetIsMoving(bool bNewIsMoving);
-
-public:
-	AML_Tile* GetTileUnderCursor() const;
-
-	/** Called by TransitionComponent when turn-toward-tile completes. */
-	void ConfirmTurn(AML_Tile* HitTile);
-
-	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
-	void StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap);
-
-	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
-	void StartNavMeshMovement(const FVector& WorldLocation);
-
-	/** Called by TransitionComponent to change the movement mode and notify other systems. */
-	void SetMovementMode(EML_PlayerMovementMode NewMode);
-
-private:
-	// ==================== Ground ====================
-	
-	bool IsClickableGround(const FHitResult& Hit) const;
-
-	
-	
-	// ==================== Movement ====================
+	// ==================== Movement - Path Tick & Callbacks ====================
 
 	void TickMoveAlongPath(float DeltaTime);
 	void OnPathFinished();
+	void SetIsMoving(bool bNewIsMoving);
+
+	// ==================== Movement - Tile Movement ====================
+
 	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
 	bool Plant(AML_Tile* TargetTile);
 	void ExecutePlant(AML_Tile* HitTile);
+
+	// ==================== Movement - Path Management ====================
+
 	bool StartRecordedBoardMove(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 		EML_PlayerBoardActionState ActionState = EML_PlayerBoardActionState::Moving, AML_Tile* PlantTarget = nullptr);
 
@@ -92,17 +70,17 @@ private:
 	 */
 	void ExtendMoveAlongPath(const TArray<FIntPoint>& FullMergedAxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 		int32 PreservedPathIndex);
-	
-	
-	
-	// ==================== Camera ====================
-	
+
+	// ==================== Ground Validation ====================
+
+	bool IsClickableGround(const FHitResult& Hit) const;
+
+	// ==================== Camera Queries ====================
+
 	AML_CameraRail* FindClosestCameraRailFromPlayer(const FVector& WorldLocation);
 
-	
-	
 	// ==================== Delegates ====================
-	
+
 	UFUNCTION()
 	void HandleCurrentTileChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
 
@@ -117,8 +95,6 @@ protected:
 	virtual void PlayerTick(float DeltaTime) override;
 	virtual void OnPossess(APawn* aPawn) override;
 
-	
-	
 	// ==================== Input ====================
 
 	// Bind to OnStarted — one shot per click (BFS, exit hold trigger, board re-entry)
@@ -140,12 +116,10 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSkipNarrativeLine();
 
-	// ---- Input sub-handlers (called by OnSetDestinationStarted) ----
+	// Input sub-handlers (called by OnSetDestinationStarted)
 	void HandleInsideBoardClick();
 	void HandleFreeMovementClick();
 
-	
-	
 	// ==================== Movement Tuning ====================
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
@@ -163,15 +137,21 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|Smoothing", meta = (ClampMin = "0.0"))
 	float BaseCornerCutDistance = 80.f;
-	
+
 	// Nav Mesh Movement
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement|NavMesh")
 	float NavMeshAcceptanceRadius = 50.f;
-	
+
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
 	float ShortPressThreshold = 0.5f;
 
 public:
+	// ==================== Tile Query ====================
+
+	AML_Tile* GetTileUnderCursor() const;
+
+	static AML_Tile* ExtractTileFromHit(const FHitResult& Hit);
+
 	// ==================== Components ====================
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
@@ -188,26 +168,39 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_NavigationBridgeComponent* NavigationBridgeComponent = nullptr;
-	
-	
-	
+
 	// ==================== Delegates ====================
-	
+
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
-	
-	
-	
+
 	// ==================== Camera ====================
-	
+
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
 	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
 
-	
-	
+	// ==================== Movement Control ====================
+
+	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
+	void StartMoveAlongPath(const TArray<FIntPoint>& AxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap);
+
+	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
+	void StartNavMeshMovement(const FVector& WorldLocation);
+
+	/** Called by TransitionComponent to change the movement mode and notify other systems. */
+	void SetMovementMode(EML_PlayerMovementMode NewMode);
+
+	// ==================== Callbacks & State Management ====================
+
+	/** Called by TransitionComponent when turn-toward-tile completes. */
+	void ConfirmTurn(AML_Tile* HitTile);
+
+	void UpdateCursorVisibility(const bool bVisible);
+	void NotifyCinematicModeChanged(const bool bInCinematicMode);
+
 	// ==================== Actions ====================
-	
+
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller")
 	bool MovePlayerToAxial(const FIntPoint& TargetAxial, bool bUsePath, bool bFallbackTeleport, const FVector& TeleportFallbackWorld);
 
@@ -215,6 +208,8 @@ public:
 	void StartMoveAlongAxialPathForUndo(const TArray<FIntPoint>& AxialPath, const TArray<FIntPoint>& PickedCollectibleAxials);
 
 	void NotifyCollectiblePickedOnAxial(const FIntPoint& Axial);
+
+	// ==================== Queries ====================
 
 	bool IsMoveInProgress() const { return MoveRecordingComponent && MoveRecordingComponent->IsMoveInProgress(); }
 	bool IsUndoMovePlayback() const { return MoveRecordingComponent && MoveRecordingComponent->IsUndoMovePlayback(); }

@@ -30,9 +30,6 @@ public:
 	FML_InputMappingEntry CinematicInputMappingContext;
 
 	UPROPERTY(EditAnywhere, config, Category="Input")
-	TSoftObjectPtr<UInputAction> SkipNarrativeAction;
-
-	UPROPERTY(EditAnywhere, config, Category="Input")
 	float ExitBoardHoldDuration = 2.f;
 	
 	

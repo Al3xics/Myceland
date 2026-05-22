@@ -22,6 +22,9 @@ class MYCELAND_API AML_PlayerCharacter : public ACharacter, public IML_DialogueS
 	GENERATED_BODY()
 	
 private:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UFMODAudioComponent* AudioComponent;
+    	
 	UPROPERTY()
 	AML_PlayerController* MycelandController;
 	
@@ -50,40 +53,12 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
 	// ~Begin IML_DialogueSpeaker Implementation
-	virtual void SetIsTalking(const bool bTalking) override
-	{
-		this->bIsTalking = bTalking;
-		
-		if (bTalking)
-		{
-			FVector Start = GetActorLocation();
-			FVector End = Start + FVector(0.f, 0.f, 500.f);
-        
-			FHitResult Hit;
-			FCollisionQueryParams Params;
-			Params.AddIgnoredActor(this);
-        
-			bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
-        
-			// Debug draw
-			DrawDebugLine(
-				GetWorld(),
-				Start,
-				bHit ? Hit.Location : End,
-				FColor::Red,
-				false,
-				2.f,
-				0,
-				8.f
-			);
-        
-			if (bHit)
-			{
-				DrawDebugSphere(GetWorld(), Hit.Location, 10.f, 8, FColor::Yellow, false, 2.f);
-			}
-		}
-	}
+	virtual void SetIsTalking(const bool bTalking) override { this->bIsTalking = bTalking; }
+	
 	UFUNCTION(BlueprintCallable, Category="Dialogue")
-    bool IsTalking() const { return bIsTalking; }
+    virtual bool IsTalking() const override { return bIsTalking; }
+	
+	UFUNCTION(BlueprintCallable, Category="Dialogue")
+	virtual UFMODAudioComponent* GetAudioComponent() const override { return AudioComponent; }
 	// ~End IML_DialogueSpeaker Implementation
 };
