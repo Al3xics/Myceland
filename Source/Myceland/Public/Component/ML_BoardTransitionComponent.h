@@ -78,7 +78,7 @@ private:
 	FTimerHandle ExitHoldTimerHandle;
 
 	UPROPERTY(Transient)
-	AML_Tile* PendingExitTile = nullptr;
+	AML_Tile* PendingExitBorderTile = nullptr;
 
 	FVector PendingExitTargetWorld = FVector::ZeroVector;
 
@@ -136,6 +136,7 @@ public:
 	
 	EML_PlayerMovementMode GetMovementMode() const { return CurrentMovementMode; }
 	EML_PlayerBoardActionState GetBoardActionState() const { return BoardActionState; }
+	bool IsOutsideBoardMovementMode() const;
 	bool IsHoldingExitInput() const { return bIsHoldingExitInput; }
 	bool IsPendingFreeMovementOnArrival() const { return bPendingFreeMovementOnArrival; }
 	bool IsPendingBoardEntry() const { return bPendingBoardEntryOnArrival; }
@@ -159,7 +160,7 @@ public:
 	// ========== Exit hold ==========
 
 	/** Called from OnSetDestinationStarted when clicking outside the board. */
-	void RequestExitHold(AML_Tile* ExitTile, const FVector& WorldTarget);
+	void RequestExitHold(AML_Tile* ExitBorderTile, const FVector& WorldTarget);
 
 	/** Called from OnSetDestinationReleased. TickExitHold detects the flag and cancels. */
 	void CancelExitHold();

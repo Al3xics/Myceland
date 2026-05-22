@@ -17,5 +17,14 @@ void AML_TileWater::BeginPlay()
 	
 }
 
+void AML_TileWater::SetWaterState(EML_WaterState NewState)
+{
+	if (WaterState == NewState)
+	{
+		return;
+	}
 
+	WaterState = NewState;
+	OnWaterStateChanged(NewState);
+}
 

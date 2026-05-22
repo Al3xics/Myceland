@@ -46,7 +46,6 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
 	WinLoseSubsystem->CheckWinLose();
-	WinLoseSubsystem->OnCheckPaths.Broadcast();
 	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 
 	bIsResolvingTiles = false;
@@ -178,6 +177,7 @@ void UML_WavePropagationSubsystem::RunWave()
 			{
 				// Configure BEFORE the spawn
 				Collectible->SetOwningTile(Change.Neighbor);
+				Collectible->SetSourceParasite(Change.SourceParasite);
 				Change.Neighbor->CollectibleActor = Collectible;
 
 				// Finish spawning

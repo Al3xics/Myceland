@@ -20,6 +20,10 @@ private:
 	UPROPERTY()
 	AML_Tile* OwningTile = nullptr;
 
+	// The parasite tile that caused this collectible to spawn.
+	UPROPERTY()
+	AML_Tile* SourceParasite = nullptr;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -46,6 +50,12 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
 	void SetOwningTile(AML_Tile* InOwningTile) { OwningTile = InOwningTile; }
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
+	AML_Tile* GetSourceParasite() const { return SourceParasite; }
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
+	void SetSourceParasite(AML_Tile* InSourceParasite) { SourceParasite = InSourceParasite; }
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Collectible")
 	void BeforeDestroyCollectible(const AML_Tile* Tile);

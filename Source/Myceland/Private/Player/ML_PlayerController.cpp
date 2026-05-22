@@ -2,13 +2,17 @@
 
 #include "Player/ML_PlayerController.h"
 
+#include "EngineUtils.h"
+#include "Actors/ML_CameraRail.h"
 #include "Component/ML_EnergyComponent.h"
+#include "Subsystem/ML_NarrativeSubsystem.h"
 #include "Component/ML_HoverPreviewComponent.h"
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Component/ML_BoardTransitionComponent.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Camera/CameraActor.h"
+#include "Components/SplineComponent.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -26,6 +30,7 @@ AML_PlayerController::AML_PlayerController()
 	HoverPreviewComponent = CreateDefaultSubobject<UML_HoverPreviewComponent>(TEXT("HoverPreviewComponent"));
 	MoveRecordingComponent = CreateDefaultSubobject<UML_MoveRecordingComponent>(TEXT("MoveRecordingComponent"));
 	TransitionComponent = CreateDefaultSubobject<UML_BoardTransitionComponent>(TEXT("TransitionComponent"));
+	NavigationBridgeComponent = CreateDefaultSubobject<UML_NavigationBridgeComponent>(TEXT("NavigationBridgeComponent"));
 }
 
 // ==================== Helpers ====================
@@ -60,7 +65,6 @@ AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 	return nullptr;
 }
 
-
 void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
 {
 	bIsMoving = bNewIsMoving;
@@ -81,8 +85,12 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 	HoverPreviewComponent->NotifyMovementModeChanged(NewMode);
 
 	// Controller-side reaction: stop NavMesh when entering the board
-	if (OldMode == EML_PlayerMovementMode::FreeMovement)
-		StopNavMeshMovement();
+	if (NewMode == EML_PlayerMovementMode::InsideBoard &&
+		(OldMode == EML_PlayerMovementMode::FreeMovement || OldMode == EML_PlayerMovementMode::EnteringBoard))
+	{
+		if (NavigationBridgeComponent)
+			NavigationBridgeComponent->StopNavMeshMovement();
+	}
 }
 
 bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
@@ -101,7 +109,8 @@ void AML_PlayerController::StartMoveAlongPath(const TArray<FIntPoint>& AxialPath
                                               const TMap<FIntPoint, AML_Tile*>& GridMap)
 {
 	// Stop any nav mesh movement when starting tile-by-tile movement
-	StopNavMeshMovement();
+	if (NavigationBridgeComponent)
+		NavigationBridgeComponent->StopNavMeshMovement();
 	
 	CurrentPathWorld.Reset();
 	CurrentPathIndex = 0;
@@ -189,62 +198,9 @@ void AML_PlayerController::ExtendMoveAlongPath(const TArray<FIntPoint>& FullMerg
 
 void AML_PlayerController::StartNavMeshMovement(const FVector& WorldLocation)
 {
-	if (!IsValid(MycelandCharacter))
-		return;
-
-	// Use SimpleMoveToLocation for nav mesh movement
-	UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, WorldLocation);
-	
-	PendingFreeMovementTarget = WorldLocation;
-	bHasFreeMovementTarget = true;
-	bIsUsingNavMeshMovement = true;
+	if (NavigationBridgeComponent)
+		NavigationBridgeComponent->StartNavMeshMovement(WorldLocation);
 	SetIsMoving(true);
-}
-
-void AML_PlayerController::StopNavMeshMovement()
-{
-	if (bIsUsingNavMeshMovement)
-	{
-		// Stop the AI movement
-		if (IsValid(MycelandCharacter))
-		{
-			if (UCharacterMovementComponent* MC = MycelandCharacter->GetCharacterMovement())
-			{
-				MC->StopMovementImmediately();
-			}
-		}
-		
-		bIsUsingNavMeshMovement = false;
-		bHasFreeMovementTarget = false;
-	}
-}
-
-void AML_PlayerController::TickNavMeshMovement(float DeltaTime)
-{
-	if (!bIsUsingNavMeshMovement || !bHasFreeMovementTarget)
-		return;
-
-	if (!IsValid(MycelandCharacter))
-	{
-		StopNavMeshMovement();
-		return;
-	}
-
-	// Check if we've reached the destination
-	const FVector CurrentLoc = MycelandCharacter->GetActorLocation();
-	const float DistSq = FVector::DistSquared2D(CurrentLoc, PendingFreeMovementTarget);
-
-	if (DistSq <= FMath::Square(NavMeshAcceptanceRadius))
-	{
-		StopNavMeshMovement();
-		SetIsMoving(false);
-		
-		// Trigger OnPathFinished for board entry transitions
-		if (TransitionComponent->IsPendingBoardEntry())
-		{
-			OnPathFinished();
-		}
-	}
 }
 
 void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
@@ -257,7 +213,14 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 	if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement ||
 	    TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::EnteringBoard)
 	{
-		TickNavMeshMovement(DeltaTime);
+		if (NavigationBridgeComponent && NavigationBridgeComponent->TickNavMeshMovement(DeltaTime))
+		{
+			SetIsMoving(false);
+			if (TransitionComponent->IsPendingBoardEntry())
+			{
+				OnPathFinished();
+			}
+		}
 		return;
 	}
 
@@ -512,6 +475,33 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 }
 
 
+// ==================== Camera ====================
+
+AML_CameraRail* AML_PlayerController::FindClosestCameraRailFromPlayer(const FVector& WorldLocation)
+{
+	AML_CameraRail* ClosestCameraRail = nullptr;
+	float ClosestDistance = FLT_MAX;
+	
+	for (TActorIterator<AML_CameraRail> It(GetWorld()); It; ++It)
+	{
+		AML_CameraRail* CameraRail = *It;
+		
+		// Get the closest key from the LooAt spline from the WorldLocation parameter, then get the world location of this key
+		float InputKey = CameraRail->GetLookAtFromCameraRail()->FindInputKeyClosestToWorldLocation(WorldLocation);
+		FVector LookAtLocation = CameraRail->GetLookAtFromCameraRail()->GetLocationAtSplineInputKey(InputKey, ESplineCoordinateSpace::World);
+		
+		float Distance = FVector::DistSquared(WorldLocation, LookAtLocation);
+		if (Distance < ClosestDistance)
+		{
+			ClosestDistance = Distance;
+			ClosestCameraRail = CameraRail;
+		}
+	}
+	
+	return ClosestCameraRail;
+}
+
+
 // ==================== Delegates ====================
 
 void AML_PlayerController::HandleCurrentTileChanged(const AML_Tile* OldTile, const AML_Tile* NewTile)
@@ -530,9 +520,9 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 
 	// ---------- Automatic transition: Free ↔ InsideBoard ----------
 	const bool bShouldBeInBoard = IsValid(NewTile);
-	const bool bCurrentlyInFreeMovement = (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement);
+	const bool bCurrentlyOutsideBoard = TransitionComponent->IsOutsideBoardMovementMode();
 
-	if (bShouldBeInBoard && bCurrentlyInFreeMovement)
+	if (bShouldBeInBoard && bCurrentlyOutsideBoard)
 	{
 		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
@@ -549,7 +539,7 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 		CurrentPathIndex = 0;
 		SetIsMoving(true);
 	}
-	else if (!bShouldBeInBoard && !bCurrentlyInFreeMovement)
+	else if (!bShouldBeInBoard && !bCurrentlyOutsideBoard)
 	{
 		SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 	}
@@ -598,11 +588,36 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
 		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);
+		NavigationBridgeComponent->Initialize(this, MycelandCharacter, NavMeshAcceptanceRadius);
 
+		MycelandCharacter->UpdateCurrentTile();
 		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
 			? EML_PlayerMovementMode::InsideBoard
 			: EML_PlayerMovementMode::FreeMovement;
 		TransitionComponent->SwitchToMode(InitialMode);
+		
+		switch (InitialMode)
+		{
+			case EML_PlayerMovementMode::InsideBoard:
+				{
+					ACameraActor* CameraBoard = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()->GetAssociatedCamera();
+					ensureMsgf(IsValid(CameraBoard), TEXT("No camera associated to board %s found. Make sure there sis one associated."), *MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()->GetName());
+					SetViewTarget(CameraBoard);
+					break;
+				}
+			case EML_PlayerMovementMode::FreeMovement:
+				{
+					// Make the closest camera rail the active camera
+					AML_CameraRail* CameraRail = FindClosestCameraRailFromPlayer(MycelandCharacter->GetActorLocation());
+					ensureMsgf(IsValid(CameraRail), TEXT("No camera rail found for player %s. Make sure there is one in the level."), *MycelandCharacter->GetName());
+					BlendToViewTarget(CameraRail, 0.f);
+					break;
+				}
+				
+			case EML_PlayerMovementMode::EnteringBoard:
+			case EML_PlayerMovementMode::ExitingBoard:
+				break;
+		}
 		
 		// Always start hover timer for cursor glow
 		HoverPreviewComponent->StartHoverPreviewTimer();
@@ -636,7 +651,6 @@ void AML_PlayerController::HandleInsideBoardClick()
 	// TurningToPlant locks all input — propagation is imminent
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	AML_Tile* TargetTile = GetTileUnderCursor();
 
 	if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
@@ -645,18 +659,15 @@ void AML_PlayerController::HandleInsideBoardClick()
 		return;
 	}
 
-	// Click outside the board → hold to exit toward the closest gate tile (EntryTile or ExitTile)
+	// Click outside the board -> hold to exit toward the closest reachable border tile.
 	FHitResult Hit;
 	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
-
-	AML_Tile* ExitGate = Board->GetClosestGateTile(Hit.Location);
+	if (!IsClickableGround(Hit)) return;
+	
+	AML_Tile* ExitGate = NavigationBridgeComponent
+		? NavigationBridgeComponent->FindReachableExitBorderTile(Board, Hit.Location)
+		: nullptr;
 	if (!IsValid(ExitGate)) return;
-
-	// If the path to the gate is blocked (e.g. obstacles in the way), don't start the hold
-	const FIntPoint CurrentAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
-	const FIntPoint ExitAxial    = ExitGate->GetAxialCoord();
-	TArray<FIntPoint> TestPath;
-	if (!UML_HexPathfinder::BuildPath_AxialBFS(CurrentAxial, ExitAxial, GridMap, TestPath)) return;
 
 	TransitionComponent->RequestExitHold(ExitGate, Hit.Location);
 }
@@ -671,12 +682,8 @@ void AML_PlayerController::HandleFreeMovementClick()
 		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) return;
 
-		if (!IsValid(MycelandCharacter)) return;
-		AML_Tile* GateTile = Board->GetClosestGateTile(MycelandCharacter->GetActorLocation());
-		if (!IsValid(GateTile)) return;
-
 		TransitionComponent->RequestBoardEntry(TargetTile);
-		StartNavMeshMovement(GateTile->GetActorLocation());
+		StartNavMeshMovement(TargetTile->GetActorLocation());
 		return;
 	}
 
@@ -740,6 +747,29 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 {
 	AML_Tile* TargetTile = GetTileUnderCursor();
 	Plant(TargetTile);
+}
+
+void AML_PlayerController::OnSkipNarrativeLine()
+{
+	if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
+		SubSys->SkipCurrentLine();
+}
+
+
+// ==================== Camera ====================
+
+void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendTime, EViewTargetBlendFunction BlendFunc)
+{
+	// Deactivate the tick of the old camera rail
+	if (AML_CameraRail* OldRail = Cast<AML_CameraRail>(GetViewTarget()))
+		OldRail->SetActorTickEnabled(false);
+	
+	
+	// Activate the tick of the new camera rail
+	if (AML_CameraRail* NewRail = Cast<AML_CameraRail>(NewViewTarget))
+		NewRail->SetActorTickEnabled(true);
+	
+	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc);
 }
 
 
