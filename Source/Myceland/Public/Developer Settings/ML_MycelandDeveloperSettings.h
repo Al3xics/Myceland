@@ -24,7 +24,11 @@ public:
 	
 	UPROPERTY(EditAnywhere, config, Category="Input")
 	FML_InputMappingEntry DefaultInputMappingContext;
-	
+
+	// IMC used during cinematic sequences — should contain only the skip action
+	UPROPERTY(EditAnywhere, config, Category="Input")
+	FML_InputMappingEntry CinematicInputMappingContext;
+
 	UPROPERTY(EditAnywhere, config, Category="Input")
 	float ExitBoardHoldDuration = 2.f;
 	

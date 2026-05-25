@@ -5,6 +5,7 @@
 #include "Components/SceneComponent.h"
 #include "ProceduralMeshComponent.h"
 #include "KismetProceduralMeshLibrary.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
@@ -708,7 +709,7 @@ bool AML_ParasiteBlobField::ShouldCreateBridge(AML_Tile* A, AML_Tile* B) const
 bool AML_ParasiteBlobField::IsParasiteTile(AML_Tile* Tile) const
 {
 	return IsValid(Tile)
-		&& Tile->GetCurrentType() == EML_TileType::Parasite
+		&& UML_TileTypeTraits::IsParasiteType(Tile->GetCurrentType())
 		&& IsValid(Tile->GetBoardSpawnerFromTile());
 }
 

@@ -18,7 +18,7 @@ class AML_TileGrass;
 class AML_TileDirt;
 class AML_BoardSpawner;
 enum class EML_TileType : uint8;
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Tile : public AActor
 {
@@ -55,8 +55,10 @@ private:
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bHasCollectible = false;
 	
+	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
+	bool bIsBorderTile = false;
+	
 	void SetBlocked(bool bNewBlocked);
-	bool IsTileTypeBlocking(EML_TileType Type);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
@@ -78,7 +80,11 @@ protected:
 
 public:
 	bool bConsumedGrass = false;
-	
+	UPROPERTY(BlueprintAssignable, Category="Tile")
+    FOnTileChangedNative OnTileChangedNative;
+    
+    UFUNCTION(BlueprintCallable, Category="Tile")
+    void NotifyTileChangedNative();
 	AML_Tile();
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
@@ -95,6 +101,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	bool IsBlocked() const { return bBlocked; }
+
+	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
+	void SetBorderTile(const bool Value) { bIsBorderTile = Value; }
+
+	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
+	bool IsBorderTile() const { return bIsBorderTile; }
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Collectible")
 	void SetHasCollectible(const bool bNewValue) { bHasCollectible = bNewValue; }
@@ -125,6 +137,9 @@ public:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
+	void OnWaveTouched();
 	
 	
 	UFUNCTION()

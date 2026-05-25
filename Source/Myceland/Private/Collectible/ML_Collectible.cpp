@@ -10,7 +10,7 @@
 
 AML_Collectible::AML_Collectible()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	RootComponent = SceneRoot;
@@ -38,11 +38,6 @@ void AML_Collectible::BeginPlay()
 	Super::BeginPlay();
 }
 
-void AML_Collectible::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-}
-
 void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter)
 {
 	if (!MycelandController || !MycelandCharacter || !MycelandCharacter->CurrentTileOn)
@@ -50,7 +45,7 @@ void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_Pl
 		return;
 	}
 
-	MycelandController->AddEnergy(+1);
+	MycelandController->EnergyComponent->AddEnergy(+1);
 
 	if (OwningTile)
 	{

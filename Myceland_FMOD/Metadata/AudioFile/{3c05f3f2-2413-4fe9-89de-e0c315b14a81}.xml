@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{3c05f3f2-2413-4fe9-89de-e0c315b14a81}">
+		<property name="assetPath">
+			<value>Une-Tuile.mp3</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>1.968</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{03b97852-04f0-4cb9-ae63-7dcd289cd534}</destination>
+		</relationship>
+	</object>
+</objects>

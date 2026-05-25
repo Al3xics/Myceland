@@ -23,6 +23,4 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile", meta=(AllowPrivateAccess = "true"))
 	UStaticMeshComponent* GroundBase;
 
-public:
-	virtual void Tick(float DeltaTime) override;
 };

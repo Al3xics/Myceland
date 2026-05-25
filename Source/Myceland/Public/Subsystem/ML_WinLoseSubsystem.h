@@ -14,7 +14,9 @@ struct FML_GameResult;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCheckPaths);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnConnectedGoalPathTile, AML_Tile*, Tile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDisconnectedGoalPathTile, const TArray<AML_Tile*>&, Tiles);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConnectedGoalPathComplete);
 
 UCLASS()
 class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
@@ -26,25 +28,25 @@ public:
 	FOnWin OnWin;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnLose OnLose;
+	FOnLose OnLose; 
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnDeath OnDeath;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnCheckPaths OnCheckPaths;
+	FOnConnectedGoalPathTile OnConnectedGoalPathTile;
+
+	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
+	FOnDisconnectedGoalPathTile OnDisconnectedGoalPathTile;
+
+	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
+	FOnConnectedGoalPathComplete OnConnectedGoalPathComplete;
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool CheckPlayerKilled(AML_Tile* CurrentTileOn);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	bool AreAllGoalsConnectedByAllowedPaths(
-		AML_BoardSpawner* Board,
-		EML_TileType GoalType,
-		const TArray<EML_TileType>& AllowedPathTypes);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool FindConnectedGoalGroups(
@@ -55,7 +57,10 @@ public:
 		int32 MinGoalsInGroup);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	TArray<FML_TileGroup> TriggerFindConnectedGoalCheck();
+	void TriggerFindConnectedGoalCheck();
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void ResetConnectedGoalPathState();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_Tile* GetPlayerCurrentTile() const;
@@ -76,9 +81,6 @@ public:
 	AML_BoardSpawner* CurrentBoardSpawner = nullptr;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
-	TArray<AML_Tile*> PathTiles;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	TArray<FML_TileGroup> ConnectedGoalGroups;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
@@ -86,11 +88,45 @@ public:
 
 private:
 	UFUNCTION()
-	void HandleBoardChanged(const AML_Tile* NewTile);
+	void HandleBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
+
+	UFUNCTION()
+	void HandleUndoAnimating(bool bIsAnimating);
+
+	UFUNCTION()
+	void HandleResetAnimating(bool bIsAnimating);
+
+UFUNCTION()
+	void BroadcastNextConnectedGoalPathTile();
+
+	UPROPERTY()
+	TSet<AML_Tile*> PreviousConnectedPathTiles;
+
+	UPROPERTY()
+	TArray<AML_Tile*> PendingConnectedGoalPathQueue;
+
+	FTimerHandle ConnectedGoalPathTimerHandle;
+
+	int32 QueueReadIndex = 0;
+	bool bPendingClearWinPath = false;
 
 	static const FIntPoint HexDirs[6];
 
+	TSet<EML_TileType> CachedGoalPathAllowedSet;
+
 	TSet<EML_TileType> BuildAllowedSet(const TArray<EML_TileType>& AllowedPathTypes) const;
+
+	bool AreAllGoalsConnected(
+		AML_BoardSpawner* Board,
+		EML_TileType GoalType,
+		const TSet<EML_TileType>& AllowedSet);
+
+	bool FindConnectedGoalGroups(
+		AML_BoardSpawner* Board,
+		EML_TileType GoalType,
+		const TSet<EML_TileType>& AllowedSet,
+		bool bDisallowBlocked,
+		int32 MinGoalsInGroup);
 
 	TArray<FIntPoint> CollectGoalAxials(
 		const TMap<FIntPoint, AML_Tile*>& Grid,
@@ -103,6 +139,15 @@ private:
 		TFunctionRef<bool(AML_Tile*)> CanTraverse,
 		TSet<FIntPoint>& OutVisited,
 		TMap<FIntPoint, FIntPoint>& OutParent) const;
+
+	void RunZeroOneBFS(
+		const TMap<FIntPoint, AML_Tile*>& Grid,
+		const FIntPoint& Start,
+		TFunctionRef<bool(AML_Tile*)> CanTraverse,
+		TFunctionRef<int32(AML_Tile*)> GetCost,
+		TSet<FIntPoint>& OutVisited,
+		TMap<FIntPoint, FIntPoint>& OutParent,
+		TMap<FIntPoint, int32>& OutDist) const;
 
 	bool BuildPathAxialsFromParent(
 		const FIntPoint& Start,

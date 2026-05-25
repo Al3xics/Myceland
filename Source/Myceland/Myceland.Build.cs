@@ -14,22 +14,21 @@ public class Myceland : ModuleRules
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
-			"AIModule", // No need, but still used by unreal's template
-			"NavigationSystem", // No need, but still used by unreal's template
-			"StateTreeModule", // No need, but still used by unreal's template
-			"GameplayStateTreeModule", // No need, but still used by unreal's template
+			"AIModule",
+			"NavigationSystem",
 			"Niagara",
 			"UMG",
 			"Json",
+			"Foliage",
 			"DeveloperSettings",
             "ProceduralMeshComponent",
-            "GameplayTags"
+            "GameplayTags", "FMODStudio"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Slate",
-			"SlateCore"
+			"SlateCore", "FMODStudio"
 		});
 
 		// Uncomment if you are using online features

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayTagContainer.h"
 #include "ML_CoreData.generated.h"
 
 // ==================== STATIC ====================
@@ -57,6 +56,7 @@ enum class EML_TileType : uint8
 	Grass,
 	Parasite,
 	Water,
+	WaterPath,
 	Obstacle,
 	Tree
 };
@@ -84,6 +84,15 @@ enum class EML_PlayerMovementMode : uint8
 	EnteringBoard, // PLayer enter the board from exterior
 	ExitingBoard,  // Hold in progress to confirm exit
 	FreeMovement   // Free movement off the board
+};
+
+UENUM(BlueprintType)
+enum class EML_PlayerBoardActionState : uint8
+{
+	Idle,           // Standing still — all board input accepted
+	Moving,         // Walking to a tile (left-click)
+	MovingToPlant,  // Walking to plant position (right-click move-and-plant)
+	TurningToPlant, // Facing the target tile before planting — no input accepted
 };
 
 UENUM(BlueprintType)
@@ -124,6 +133,9 @@ struct FML_WaveChange
 	UPROPERTY()
 	AML_Tile* Neighbor = nullptr; // Collectible
 	
+	UPROPERTY()
+	AML_Tile* SourceParasite = nullptr; // Collectible — the specific parasite that triggered this spawn
+
 	UPROPERTY()
 	FVector SpawnLocation = FVector::ZeroVector; // Collectible
 	
@@ -208,4 +220,16 @@ struct FML_WavePriorityEntry
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="If true and this wave has no changes, the propagation will stop entirely. If false, continues to next wave."))
 	bool bCanStopHereIfNoChanges = true;
+};
+
+USTRUCT(BlueprintType)
+struct FML_WaterPath
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Water Path")
+	TObjectPtr<AML_Tile> EntryTile;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Water Path")
+	TObjectPtr<AML_Tile> ExitTile;
 };
