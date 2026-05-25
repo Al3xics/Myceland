@@ -103,7 +103,8 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 	if (!IsValid(OwningController))
 		return;
 
-	AML_Tile* CursorHoveredTile = OwningController->GetTileUnderCursor();
+	// ForcedHoverTile takes priority (gamepad selection cursor replaces mouse cursor).
+	AML_Tile* CursorHoveredTile = ForcedHoverTile ? ForcedHoverTile : OwningController->GetTileUnderCursor();
 
 	if (CursorHoveredTile == LastCursorHoveredTile)
 		return;
@@ -185,9 +186,7 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     // Otherwise, predict the first border tile that the NavMesh path would enter through.
     else if (IsValid(PlayerCharacter))
     {
-        StartTile = OwningController->NavigationBridgeComponent
-        	? OwningController->NavigationBridgeComponent->PredictNavMeshEntryTile(Board, HoveredTile->GetActorLocation())
-        	: nullptr;
+        StartTile = OwningController->PredictNavMeshEntryTile(Board, HoveredTile->GetActorLocation());
     }
 
     if (!IsValid(StartTile))

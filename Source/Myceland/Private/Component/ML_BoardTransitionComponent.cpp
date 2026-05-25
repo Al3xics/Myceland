@@ -12,12 +12,10 @@
 
 // ==================== Lifecycle ====================
 
-void UML_BoardTransitionComponent::Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, UML_EnergyComponent* Energy,
-                                               const UML_MycelandDeveloperSettings* Settings, float InRotateSpeed)
+void UML_BoardTransitionComponent::Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, const UML_MycelandDeveloperSettings* Settings, float InRotateSpeed)
 {
 	OwningController = Controller;
 	PlayerCharacter  = Character;
-	EnergyComponent  = Energy;
 	DevSettings      = Settings;
 	RotateSpeed      = InRotateSpeed;
 }
@@ -72,8 +70,7 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, con
 	OwningController->SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
 	bIsHoldingExitInput = true;
 	
-	if (OwningController->HoverPreviewComponent)
-		OwningController->HoverPreviewComponent->SetForcedHoverTile(ExitBorderTile);
+	OwningController->SetForcedHoverTile(ExitBorderTile);
 
 	// Start exit hold timer
 	ExitHoldTimer        = 0.f;
@@ -118,11 +115,8 @@ void UML_BoardTransitionComponent::TickExitHold()
 			bWasExitingLastFrame  = false;
 			LastBroadcastProgress = -1.f;
 			
-			if (OwningController->HoverPreviewComponent)
-			{
-				OwningController->HoverPreviewComponent->ClearForcedHoverTile();
-				OwningController->HoverPreviewComponent->ClearHoverPreview();
-			}
+			OwningController->ClearForcedHoverTile();
+			OwningController->ClearHoverPreview();
 
 			// Return to board — SwitchToMode handles clearing exit state
 			OwningController->SetMovementMode(EML_PlayerMovementMode::InsideBoard);
@@ -154,9 +148,7 @@ void UML_BoardTransitionComponent::TickExitHold()
 
 		OnExitCursorHold.Broadcast(false, 1.0f);
 		
-		if (OwningController->HoverPreviewComponent)
-			OwningController->HoverPreviewComponent->ClearForcedHoverTile();
-		
+		OwningController->ClearForcedHoverTile();
 		ConfirmExitBoard();
 	}
 }
@@ -285,7 +277,7 @@ void UML_BoardTransitionComponent::UpdateTurnTowardPendingTile()
 		AML_Tile* Target = PendingPlantTargetTile;
 		PendingPlantTargetTile = nullptr;
 
-		if (EnergyComponent && EnergyComponent->GetCurrentEnergy() > 0)
+		if (OwningController->HasEnergy())
 			OwningController->ConfirmTurn(Target);
 	}
 }
@@ -377,7 +369,7 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Character->CurrentTileOn);
 		if (Neighbors.Contains(PendingPlantTargetTile) &&
 			UML_TileTypeTraits::CanPlayerPlant(PendingPlantTargetTile->GetCurrentType()) &&
-			EnergyComponent && EnergyComponent->GetCurrentEnergy() > 0)
+			OwningController->HasEnergy())
 		{
 			StartTurnTowardTile(PendingPlantTargetTile);
 			return Cmd;
