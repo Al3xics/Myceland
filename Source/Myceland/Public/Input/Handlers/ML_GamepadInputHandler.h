@@ -53,16 +53,19 @@ private:
 	FVector StickToWorldDirection(FVector2D StickValue) const;
 
 	/**
-	 * Finds the neighbor tile whose world position is most aligned with the stick direction.
-	 * Returns nullptr if no neighbor clears the minimum alignment threshold (cos 60° ≈ 0.5).
+	 * Finds the walkable neighbor tile most aligned with the stick direction.
+	 * Non-walkable tiles (obstacles) are treated as empty slots.
+	 * Returns nullptr if no walkable neighbor clears AlignmentThreshold.
+	 * Default threshold is cos 60° (0.5); pass cos 30° (0.866) for stricter selection.
 	 */
-	AML_Tile* FindNeighborInStickDirection(FVector2D StickValue) const;
+	AML_Tile* FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold = 0.5f) const;
 
 	/**
-	 * Returns true if the player's current tile is within ExitActivationRadius of any
-	 * WaterPath entry or exit tile on the current board.
+	 * Returns true if the origin tile (FocusedTile when valid, otherwise CurrentTileOn) is
+	 * walkable and a border tile. Mirrors the mouse condition: any walkable border tile is a
+	 * valid exit point, no need to be near a specific WaterPath tile.
 	 */
-	bool IsNearExitTile() const;
+	bool IsOriginTileWalkableBorderTile(const AML_BoardSpawner* Board) const;
 
 public:
 	virtual void OnActivated() override;
@@ -75,12 +78,4 @@ public:
 	/** Movement speed scale forwarded to AddMovementInput during free movement. */
 	UPROPERTY(EditAnywhere, Category = "Myceland")
 	float FreeMovementScale = 1.f;
-
-	/**
-	 * Maximum world-space distance (2D) from the player's current tile to a WaterPath
-	 * entry/exit tile for the board-exit hold gesture to be allowed.
-	 * Prevents accidental exit when the player is far from any exit point.
-	 */
-	UPROPERTY(EditAnywhere, Category = "Myceland")
-	float ExitActivationRadius = 500.f;
 };

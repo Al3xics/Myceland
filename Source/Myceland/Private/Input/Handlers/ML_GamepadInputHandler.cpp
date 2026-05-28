@@ -45,16 +45,16 @@ void UML_GamepadInputHandler::OnMoveActionStarted()
 {
 	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
 	if (!IsValid(FocusedTile)) return;
-	Controller->ClearForcedHoverTile();
 	Controller->Move(FocusedTile);
-	// Reset cursor to null so the next flick sequence starts from CurrentTileOn (destination).
+	// ForcedHoverTile kept so TickHoverPreview continues updating the path glow during the walk.
+	// FocusedTile cleared so the next flick starts from CurrentTileOn (the destination).
 	FocusedTile = nullptr;
 }
 
 void UML_GamepadInputHandler::OnMoveAndPlantAction()
 {
 	if (!Controller || !IsValid(FocusedTile)) return;
-	Controller->ClearForcedHoverTile();
+	// ForcedHoverTile intentionally kept: path preview stays visible during the walk to plant.
 	Controller->Plant(FocusedTile);
 }
 
@@ -85,29 +85,40 @@ void UML_GamepadInputHandler::HandleInsideBoardStick(FVector2D StickValue)
 
 	if (Controller->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	AML_Tile* NeighborTile = FindNeighborInStickDirection(StickValue);
-	if (IsValid(NeighborTile) && UML_HexPathfinder::IsTileWalkable(NeighborTile))
+	AML_PlayerCharacter* Character = Controller->GetMycelandCharacter();
+	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return;
+
+	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return;
+
+	// On a walkable border tile, use a stricter alignment threshold (cos 30° instead of cos 60°)
+	// so a diagonal neighbor at ~60° off from the outward push doesn't block the exit gesture.
+	const bool bOnWalkableBorder = IsOriginTileWalkableBorderTile(Board);
+	const float NeighborThreshold = bOnWalkableBorder ? 0.866f : 0.5f;
+
+	AML_Tile* NeighborTile = FindNeighborInStickDirection(StickValue, NeighborThreshold);
+	if (IsValid(NeighborTile))
 	{
 		// Walkable neighbor found: advance the selection cursor.
 		FocusedTile = NeighborTile;
 		Controller->SetForcedHoverTile(FocusedTile);
 	}
-	else if (!IsValid(NeighborTile) && IsNearExitTile())
+	else if (bOnWalkableBorder)
 	{
-		// No neighbor at all in this direction AND near a board exit point.
-		AML_PlayerCharacter* Character = Controller->GetMycelandCharacter();
-		if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return;
-
-		AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
-		if (!IsValid(Board)) return;
-
+		// No walkable neighbor in this direction and the cursor is on a walkable border tile.
+		// Mirror the mouse behavior: any walkable border tile is a valid exit point.
 		const FVector StickWorldDir = StickToWorldDirection(StickValue);
 		FVector ExitTarget = Character->GetActorLocation() + StickWorldDir * 5000.f;
 		ExitTarget.Z = Character->GetActorLocation().Z;
 
 		AML_Tile* ExitGate = Controller->FindReachableExitBorderTile(Board, ExitTarget);
 		if (IsValid(ExitGate))
+		{
 			Controller->RequestExitHold(ExitGate, ExitTarget);
+			// Keep the hover on the tile the player was navigating from, not on the exit gate.
+			AML_Tile* HoverTile = IsValid(FocusedTile) ? FocusedTile : Character->CurrentTileOn;
+			Controller->SetForcedHoverTile(HoverTile);
+		}
 	}
 }
 
@@ -131,7 +142,7 @@ FVector UML_GamepadInputHandler::StickToWorldDirection(FVector2D StickValue) con
 	return (WorldForward * (-StickValue.Y) + WorldRight * StickValue.X).GetSafeNormal();
 }
 
-AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue) const
+AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold) const
 {
 	AML_PlayerCharacter* Character = Controller ? Controller->GetMycelandCharacter() : nullptr;
 	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return nullptr;
@@ -158,7 +169,9 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 
 	for (AML_Tile* Neighbor : Neighbors)
 	{
-		if (!IsValid(Neighbor)) continue;
+		// Treat missing slots and non-walkable tiles (obstacles) identically: both count as
+		// "no tile" so that an obstacle border does not block the exit-hold trigger.
+		if (!IsValid(Neighbor) || !UML_HexPathfinder::IsTileWalkable(Neighbor)) continue;
 
 		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();
 		// Dot product: 1 = same direction, 0 = perpendicular, -1 = opposite.
@@ -172,38 +185,17 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 		}
 	}
 
-	// Require at least ~60° alignment (cos 60° ≈ 0.5) to avoid ambiguous diagonals.
-	return (BestDot >= 0.5f) ? BestNeighbor : nullptr;
+	return (BestDot >= AlignmentThreshold) ? BestNeighbor : nullptr;
 }
 
-bool UML_GamepadInputHandler::IsNearExitTile() const
+bool UML_GamepadInputHandler::IsOriginTileWalkableBorderTile(const AML_BoardSpawner* Board) const
 {
 	AML_PlayerCharacter* Character = Controller ? Controller->GetMycelandCharacter() : nullptr;
-	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return false;
+	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn) || !IsValid(Board)) return false;
 
-	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board)) return false;
-
-	// Use FocusedTile as the reference point when it belongs to this board.
-	// The player may have navigated the selection cursor far from their physical tile,
-	// so measuring from CurrentTileOn would incorrectly reject the exit.
-	const AML_Tile* ReferenceTile = (IsValid(FocusedTile) && FocusedTile->GetBoardSpawnerFromTile() == Board)
+	const AML_Tile* OriginTile = (IsValid(FocusedTile) && FocusedTile->GetBoardSpawnerFromTile() == Board)
 		? FocusedTile
 		: Character->CurrentTileOn;
 
-	const FVector ReferenceLoc = ReferenceTile->GetActorLocation();
-	const float RadiusSq = FMath::Square(ExitActivationRadius);
-
-	for (const FML_WaterPath& WaterPath : Board->WaterPaths)
-	{
-		if (IsValid(WaterPath.EntryTile) &&
-			FVector::DistSquared2D(ReferenceLoc, WaterPath.EntryTile->GetActorLocation()) <= RadiusSq)
-			return true;
-
-		if (IsValid(WaterPath.ExitTile) &&
-			FVector::DistSquared2D(ReferenceLoc, WaterPath.ExitTile->GetActorLocation()) <= RadiusSq)
-			return true;
-	}
-
-	return false;
+	return UML_HexPathfinder::IsTileWalkable(OriginTile) && OriginTile->IsBorderTile();
 }

@@ -45,7 +45,14 @@ void UML_MouseKeyboardInputHandler::OnMoveActionTriggered(float DeltaTime)
 
 void UML_MouseKeyboardInputHandler::OnMoveActionReleased()
 {
+	const bool bWasHoldingExit = Controller->IsHoldingExitInput();
 	Controller->CancelExitHold();
+	if (bWasHoldingExit)
+	{
+		// Cursor is outside the board after releasing — clear the exit tile glow and path preview.
+		Controller->ClearForcedHoverTile();
+		Controller->ClearHoverPreview();
+	}
 
 	if (Controller->GetMovementMode() == EML_PlayerMovementMode::FreeMovement)
 	{
@@ -90,6 +97,8 @@ void UML_MouseKeyboardInputHandler::HandleInsideBoardClick()
 	if (!IsValid(ExitGate)) return;
 
 	Controller->RequestExitHold(ExitGate, Hit.Location);
+	// Show the cursor glow and path preview on the exit border tile while the hold is active.
+	Controller->SetForcedHoverTile(ExitGate);
 }
 
 void UML_MouseKeyboardInputHandler::HandleFreeMovementClick()

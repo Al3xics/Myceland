@@ -28,8 +28,16 @@ void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode
 
 void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
 {
-	// Force the preview path update from the new position
-	LastHoveredTile = nullptr; // Force recalculation even if cursor is on the same tile
+	// If the player just arrived on the highlighted tile, clear its glow immediately.
+	if (IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
+		(ForcedHoverTile == PlayerCharacter->CurrentTileOn ||
+		 LastCursorHoveredTile == PlayerCharacter->CurrentTileOn))
+	{
+		ClearCursorHoverPreview();
+	}
+
+	// Force the preview path update from the new position.
+	LastHoveredTile = nullptr;
 	if (HoverPreviewTimerHandle.IsValid())
 		TickHoverPreview();
 }
@@ -77,6 +85,15 @@ void UML_HoverPreviewComponent::ClearForcedHoverTile()
 		TickHoverPreview();
 }
 
+void UML_HoverPreviewComponent::NotifyInputDeviceChanged(EML_InputDevice NewDevice)
+{
+	bCursorHoverEnabled = (NewDevice == EML_InputDevice::MouseKeyboard);
+
+	// Switching to gamepad: clear any cursor-driven hover that was still active.
+	if (!bCursorHoverEnabled)
+		ClearCursorHoverPreview();
+}
+
 void UML_HoverPreviewComponent::UpdateShowPreviews(const bool Value)
 {
 	bShowPreviews = Value;
@@ -103,8 +120,10 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 	if (!IsValid(OwningController))
 		return;
 
-	// ForcedHoverTile takes priority (gamepad selection cursor replaces mouse cursor).
-	AML_Tile* CursorHoveredTile = ForcedHoverTile ? ForcedHoverTile : OwningController->GetTileUnderCursor();
+	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
+	AML_Tile* CursorHoveredTile = ForcedHoverTile
+		? ForcedHoverTile
+		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
 
 	if (CursorHoveredTile == LastCursorHoveredTile)
 		return;
@@ -148,8 +167,10 @@ void UML_HoverPreviewComponent::TickHoverPreview()
 	if (!IsValid(OwningController))
         return;
 
-	// ForcedHoverTile takes priority over the cursor (e.g. locked to the exit tile during board exit hold)
-	AML_Tile* HoveredTile = ForcedHoverTile ? ForcedHoverTile : OwningController->GetTileUnderCursor();
+	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
+	AML_Tile* HoveredTile = ForcedHoverTile
+		? ForcedHoverTile
+		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
 
     // Same tile as before → no update needed
     if (HoveredTile == LastHoveredTile)

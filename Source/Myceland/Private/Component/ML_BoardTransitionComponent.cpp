@@ -69,8 +69,6 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, con
 
 	OwningController->SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
 	bIsHoldingExitInput = true;
-	
-	OwningController->SetForcedHoverTile(ExitBorderTile);
 
 	// Start exit hold timer
 	ExitHoldTimer        = 0.f;
@@ -114,9 +112,8 @@ void UML_BoardTransitionComponent::TickExitHold()
 			OnExitCursorHold.Broadcast(false, 0.0f);
 			bWasExitingLastFrame  = false;
 			LastBroadcastProgress = -1.f;
-			
-			OwningController->ClearForcedHoverTile();
-			OwningController->ClearHoverPreview();
+
+			// Hover cleanup on cancel is the input handler's responsibility (mouse clears, gamepad keeps).
 
 			// Return to board — SwitchToMode handles clearing exit state
 			OwningController->SetMovementMode(EML_PlayerMovementMode::InsideBoard);

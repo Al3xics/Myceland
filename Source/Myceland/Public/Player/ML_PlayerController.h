@@ -53,6 +53,9 @@ private:
 	// When true, the next MK input action is silently consumed (cursor just reappeared).
 	bool bShouldConsumeNextInput = false;
 
+	// Cursor position saved when switching to gamepad, restored when showing the cursor again.
+	FVector2D LockedCursorPos = FVector2D::ZeroVector;
+
 	// ==================== Movement - Path Tick & Callbacks ====================
 
 	void TickMoveAlongPath(float DeltaTime);

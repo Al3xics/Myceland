@@ -725,14 +725,29 @@ void AML_PlayerController::HandleInputDeviceChanged(EML_InputDevice NewDevice)
 
 	const bool bIsMK = (NewDevice == EML_InputDevice::MouseKeyboard);
 
+	if (!bIsMK && PreviousInputDevice == EML_InputDevice::MouseKeyboard)
+	{
+		// MK → Gamepad: save cursor position so it reappears in the same spot later.
+		float X, Y;
+		GetMousePosition(X, Y);
+		LockedCursorPos = FVector2D(X, Y);
+	}
+
 	// Gamepad → MK transition: cursor is about to reappear.
 	// The click that triggered this switch must not be acted on — it serves only to show the cursor.
 	if (bIsMK && PreviousInputDevice == EML_InputDevice::Gamepad)
+	{
 		bShouldConsumeNextInput = true;
+		// Restore cursor to where it was when the player switched to gamepad.
+		SetMouseLocation(static_cast<int>(LockedCursorPos.X), static_cast<int>(LockedCursorPos.Y));
+	}
 
 	PreviousInputDevice    = NewDevice;
 	bShowMouseCursor       = bIsMK;
 	bEnableMouseOverEvents = bIsMK;
+
+	if (HoverPreviewComponent)
+		HoverPreviewComponent->NotifyInputDeviceChanged(NewDevice);
 
 	// Force Slate to re-evaluate the cursor type immediately.
 	// Without this, the OS cursor only updates on the next mouse-move event (Standalone artifact).
