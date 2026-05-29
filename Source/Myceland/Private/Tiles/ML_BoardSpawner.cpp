@@ -95,7 +95,7 @@ void AML_BoardSpawner::BeginPlay()
 	// Subscribe to the win event so we can capture and save the solvOked grid.
 	if (UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
 	{
-		WinLose->OnWin.AddDynamic(this, &AML_BoardSpawner::HandlePuzzleWon);
+		WinLose->OnConnectedGoalPathComplete.AddDynamic(this, &AML_BoardSpawner::HandlePuzzleWon);
 	}
 }
 

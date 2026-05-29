@@ -402,9 +402,10 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 						);
 					}
 				}
+				OnConnectedGoalPathComplete.Broadcast();
 			});
 		}
-
+		
 		return;
 	}
 

@@ -180,8 +180,6 @@ public:
 	
 private:
 	
-	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
-
 	// Resets all tiles to their original authored state so the player can replay.
 	UFUNCTION(CallInEditor, BlueprintCallable, Category="Myceland Hex Grid", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
 	void ReplayPuzzle();
