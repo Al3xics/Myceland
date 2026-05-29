@@ -213,4 +213,9 @@ public:
 
 	bool IsMoveInProgress() const { return MoveRecordingComponent && MoveRecordingComponent->IsMoveInProgress(); }
 	bool IsUndoMovePlayback() const { return MoveRecordingComponent && MoveRecordingComponent->IsUndoMovePlayback(); }
+	
+	// ==================== FMOD ====================
+	
+	UPROPERTY(EditAnywhere, Category="Myceland| FMOD")
+	UFMODEvent* TilePlantEvent;
 };
