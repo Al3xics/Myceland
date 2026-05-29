@@ -5,6 +5,7 @@
 #include "Algo/Reverse.h"
 #include "Containers/Deque.h"
 #include "Core/ML_CoreData.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
@@ -58,7 +59,7 @@ bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
 	}
 
 	const EML_TileType TileType = CurrentTileOn->GetCurrentType();
-	if (TileType == EML_TileType::Water || TileType == EML_TileType::Parasite)
+	if (UML_TileTypeTraits::IsLethalTile(TileType))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You died"));
 		bIsPlayerDead = true;
@@ -452,8 +453,7 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		RollBack->OnResetAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleResetAnimating);
 	}
 
-	CachedGoalPathAllowedSet.Add(EML_TileType::Grass);
-	CachedGoalPathAllowedSet.Add(EML_TileType::Water);
+	CachedGoalPathAllowedSet = UML_TileTypeTraits::GetWinPathTypes();
 }
 
 void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
@@ -575,7 +575,7 @@ void UML_WinLoseSubsystem::ClearWinPath(
 			continue;
 		}
 
-		if ((*TilePtr)->GetCurrentType() == EML_TileType::Water)
+		if (UML_TileTypeTraits::IsWaterType((*TilePtr)->GetCurrentType()))
 		{
 			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::Grass, CurrentBoardSpawner->WaterChangeTile);
 		}
