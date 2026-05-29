@@ -35,7 +35,8 @@
 		},
 		{
 			"Name": "WindowsDualsense_ds5w",
-			"Enabled": true
+			"Enabled": true,
+			"Optional": true
 		}
 	]
 }

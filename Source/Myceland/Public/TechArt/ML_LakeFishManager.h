@@ -138,7 +138,7 @@ private:
 	bool IsWaterTile(const AML_Tile* Tile) const;
 	bool IsGrassTile(const AML_Tile* Tile) const;
 	bool IsTileAliveWater(const AML_Tile* Tile) const;
-
+	bool IsTreeTile(const AML_Tile* Tile) const;
 	void FloodFillWaterLake(AML_Tile* StartTile, TSet<AML_Tile*>& Visited, TArray<AML_Tile*>& OutTiles) const;
 	bool DoesLakeTouchGrass(const TArray<AML_Tile*>& LakeTiles) const;
 
