@@ -97,7 +97,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	bool IsSequencePlaying() const { return CurrentSequence != nullptr; }
-	
+
+	UFUNCTION(BlueprintPure, Category="Narrative")
+	UML_NarrativeSequence* GetCurrentSequence() const { return CurrentSequence; }
+
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	int32 GetCurrentLineIndex() const { return CurrentLineIndex; }
 

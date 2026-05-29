@@ -275,6 +275,18 @@ TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const
 	return Result;
 }
 
+const TMap<FIntPoint, AML_Tile*>& AML_BoardSpawner::GetGridMapRef() const
+{
+	if (!bGridMapCacheBuilt)
+	{
+		GridMapCache.Reserve(GridMap.Num());
+		for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+			GridMapCache.Add(Pair.Key, Pair.Value.Get());
+		bGridMapCacheBuilt = true;
+	}
+	return GridMapCache;
+}
+
 TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
 {
 	TArray<AML_Tile*> Result;

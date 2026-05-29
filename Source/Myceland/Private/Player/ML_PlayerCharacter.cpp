@@ -69,32 +69,9 @@ void AML_PlayerCharacter::UpdateCurrentTile()
 	if (NewTile == OldTile)
 		return;
 
-	// todo --> remove because we don't want to glow neighbor tile anymore
-	if (CurrentTileOn)
-	{
-		for (AML_Tile* Neighbor : CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn))
-		{
-			if (Neighbor)
-				Neighbor->StopGlowing();
-		}
-	}
-
 	CurrentTileOn = NewTile;
 	OnCurrentTileChanged.Broadcast(OldTile, NewTile);
 	HandleTileStateChange(OldTile, NewTile);
-
-	
-	// todo --> remove because we don't want to glow neighbor tile anymore
-	if (CurrentTileOn)
-	{
-		for (AML_Tile* Neighbor : CurrentTileOn->GetBoardSpawnerFromTile()->GetNeighbors(CurrentTileOn))
-		{
-			if (Neighbor &&
-				Neighbor->IsBlocked() == false &&
-				Neighbor->GetCurrentType() != EML_TileType::Grass)
-				Neighbor->Glow();
-		}
-	}
 }
 
 void AML_PlayerCharacter::HandleTileStateChange(const AML_Tile* OldTile, const AML_Tile* NewTile) const
