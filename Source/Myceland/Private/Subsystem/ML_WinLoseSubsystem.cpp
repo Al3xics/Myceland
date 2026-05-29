@@ -577,7 +577,7 @@ void UML_WinLoseSubsystem::ClearWinPath(
 
 		if (UML_TileTypeTraits::IsWaterType((*TilePtr)->GetCurrentType()))
 		{
-			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::Grass, CurrentBoardSpawner->WaterChangeTile);
+			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::WaterPath, CurrentBoardSpawner->WaterChangeTile);
 		}
 	}
 }
