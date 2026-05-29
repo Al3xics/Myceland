@@ -45,7 +45,6 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		bPendingClearWinPath = true;
-		OnWin.Broadcast();
 	}
 
 	return GameResult;
@@ -373,8 +372,10 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
 		OnConnectedGoalPathComplete.Broadcast();
 
+
 		if (bPendingClearWinPath)
 		{
+			OnWin.Broadcast();
 			bPendingClearWinPath = false;
 			for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
 			{
