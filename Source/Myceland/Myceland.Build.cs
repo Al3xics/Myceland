@@ -20,7 +20,10 @@ public class Myceland : ModuleRules
 			"UMG",
 			"Json",
 			"Foliage",
+			"LevelSequence",
+			"MovieScene",
 			"DeveloperSettings",
+			"CinematicCamera",
             "ProceduralMeshComponent",
             "GameplayTags", "FMODStudio"
 		});
