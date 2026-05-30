@@ -53,9 +53,10 @@ private:
 	FVector StickToWorldDirection(FVector2D StickValue) const;
 
 	/**
-	 * Finds the walkable neighbor tile most aligned with the stick direction.
-	 * Non-walkable tiles (obstacles) are treated as empty slots.
-	 * Returns nullptr if no walkable neighbor clears AlignmentThreshold.
+	 * Finds the neighbor tile most aligned with the stick direction (walkable or not).
+	 * Only truly missing board slots (null) are ignored.
+	 * Returns nullptr if no neighbor clears AlignmentThreshold (i.e. the stick points
+	 * into empty space — no board tile exists in that direction).
 	 * Default threshold is cos 60° (0.5); pass cos 30° (0.866) for stricter selection.
 	 */
 	AML_Tile* FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold = 0.5f) const;

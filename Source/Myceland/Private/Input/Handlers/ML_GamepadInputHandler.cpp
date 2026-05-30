@@ -97,13 +97,13 @@ void UML_GamepadInputHandler::HandleInsideBoardStick(FVector2D StickValue)
 	const float NeighborThreshold = bOnWalkableBorder ? 0.866f : 0.5f;
 
 	AML_Tile* NeighborTile = FindNeighborInStickDirection(StickValue, NeighborThreshold);
-	if (IsValid(NeighborTile))
+	if (IsValid(NeighborTile) && UML_HexPathfinder::IsTileWalkable(NeighborTile))
 	{
 		// Walkable neighbor found: advance the selection cursor.
 		FocusedTile = NeighborTile;
 		Controller->SetForcedHoverTile(FocusedTile);
 	}
-	else if (bOnWalkableBorder)
+	else if (!IsValid(NeighborTile) && bOnWalkableBorder)
 	{
 		// No walkable neighbor in this direction and the cursor is on a walkable border tile.
 		// Mirror the mouse behavior: any walkable border tile is a valid exit point.
@@ -169,9 +169,9 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 
 	for (AML_Tile* Neighbor : Neighbors)
 	{
-		// Treat missing slots and non-walkable tiles (obstacles) identically: both count as
-		// "no tile" so that an obstacle border does not block the exit-hold trigger.
-		if (!IsValid(Neighbor) || !UML_HexPathfinder::IsTileWalkable(Neighbor)) continue;
+		// Skip only truly missing board slots. Non-walkable tiles (water, obstacles) are
+		// included so they can be detected as "something is there" by the caller.
+		if (!IsValid(Neighbor)) continue;
 
 		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();
 		// Dot product: 1 = same direction, 0 = perpendicular, -1 = opposite.
