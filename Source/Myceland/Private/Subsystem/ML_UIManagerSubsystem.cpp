@@ -145,6 +145,27 @@ void UML_UIManagerSubsystem::GoBack()
 	SwitchWidgetInternal(PreviousTag, false);
 }
 
+void UML_UIManagerSubsystem::GoBackTo(FGameplayTag InWidgetTag)
+{
+	ensureMsgf(NavigationStack.Num() > 0, TEXT("Navigation stack empty"));
+	if (NavigationStack.Num() <= 0) return;
+	
+	for (int32 i = NavigationStack.Num() - 1; i >= 0; i--)
+	{
+		if (NavigationStack[i] == InWidgetTag)
+		{
+			const int32 RemoveStartIndex = i + 1;
+			const int32 RemoveCount = NavigationStack.Num() - RemoveStartIndex;
+			
+			if (RemoveCount > 0)
+				NavigationStack.RemoveAt(RemoveStartIndex, RemoveCount);
+			
+			SwitchWidgetInternal(InWidgetTag, false);
+			return;
+		}
+	}
+}
+
 void UML_UIManagerSubsystem::ClearNavigationStack()
 {
 	NavigationStack.Empty();
