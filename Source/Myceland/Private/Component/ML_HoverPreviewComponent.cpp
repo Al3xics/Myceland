@@ -137,12 +137,12 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 	if (IsValid(LastCursorHoveredTile))
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
 
-	const bool bIsOnPlayerTile = IsValid(PlayerCharacter) &&
-								  IsValid(PlayerCharacter->CurrentTileOn) &&
-								  CursorHoveredTile == PlayerCharacter->CurrentTileOn;
-
-	if (!bIsOnPlayerTile && bCurrentHoveredTileReachable)
-		CursorHoveredTile->GlowCursorHovered();
+	if (bCurrentHoveredTileReachable)
+	{
+		const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
+		                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
+		CursorHoveredTile->GlowCursorHovered(bIsPlayerTile);
+	}
 
 	LastCursorHoveredTile = CursorHoveredTile;
 }
