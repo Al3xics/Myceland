@@ -172,9 +172,16 @@ void UML_HoverPreviewComponent::TickHoverPreview()
 		? ForcedHoverTile
 		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
 
-    // Same tile as before → no update needed
+    // Same tile as before → no update needed unless it became non-walkable.
     if (HoveredTile == LastHoveredTile)
+    {
+        if (IsValid(HoveredTile) && bCurrentHoveredTileReachable && !UML_HexPathfinder::IsTileWalkable(HoveredTile))
+        {
+            ClearHoverPreview();
+            ClearCursorHoverPreview();
+        }
         return;
+    }
 
     // Tile changed — clear old path visuals immediately
     for (AML_Tile* Tile : CurrentPreviewPath)
