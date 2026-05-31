@@ -96,6 +96,13 @@ enum class EML_PlayerBoardActionState : uint8
 };
 
 UENUM(BlueprintType)
+enum class EML_InputDevice : uint8
+{
+	MouseKeyboard UMETA(DisplayName = "Mouse & Keyboard"),
+	Gamepad       UMETA(DisplayName = "Gamepad")
+};
+
+UENUM(BlueprintType)
 enum class ESettingValueType : uint8
 {
 	Float,
