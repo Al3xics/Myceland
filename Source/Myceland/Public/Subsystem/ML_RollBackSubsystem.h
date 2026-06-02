@@ -128,7 +128,11 @@ private:
 	void ContinueResetAllIfNeeded();
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
 	void ApplyUndoTimeDilation();
-	void ApplyResetTimeDilation();
+	void ApplyResetTimeDilation(const TArray<FML_ActionUndoRecord>& Stack);
+	float EstimateResetGameDuration(const TArray<FML_ActionUndoRecord>& Stack) const;
+	float EstimateActionResetGameDuration(const FML_ActionUndoRecord& Action) const;
+	float EstimateMoveResetGameDuration(const FML_MoveUndoRecord& Move) const;
+	float EstimatePlantResetGameDuration(const FML_TurnUndoRecord& Turn) const;
 	void ClearTimeDilation();
 	void ResetRuntimeState();
 };
