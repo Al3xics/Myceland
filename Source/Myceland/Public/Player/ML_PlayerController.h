@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "FMODEvent.h"
 #include "Core/ML_CoreData.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/PlayerController.h"
@@ -12,6 +11,9 @@
 #include "Component/ML_MoveRecordingComponent.h"
 #include "Component/ML_BoardTransitionComponent.h"
 #include "Component/ML_NavigationBridgeComponent.h"
+#include "Input/ML_InputDeviceManager.h"
+#include "Input/Handlers/ML_MouseKeyboardInputHandler.h"
+#include "Input/Handlers/ML_GamepadInputHandler.h"
 #include "ML_PlayerController.generated.h"
 
 class AML_CameraRail;
@@ -43,21 +45,22 @@ private:
 	int32 CurrentPathIndex = 0;
 
 	bool bIsMoving = false;
+	bool bInCinematicMode = false;
 
-	float FollowTime = 0.f;
-	FVector HoldMoveCachedDestination = FVector::ZeroVector;
+	// Last device seen by HandleInputDeviceChanged — used to detect Gamepad→MK transitions.
+	EML_InputDevice PreviousInputDevice = EML_InputDevice::MouseKeyboard;
+
+	// When true, the next MK input action is silently consumed (cursor just reappeared).
+	bool bShouldConsumeNextInput = false;
+
+	// Cursor position saved when switching to gamepad, restored when showing the cursor again.
+	FVector2D LockedCursorPos = FVector2D::ZeroVector;
 
 	// ==================== Movement - Path Tick & Callbacks ====================
 
 	void TickMoveAlongPath(float DeltaTime);
 	void OnPathFinished();
 	void SetIsMoving(bool bNewIsMoving);
-
-	// ==================== Movement - Tile Movement ====================
-
-	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
-	bool Plant(AML_Tile* TargetTile);
-	void ExecutePlant(AML_Tile* HitTile);
 
 	// ==================== Movement - Path Management ====================
 
@@ -71,9 +74,9 @@ private:
 	void ExtendMoveAlongPath(const TArray<FIntPoint>& FullMergedAxialPath, const TMap<FIntPoint, AML_Tile*>& GridMap,
 		int32 PreservedPathIndex);
 
-	// ==================== Ground Validation ====================
+	// ==================== Movement - Tile Movement (private helpers) ====================
 
-	bool IsClickableGround(const FHitResult& Hit) const;
+	void ExecutePlant(AML_Tile* HitTile);
 
 	// ==================== Camera Queries ====================
 
@@ -97,28 +100,43 @@ protected:
 
 	// ==================== Input ====================
 
-	// Bind to OnStarted — one shot per click (BFS, exit hold trigger, board re-entry)
+	// Bind to IA_Move → Started
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationStarted();
 
-	// Bind to OnTriggered - maintain click when outside the board to move
+	// Bind to IA_Move → Triggered
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationTriggered();
 
-	// Bind to OnCompleted / OnCanceled
+	// Bind to IA_Move → Completed / Canceled
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSetDestinationReleased();
 
-	// Bind to OnStarted - for Plant and Move only
+	// Bind to IA_MoveAndPlant → Started
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnMoveAndPlantStarted();
+
+	// Bind to IA_GamepadConfirm → Started (gamepad button — replaces IA_Move gamepad binding)
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnGamepadConfirmStarted();
+
+	// Bind to IA_GamepadMoveAndPlant → Started (gamepad button — replaces IA_MoveAndPlant gamepad binding)
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnGamepadMoveAndPlantStarted();
+
+	// Bind to IA_GamepadMove → Triggered (Axis2D, left stick)
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnGamepadMoveAxis(const FVector2D& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnGamepadMoveReleased();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSkipNarrativeLine();
 
-	// Input sub-handlers (called by OnSetDestinationStarted)
-	void HandleInsideBoardClick();
-	void HandleFreeMovementClick();
+	// Reacts to input device switches to update cursor visibility.
+	UFUNCTION()
+	void HandleInputDeviceChanged(EML_InputDevice NewDevice);
 
 	// ==================== Movement Tuning ====================
 
@@ -152,22 +170,46 @@ public:
 
 	static AML_Tile* ExtractTileFromHit(const FHitResult& Hit);
 
+	// ==================== Ground Validation ====================
+
+	bool IsClickableGround(const FHitResult& Hit) const;
+
+	// ==================== Character Access ====================
+
+	AML_PlayerCharacter* GetMycelandCharacter() const { return MycelandCharacter; }
+
+	// ==================== Movement - Tile Movement ====================
+
+	bool Move(AML_Tile* TargetTile, int32 StopBeforeTarget = 0);
+	bool Plant(AML_Tile* TargetTile);
+
 	// ==================== Components ====================
 
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_EnergyComponent* EnergyComponent = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_HoverPreviewComponent* HoverPreviewComponent = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_MoveRecordingComponent* MoveRecordingComponent = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_BoardTransitionComponent* TransitionComponent = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland Controller|Components")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Components")
 	UML_NavigationBridgeComponent* NavigationBridgeComponent = nullptr;
+
+	// ==================== Input Components ====================
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Input")
+	UML_InputDeviceManager* InputDeviceManager = nullptr;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Input")
+	UML_MouseKeyboardInputHandler* MouseKeyboardHandler = nullptr;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Myceland Controller|Input")
+	UML_GamepadInputHandler* GamepadHandler = nullptr;
 
 	// ==================== Delegates ====================
 
@@ -218,4 +260,25 @@ public:
 	
 	UPROPERTY(EditAnywhere, Category="Myceland| FMOD")
 	UFMODEvent* TilePlantEvent;
+
+	float GetMoveSpeedScale() const { return MoveSpeedScale; }
+	float GetShortPressThreshold() const { return ShortPressThreshold; }
+
+	// ==================== Component Wrappers ====================
+	// These allow components to call through the controller without cross-component includes.
+
+	EML_PlayerMovementMode GetMovementMode() const { return TransitionComponent ? TransitionComponent->GetMovementMode() : EML_PlayerMovementMode::FreeMovement; }
+	EML_PlayerBoardActionState GetBoardActionState() const { return TransitionComponent ? TransitionComponent->GetBoardActionState() : EML_PlayerBoardActionState::Idle; }
+	bool IsHoldingExitInput() const { return TransitionComponent && TransitionComponent->IsHoldingExitInput(); }
+	bool HasEnergy()const { return EnergyComponent && EnergyComponent->GetCurrentEnergy() > 0; }
+
+	void RequestExitHold(AML_Tile* ExitBorderTile, const FVector& WorldTarget);
+	void CancelExitHold();
+	void RequestBoardEntry(AML_Tile* TargetTile);
+	void StopNavMeshMovement();
+	AML_Tile* FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const;
+	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
+	void SetForcedHoverTile(AML_Tile* Tile);
+	void ClearForcedHoverTile();
+	void ClearHoverPreview();
 };

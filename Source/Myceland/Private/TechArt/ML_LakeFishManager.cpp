@@ -10,6 +10,7 @@
 #include "Tiles/ML_Tile.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
 #include "Tiles/TileBase/ML_TileWater.h"
+#include "Tiles/TileBase/ML_TileTree.h"
 
 AML_LakeFishManager::AML_LakeFishManager()
 {
@@ -314,6 +315,18 @@ bool AML_LakeFishManager::IsGrassTile(const AML_Tile* Tile) const
 	return ChildComponent && Cast<AML_TileGrass>(ChildComponent->GetChildActor()) != nullptr;
 }
 
+bool AML_LakeFishManager::IsTreeTile(const AML_Tile* Tile) const
+{
+	if (!IsValid(Tile)) return false;
+
+	if (Tile->GetCurrentType() != EML_TileType::Tree)
+	{
+		return false;
+	}
+
+	return true;
+}
+
 bool AML_LakeFishManager::IsTileAliveWater(const AML_Tile* Tile) const
 {
 	if (!IsWaterTile(Tile)) return false;
@@ -321,11 +334,23 @@ bool AML_LakeFishManager::IsTileAliveWater(const AML_Tile* Tile) const
 	AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return false;
 
+	int32 TreeNeighborCount = 0;
+
 	for (AML_Tile* Neighbor : Board->GetNeighbors(const_cast<AML_Tile*>(Tile)))
 	{
 		if (IsGrassTile(Neighbor))
 		{
 			return true;
+		}
+
+		if (IsTreeTile(Neighbor))
+		{
+			TreeNeighborCount++;
+
+			if (TreeNeighborCount >= 2)
+			{
+				return true;
+			}
 		}
 	}
 

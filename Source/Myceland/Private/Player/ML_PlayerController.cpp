@@ -15,6 +15,8 @@
 #include "Components/SplineComponent.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Input/ML_InputDeviceManager.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
@@ -33,6 +35,10 @@ AML_PlayerController::AML_PlayerController()
 	MoveRecordingComponent = CreateDefaultSubobject<UML_MoveRecordingComponent>(TEXT("MoveRecordingComponent"));
 	TransitionComponent = CreateDefaultSubobject<UML_BoardTransitionComponent>(TEXT("TransitionComponent"));
 	NavigationBridgeComponent = CreateDefaultSubobject<UML_NavigationBridgeComponent>(TEXT("NavigationBridgeComponent"));
+
+	MouseKeyboardHandler = CreateDefaultSubobject<UML_MouseKeyboardInputHandler>(TEXT("MouseKeyboardHandler"));
+	GamepadHandler = CreateDefaultSubobject<UML_GamepadInputHandler>(TEXT("GamepadHandler"));
+	InputDeviceManager = CreateDefaultSubobject<UML_InputDeviceManager>(TEXT("InputDeviceManager"));
 }
 
 // ==================== Movement - Path Tick & Callbacks ====================
@@ -473,8 +479,15 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		MycelandCharacter->OnCurrentTileChanged.AddDynamic(this, &AML_PlayerController::HandleCurrentTileChanged);
 		MycelandCharacter->OnBoardChanged.AddDynamic(this, &AML_PlayerController::HandleBoardStateChanged);
 		HoverPreviewComponent->Initialize(this, MycelandCharacter);
-		TransitionComponent->Initialize(this, MycelandCharacter, EnergyComponent, DevSettings, RotateSpeed);
+		TransitionComponent->Initialize(this, MycelandCharacter, DevSettings, RotateSpeed);
 		NavigationBridgeComponent->Initialize(this, MycelandCharacter, NavMeshAcceptanceRadius);
+
+		MouseKeyboardHandler->Initialize(this);
+		GamepadHandler->Initialize(this);
+		InputDeviceManager->Initialize(MouseKeyboardHandler, GamepadHandler);
+		InputDeviceManager->OnInputDeviceChanged.AddDynamic(this, &AML_PlayerController::HandleInputDeviceChanged);
+		// Apply cursor visibility for the initial device (starts on MK).
+		UpdateCursorVisibility(InputDeviceManager->GetCurrentDevice() == EML_InputDevice::MouseKeyboard);
 
 		MycelandCharacter->UpdateCurrentTile();
 		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
@@ -514,125 +527,76 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 
 void AML_PlayerController::OnSetDestinationStarted()
 {
-	FollowTime = 0.f;
-
-	const EML_PlayerMovementMode Mode = TransitionComponent->GetMovementMode();
-	if (Mode == EML_PlayerMovementMode::InsideBoard)
-		HandleInsideBoardClick();
-	else if (Mode == EML_PlayerMovementMode::FreeMovement)
-		HandleFreeMovementClick();
+	if (!InputDeviceManager) return;
+	InputDeviceManager->NotifyMouseKeyboardInput();
+	if (bShouldConsumeNextInput) return; // flag stays true until Released
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnMoveActionStarted();
 }
 
 void AML_PlayerController::OnSetDestinationTriggered()
 {
-	// Accumulate hold time every frame the input is held
-	FollowTime += GetWorld()->GetDeltaSeconds();
-
-	// Hold-to-move is only active in free movement
-	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::FreeMovement)
-		return;
-
-	if (!IsValid(MycelandCharacter))
-		return;
-
-	// Update the cached destination to the current cursor position every frame
-	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
-	if (!IsClickableGround(Hit)) return;
-
-	// Only follow the cursor on open ground — ignore board tiles so that
-	// clicking on a board still triggers the re-entry logic on release.
-	if (!Cast<AML_Tile>(Hit.GetActor()))
-		HoldMoveCachedDestination = Hit.Location;
-
-	// Push the character toward the cached destination every frame
-	const FVector WorldDirection = (HoldMoveCachedDestination - MycelandCharacter->GetActorLocation()).GetSafeNormal();
-	MycelandCharacter->AddMovementInput(WorldDirection, MoveSpeedScale);
+	if (bShouldConsumeNextInput) return;
+	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnMoveActionTriggered(GetWorld()->GetDeltaSeconds());
 }
 
 void AML_PlayerController::OnSetDestinationReleased()
 {
-	TransitionComponent->CancelExitHold();
-	// TickExitHold detects the cleared flag and performs cleanup on the next tick.
-
-	// In free movement, if this was a short tap (not a hold), use SimpleMoveToLocation
-	// so the character navigates precisely to the clicked point via the nav mesh.
-	if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement)
-	{
-		if (FollowTime <= ShortPressThreshold)
-			StartNavMeshMovement(HoldMoveCachedDestination);
-
-		// If it was a long hold, movement was already applied frame-by-frame; nothing extra needed.
-	}
-
-	FollowTime = 0.f;
+	// Reset the consume flag here — covers the full Started→Triggered→Released click cycle.
+	// Do NOT call the handler: OnMoveActionStarted was skipped so HoldMoveCachedDestination
+	// is stale, and calling OnMoveActionReleased would launch a navmesh move to a wrong target.
+	if (bShouldConsumeNextInput) { bShouldConsumeNextInput = false; return; }
+	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnMoveActionReleased();
 }
 
 void AML_PlayerController::OnMoveAndPlantStarted()
 {
-	AML_Tile* TargetTile = GetTileUnderCursor();
-	Plant(TargetTile);
+	if (!InputDeviceManager) return;
+	InputDeviceManager->NotifyMouseKeyboardInput();
+	if (bShouldConsumeNextInput) { bShouldConsumeNextInput = false; return; }
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnMoveAndPlantAction();
+}
+
+void AML_PlayerController::OnGamepadConfirmStarted()
+{
+	if (!InputDeviceManager) return;
+	InputDeviceManager->NotifyGamepadInput();
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnMoveActionStarted();
+}
+
+void AML_PlayerController::OnGamepadMoveAndPlantStarted()
+{
+	if (!InputDeviceManager) return;
+	InputDeviceManager->NotifyGamepadInput();
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnMoveAndPlantAction();
+}
+
+void AML_PlayerController::OnGamepadMoveAxis(const FVector2D& Value)
+{
+	if (!InputDeviceManager) return;
+	
+	// OnInputHardwareDeviceChanged does not fire for analog axes, so we switch here directly.
+	InputDeviceManager->NotifyGamepadInput();
+	
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnStickAxis(Value, GetWorld()->GetDeltaSeconds());
+}
+
+void AML_PlayerController::OnGamepadMoveReleased()
+{
+	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnStickReleased();
 }
 
 void AML_PlayerController::OnSkipNarrativeLine()
 {
 	if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
 		SubSys->SkipCurrentLine();
-}
-
-void AML_PlayerController::HandleInsideBoardClick()
-{
-	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return;
-
-	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board)) return;
-
-	// TurningToPlant locks all input — propagation is imminent
-	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
-
-	AML_Tile* TargetTile = GetTileUnderCursor();
-
-	if (IsValid(TargetTile) && TargetTile->GetOwner() == Board)
-	{
-		Move(TargetTile);
-		return;
-	}
-
-	// Click outside the board -> hold to exit toward the closest reachable border tile.
-	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
-	if (!IsClickableGround(Hit)) return;
-
-	AML_Tile* ExitGate = NavigationBridgeComponent
-		? NavigationBridgeComponent->FindReachableExitBorderTile(Board, Hit.Location)
-		: nullptr;
-	if (!IsValid(ExitGate)) return;
-
-	TransitionComponent->RequestExitHold(ExitGate, Hit.Location);
-}
-
-void AML_PlayerController::HandleFreeMovementClick()
-{
-	// Stop any active NavMesh movement to allow new input
-	if (NavigationBridgeComponent)
-		NavigationBridgeComponent->StopNavMeshMovement();
-
-	AML_Tile* TargetTile = GetTileUnderCursor();
-	if (IsValid(TargetTile))
-	{
-		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
-		if (!IsValid(Board)) return;
-
-		TransitionComponent->RequestBoardEntry(TargetTile);
-		StartNavMeshMovement(TargetTile->GetActorLocation());
-		return;
-	}
-
-	// Click on open ground → cache destination; continuous movement is driven by OnSetDestinationTriggered.
-	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
-	if (!IsClickableGround(Hit)) return;
-	HoldMoveCachedDestination = Hit.Location;
 }
 
 // ==================== Camera ====================
@@ -739,11 +703,60 @@ void AML_PlayerController::UpdateCursorVisibility(const bool bVisible)
 	bEnableMouseOverEvents = bVisible;
 }
 
-void AML_PlayerController::NotifyCinematicModeChanged(const bool bInCinematicMode)
+void AML_PlayerController::NotifyCinematicModeChanged(const bool bNewInCinematicMode)
 {
-	UpdateCursorVisibility(!bInCinematicMode);
+	bInCinematicMode = bNewInCinematicMode;
+	if (bInCinematicMode)
+	{
+		UpdateCursorVisibility(false);
+	}
+	else
+	{
+		// Restore click events disabled by the cinematic, then apply device-appropriate state.
+		bEnableClickEvents = true;
+		const EML_InputDevice Device = InputDeviceManager
+			? InputDeviceManager->GetCurrentDevice()
+			: EML_InputDevice::MouseKeyboard;
+		HandleInputDeviceChanged(Device);
+	}
 	if (HoverPreviewComponent)
 		HoverPreviewComponent->UpdateShowPreviews(!bInCinematicMode);
+}
+
+void AML_PlayerController::HandleInputDeviceChanged(EML_InputDevice NewDevice)
+{
+	if (bInCinematicMode) return;
+
+	const bool bIsMK = (NewDevice == EML_InputDevice::MouseKeyboard);
+
+	if (!bIsMK && PreviousInputDevice == EML_InputDevice::MouseKeyboard)
+	{
+		// MK → Gamepad: save cursor position so it reappears in the same spot later.
+		float X, Y;
+		GetMousePosition(X, Y);
+		LockedCursorPos = FVector2D(X, Y);
+	}
+
+	// Gamepad → MK transition: cursor is about to reappear.
+	// The click that triggered this switch must not be acted on — it serves only to show the cursor.
+	if (bIsMK && PreviousInputDevice == EML_InputDevice::Gamepad)
+	{
+		bShouldConsumeNextInput = true;
+		// Restore cursor to where it was when the player switched to gamepad.
+		SetMouseLocation(static_cast<int>(LockedCursorPos.X), static_cast<int>(LockedCursorPos.Y));
+	}
+
+	PreviousInputDevice    = NewDevice;
+	bShowMouseCursor       = bIsMK;
+	bEnableMouseOverEvents = bIsMK;
+
+	if (HoverPreviewComponent)
+		HoverPreviewComponent->NotifyInputDeviceChanged(NewDevice);
+
+	// Force Slate to re-evaluate the cursor type immediately.
+	// Without this, the OS cursor only updates on the next mouse-move event (Standalone artifact).
+	if (FSlateApplication::IsInitialized())
+		FSlateApplication::Get().QueryCursor();
 }
 
 // ==================== Actions ====================
@@ -807,6 +820,53 @@ void AML_PlayerController::StartMoveAlongAxialPathForUndo(const TArray<FIntPoint
 void AML_PlayerController::NotifyCollectiblePickedOnAxial(const FIntPoint& Axial)
 {
 	MoveRecordingComponent->NotifyCollectiblePicked(Axial);
+}
+
+// ==================== Component Wrappers ====================
+
+void AML_PlayerController::RequestExitHold(AML_Tile* ExitBorderTile, const FVector& WorldTarget)
+{
+	if (TransitionComponent) TransitionComponent->RequestExitHold(ExitBorderTile, WorldTarget);
+}
+
+void AML_PlayerController::CancelExitHold()
+{
+	if (TransitionComponent) TransitionComponent->CancelExitHold();
+}
+
+void AML_PlayerController::RequestBoardEntry(AML_Tile* TargetTile)
+{
+	if (TransitionComponent) TransitionComponent->RequestBoardEntry(TargetTile);
+}
+
+void AML_PlayerController::StopNavMeshMovement()
+{
+	if (NavigationBridgeComponent) NavigationBridgeComponent->StopNavMeshMovement();
+}
+
+AML_Tile* AML_PlayerController::FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const
+{
+	return NavigationBridgeComponent ? NavigationBridgeComponent->FindReachableExitBorderTile(Board, OutsideDestination) : nullptr;
+}
+
+AML_Tile* AML_PlayerController::PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const
+{
+	return NavigationBridgeComponent ? NavigationBridgeComponent->PredictNavMeshEntryTile(Board, Destination) : nullptr;
+}
+
+void AML_PlayerController::SetForcedHoverTile(AML_Tile* Tile)
+{
+	if (HoverPreviewComponent) HoverPreviewComponent->SetForcedHoverTile(Tile);
+}
+
+void AML_PlayerController::ClearForcedHoverTile()
+{
+	if (HoverPreviewComponent) HoverPreviewComponent->ClearForcedHoverTile();
+}
+
+void AML_PlayerController::ClearHoverPreview()
+{
+	if (HoverPreviewComponent) HoverPreviewComponent->ClearHoverPreview();
 }
 
 // ==================== Tile Query ====================
