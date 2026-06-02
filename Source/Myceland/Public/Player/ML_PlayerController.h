@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FMODEvent.h"
 #include "Core/ML_CoreData.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/PlayerController.h"
