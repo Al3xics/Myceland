@@ -2,7 +2,7 @@
 <objects serializationModel="Studio.02.03.00">
 	<object class="Event" id="{14f77c56-b080-4f88-80e3-b53185d55ac9}">
 		<property name="name">
-			<value>Level_Ambience</value>
+			<value>Level_Ambience_Evolving</value>
 		</property>
 		<property name="outputFormat">
 			<value>0</value>

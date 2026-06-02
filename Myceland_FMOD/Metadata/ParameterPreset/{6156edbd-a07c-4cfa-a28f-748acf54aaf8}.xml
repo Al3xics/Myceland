@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="ParameterPreset" id="{6156edbd-a07c-4cfa-a28f-748acf54aaf8}">
+		<property name="name">
+			<value>ReactionType</value>
+		</property>
+		<relationship name="folder">
+			<destination>{f0283846-891d-4a40-920f-49dbe71e006e}</destination>
+		</relationship>
+		<relationship name="parameter">
+			<destination>{3abbc066-de01-484c-abcd-e11d1e0dca4b}</destination>
+		</relationship>
+	</object>
+	<object class="GameParameter" id="{3abbc066-de01-484c-abcd-e11d1e0dca4b}">
+		<property name="parameterType">
+			<value>2</value>
+		</property>
+		<property name="maximum">
+			<value>5</value>
+		</property>
+		<property name="enumerationLabels">
+			<value>Grass</value>
+			<value>Parasite</value>
+			<value>Water</value>
+			<value>Earth</value>
+			<value>TreeLink</value>
+		</property>
+		<property name="initialValue">
+			<value>0</value>
+		</property>
+	</object>
+</objects>
