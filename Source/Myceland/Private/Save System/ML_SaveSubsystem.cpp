@@ -74,6 +74,9 @@ void UML_SaveSubsystem::MarkPuzzleSolved(FName PuzzleID, const TArray<FML_TileSa
 	FML_PuzzleSaveRecord& Record = SaveObject->PuzzleRecords.FindOrAdd(PuzzleID);
 	Record.bIsSolved  = true;
 	Record.SolvedGrid = SolvedEntries;
+
+	SaveObject->LastSolvedPuzzleID = PuzzleID;
+
 	SaveToDisk();
 
 	UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' solved — saved to disk."), *PuzzleID.ToString());
@@ -99,4 +102,9 @@ bool UML_SaveSubsystem::IsPuzzleSolved(FName PuzzleID) const
 		return Record->bIsSolved;
 	}
 	return false;
+}
+
+FName UML_SaveSubsystem::GetLastSolvedPuzzleID() const
+{
+	return SaveObject ? SaveObject->LastSolvedPuzzleID : NAME_None;
 }

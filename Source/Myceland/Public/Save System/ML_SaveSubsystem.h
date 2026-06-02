@@ -52,6 +52,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Save")
 	bool IsPuzzleSolved(FName PuzzleID) const;
 
+	// Returns the PuzzleID of the most recently completed puzzle (None if no puzzle solved yet).
+	UFUNCTION(BlueprintPure, Category="Myceland Save")
+	FName GetLastSolvedPuzzleID() const;
+
 private:
 	UPROPERTY()
 	UML_GameSave* SaveObject = nullptr;

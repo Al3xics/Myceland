@@ -24,6 +24,10 @@ class MYCELAND_API AML_PlayerCharacter : public ACharacter, public IML_DialogueS
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	UFMODAudioComponent* AudioComponent;
+
+	// Reads LastSolvedPuzzleID from the save and teleports the player to that puzzle's exit tile.
+	// Called one tick after BeginPlay so all boards have finished restoring their grids.
+	void ApplySavedSpawnPosition();
     	
 	UPROPERTY()
 	AML_PlayerController* MycelandController;

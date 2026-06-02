@@ -20,4 +20,9 @@ public:
 	// One record per puzzle, keyed by the PuzzleID set on AML_BoardSpawner.
 	UPROPERTY(SaveGame)
 	TMap<FName, FML_PuzzleSaveRecord> PuzzleRecords;
+
+	// PuzzleID of the most recently solved puzzle. Used to restore the player's
+	// spawn position to that puzzle's exit tile on the next session load.
+	UPROPERTY(SaveGame)
+	FName LastSolvedPuzzleID;
 };
