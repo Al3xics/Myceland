@@ -88,7 +88,9 @@ void UML_InputDeviceManager::HandleHardwareDeviceChanged(const FPlatformUserId U
 	const ULocalPlayer* LP = PC ? PC->GetLocalPlayer() : nullptr;
 	if (!LP) return;
 
-	if (LP->GetPlatformUserId() != UserId) return;
+	// Single-player: do NOT filter by LP->GetPlatformUserId(). Reconnecting a gamepad to a
+	// different USB port reassigns its PlatformUserId, so the IDs would never match, and all
+	// subsequent gamepad events would be silently dropped.
 
 	UInputDeviceSubsystem* DevSub = GEngine ? GEngine->GetEngineSubsystem<UInputDeviceSubsystem>() : nullptr;
 	if (!DevSub) return;
@@ -121,6 +123,21 @@ void UML_InputDeviceManager::HandleDeviceConnectionChanged(EInputDeviceConnectio
 	}
 	else if (NewState == EInputDeviceConnectionState::Connected)
 	{
+		// Single-player: remap any device connecting with a wrong UserId to the local player's
+		// slot. Reconnecting to a different USB port changes the XInput slot index, giving the
+		// gamepad a new PlatformUserId (e.g. 1 instead of 0). Enhanced Input and
+		// UInputDeviceSubsystem only route events for the player's UserId, so the gamepad
+		// becomes completely silent. Internal_MapInputDeviceToUser re-registers the device under
+		// UserId=0 and re-fires this callback with the corrected user — the `return` below lets
+		// that second call handle the rest of the connection logic.
+		const APlayerController* PC = Cast<APlayerController>(GetOwner());
+		const ULocalPlayer* LP = PC ? PC->GetLocalPlayer() : nullptr;
+		if (LP && LP->GetPlatformUserId() != UserId)
+		{
+			IPlatformInputDeviceMapper::Get().Internal_MapInputDeviceToUser(InputDeviceId, LP->GetPlatformUserId(), EInputDeviceConnectionState::Connected);
+			return;
+		}
+
 		if (bSwitchOnGamepadConnect)
 		{
 			bGamepadConnectEventPending = false;
