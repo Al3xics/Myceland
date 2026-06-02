@@ -20,15 +20,18 @@ public class Myceland : ModuleRules
 			"UMG",
 			"Json",
 			"Foliage",
+			"LevelSequence",
+			"MovieScene",
 			"DeveloperSettings",
+			"CinematicCamera",
             "ProceduralMeshComponent",
-            "GameplayTags"
+            "GameplayTags", "FMODStudio"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Slate",
-			"SlateCore"
+			"SlateCore", "FMODStudio"
 		});
 
 		// Uncomment if you are using online features

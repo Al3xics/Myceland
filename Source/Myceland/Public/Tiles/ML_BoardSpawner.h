@@ -8,6 +8,9 @@
 #include "GameplayTagContainer.h"
 #include "Save System/ML_GameSaveData.h"
 #include "PuzzleGeneration/ML_PuzzleGenerationTypes.h"
+#include "LevelSequence.h"
+#include "CineCameraActor.h"
+#include "Actors/ML_CinematicCameraRail.h"
 #include "ML_BoardSpawner.generated.h"
 
 class UML_BiomeTileSet;
@@ -41,7 +44,13 @@ private:
 	AActor* AssociatedObstacle;
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
-	AActor* AssociatedNatureZone;
+	TArray<AActor*> AssociatedNatureZones;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	ULevelSequence* AssociatedWinCinematic;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	TObjectPtr<AML_CinematicCameraRail> AssociatedStartCinematicRail = nullptr;
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
@@ -167,7 +176,13 @@ public:
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
-	AActor* GetAssociatedNatureZone() const { return AssociatedNatureZone; } 
+	ULevelSequence* GetAssociatedWinCinematic() const { return AssociatedWinCinematic; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	AML_CinematicCameraRail* GetAssociatedStartCinematicRail() const { return AssociatedStartCinematicRail; }
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	TArray<AActor*> GetAssociatedNatureZones() const { return AssociatedNatureZones; } 
 	
 	// ==================== Myceland Hex Procedural Grid ====================
 	

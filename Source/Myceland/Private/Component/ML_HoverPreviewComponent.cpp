@@ -77,8 +77,23 @@ void UML_HoverPreviewComponent::ClearForcedHoverTile()
 		TickHoverPreview();
 }
 
+void UML_HoverPreviewComponent::UpdateShowPreviews(const bool Value)
+{
+	bShowPreviews = Value;
+	
+	// Disable previews if `bShowPreviews` is false
+	if (!bShowPreviews)
+	{
+		ClearHoverPreview();
+		ClearCursorHoverPreview();
+	}
+}
+
 void UML_HoverPreviewComponent::UpdateHoverPreview()
 {
+	// Do not show preview if `bShowPreviews` is false
+	if (!bShowPreviews) return;
+
 	TickHoverPreview();
 	TickCursorHoverPreview();
 }
