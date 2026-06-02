@@ -87,6 +87,9 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	float UndoSpeed = 3.0f;
 
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Undo Until Plant", Tooltip="When enabled, undo keeps going through Move actions until it also undoes the next Plant action."))
+	bool bUndoUntilPlant = false;
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	float ResetSpeed = 3.0f;
 	

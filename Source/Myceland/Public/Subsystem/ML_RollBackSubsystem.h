@@ -106,6 +106,12 @@ private:
 	bool bIsResetAllAnimating = false;
 
 	UPROPERTY(Transient)
+	bool bIsUndoUntilPlantAnimating = false;
+
+	UPROPERTY(Transient)
+	bool bUndoUntilPlantReachedPlant = false;
+
+	UPROPERTY(Transient)
 	bool bUndoTimeDilationApplied = false;
 	
 	UFUNCTION()
@@ -114,6 +120,10 @@ private:
 	void RunUndoWave();
 	void ScheduleNextUndoWave(float Delay);
 	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
+	bool UndoSingleAction_Animated();
+	bool UndoUntilPlant_Animated();
+	void StartNextUndoUntilPlantStep();
+	void ContinueUndoUntilPlantIfNeeded();
 	void StartNextResetUndoStep();
 	void ContinueResetAllIfNeeded();
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);

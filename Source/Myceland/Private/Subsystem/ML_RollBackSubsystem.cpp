@@ -331,13 +331,24 @@ void UML_RollBackSubsystem::FinishUndoAnimation()
 	PendingUndoSpawnDeltas.Reset();
 	ActiveUndoRecord = FML_TurnUndoRecord{};
 
-	if (!bIsResetAllAnimating)
+	if (!bIsResetAllAnimating && !bIsUndoUntilPlantAnimating)
 	{
 		ClearTimeDilation();
 		OnUndoAnimating.Broadcast(bIsUndoAnimating);
 	}
 
-	ContinueResetAllIfNeeded();
+	if (bIsResetAllAnimating)
+	{
+		ContinueResetAllIfNeeded();
+	}
+	else if (bIsUndoUntilPlantAnimating)
+	{
+		ContinueUndoUntilPlantIfNeeded();
+	}
+	else if (PlayerController)
+	{
+		PlayerController->EnableInput(PlayerController);
+	}
 }
 
 bool UML_RollBackSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Axial)
@@ -498,7 +509,7 @@ bool UML_RollBackSubsystem::ResetAllActions_Animated()
 	bIsResetAllAnimating = true;
 	OnResetAnimating.Broadcast(bIsResetAllAnimating);
 
-	const bool bStarted = UndoLastAction_Animated();
+	const bool bStarted = UndoSingleAction_Animated();
 	if (!bStarted)
 	{
 		bIsResetAllAnimating = false;
@@ -532,7 +543,7 @@ void UML_RollBackSubsystem::StartNextResetUndoStep()
 		return;
 	}
 
-	const bool bStarted = UndoLastAction_Animated();
+	const bool bStarted = UndoSingleAction_Animated();
 	if (!bStarted)
 	{
 		bIsResetAllAnimating = false;
@@ -578,6 +589,102 @@ bool UML_RollBackSubsystem::UndoLastAction_Animated()
 {
 	EnsureInitialized();
 	if (!PlayerController || !DevSettings) return false;
+
+	if (DevSettings->bUndoUntilPlant && !bIsResetAllAnimating)
+	{
+		return UndoUntilPlant_Animated();
+	}
+
+	return UndoSingleAction_Animated();
+}
+
+bool UML_RollBackSubsystem::UndoUntilPlant_Animated()
+{
+	if (!PlayerController || !DevSettings) return false;
+	if (bIsUndoAnimating || bIsUndoUntilPlantAnimating) return false;
+	if (!CanUndo()) return false;
+
+	bIsUndoUntilPlantAnimating = true;
+	bUndoUntilPlantReachedPlant = false;
+	OnUndoAnimating.Broadcast(true);
+
+	const bool bStarted = UndoSingleAction_Animated();
+	if (!bStarted)
+	{
+		bIsUndoUntilPlantAnimating = false;
+		bUndoUntilPlantReachedPlant = false;
+		bIsUndoAnimating = false;
+		ClearTimeDilation();
+		OnUndoAnimating.Broadcast(bIsUndoAnimating);
+		PlayerController->EnableInput(PlayerController);
+		return false;
+	}
+
+	return true;
+}
+
+void UML_RollBackSubsystem::StartNextUndoUntilPlantStep()
+{
+	if (!bIsUndoUntilPlantAnimating || bIsUndoAnimating) return;
+
+	UML_WavePropagationSubsystem* WaveSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>() : nullptr;
+	if (WaveSubsystem && WaveSubsystem->IsResolvingTiles())
+	{
+		if (GetWorld())
+		{
+			GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UML_RollBackSubsystem::StartNextUndoUntilPlantStep);
+		}
+		return;
+	}
+
+	const bool bStarted = UndoSingleAction_Animated();
+	if (!bStarted)
+	{
+		bIsUndoUntilPlantAnimating = false;
+		bUndoUntilPlantReachedPlant = false;
+		ClearTimeDilation();
+		OnUndoAnimating.Broadcast(false);
+
+		if (PlayerController)
+		{
+			PlayerController->EnableInput(PlayerController);
+		}
+	}
+}
+
+void UML_RollBackSubsystem::ContinueUndoUntilPlantIfNeeded()
+{
+	if (!bIsUndoUntilPlantAnimating)
+	{
+		if (PlayerController)
+		{
+			PlayerController->EnableInput(PlayerController);
+		}
+		return;
+	}
+
+	TArray<FML_ActionUndoRecord>* Stack = GetCurrentBoardStack();
+	if (bUndoUntilPlantReachedPlant || !Stack || Stack->Num() == 0 || !GetWorld())
+	{
+		bIsUndoUntilPlantAnimating = false;
+		bUndoUntilPlantReachedPlant = false;
+		ClearTimeDilation();
+		OnUndoAnimating.Broadcast(false);
+
+		if (PlayerController)
+		{
+			PlayerController->EnableInput(PlayerController);
+		}
+		return;
+	}
+
+	GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UML_RollBackSubsystem::StartNextUndoUntilPlantStep);
+}
+
+bool UML_RollBackSubsystem::UndoSingleAction_Animated()
+{
+	EnsureInitialized();
+	if (!PlayerController || !DevSettings) return false;
 	if (bIsUndoAnimating) return false;
 
 	UML_WavePropagationSubsystem* WaveSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>() : nullptr;
@@ -594,11 +701,15 @@ bool UML_RollBackSubsystem::UndoLastAction_Animated()
 	ApplyUndoTimeDilation();
 
 	const FML_ActionUndoRecord Action = Stack->Pop();
+	if (bIsUndoUntilPlantAnimating && Action.Type == EML_UndoActionType::PlantWaves)
+	{
+		bUndoUntilPlantReachedPlant = true;
+	}
 
 	if (Action.Type == EML_UndoActionType::Move)
 	{
 		bIsUndoAnimating = true;
-		if (!bIsResetAllAnimating)
+		if (!bIsResetAllAnimating && !bIsUndoUntilPlantAnimating)
 		{
 			OnUndoAnimating.Broadcast(bIsUndoAnimating);
 		}
@@ -613,7 +724,7 @@ bool UML_RollBackSubsystem::UndoLastAction_Animated()
 	if (Action.Type == EML_UndoActionType::PlantWaves)
 	{
 		bIsUndoAnimating = true;
-		if (!bIsResetAllAnimating)
+		if (!bIsResetAllAnimating && !bIsUndoUntilPlantAnimating)
 		{
 			OnUndoAnimating.Broadcast(bIsUndoAnimating);
 		}
@@ -684,7 +795,7 @@ bool UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Animated()
 	bIsResetAllAnimating = true;
 	OnResetAnimating.Broadcast(bIsResetAllAnimating);
 
-	const bool bStarted = UndoLastAction_Animated();
+	const bool bStarted = UndoSingleAction_Animated();
 	if (!bStarted)
 	{
 		bIsResetAllAnimating = false;
@@ -700,6 +811,8 @@ bool UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Animated()
 void UML_RollBackSubsystem::ResetRuntimeState()
 {
 	bIsResetAllAnimating = false;
+	bIsUndoUntilPlantAnimating = false;
+	bUndoUntilPlantReachedPlant = false;
 	bIsUndoAnimating = false;
 	bUndoInProgress = false;
 
