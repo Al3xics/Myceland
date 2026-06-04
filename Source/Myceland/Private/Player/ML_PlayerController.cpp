@@ -54,7 +54,9 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 		if (NavigationBridgeComponent && NavigationBridgeComponent->TickNavMeshMovement(DeltaTime))
 		{
 			SetIsMoving(false);
-			if (TransitionComponent->IsPendingBoardEntry())
+			// Never trigger board entry while a cinematic is running — the narrative subsystem
+			// owns player movement during that window.
+			if (TransitionComponent->IsPendingBoardEntry() && !bInCinematicMode)
 			{
 				OnPathFinished();
 			}
@@ -523,6 +525,7 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 
 void AML_PlayerController::OnSetDestinationStarted()
 {
+	if (bInCinematicMode) return;
 	if (!InputDeviceManager) return;
 	InputDeviceManager->NotifyMouseKeyboardInput();
 	if (bShouldConsumeNextInput) return; // flag stays true until Released
@@ -532,6 +535,7 @@ void AML_PlayerController::OnSetDestinationStarted()
 
 void AML_PlayerController::OnSetDestinationTriggered()
 {
+	if (bInCinematicMode) return;
 	if (bShouldConsumeNextInput) return;
 	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
 		InputDeviceManager->GetActiveHandler()->OnMoveActionTriggered(GetWorld()->GetDeltaSeconds());
@@ -543,12 +547,14 @@ void AML_PlayerController::OnSetDestinationReleased()
 	// Do NOT call the handler: OnMoveActionStarted was skipped so HoldMoveCachedDestination
 	// is stale, and calling OnMoveActionReleased would launch a navmesh move to a wrong target.
 	if (bShouldConsumeNextInput) { bShouldConsumeNextInput = false; return; }
+	if (bInCinematicMode) return;
 	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
 		InputDeviceManager->GetActiveHandler()->OnMoveActionReleased();
 }
 
 void AML_PlayerController::OnMoveAndPlantStarted()
 {
+	if (bInCinematicMode) return;
 	if (!InputDeviceManager) return;
 	InputDeviceManager->NotifyMouseKeyboardInput();
 	if (bShouldConsumeNextInput) { bShouldConsumeNextInput = false; return; }
@@ -558,6 +564,7 @@ void AML_PlayerController::OnMoveAndPlantStarted()
 
 void AML_PlayerController::OnGamepadConfirmStarted()
 {
+	if (bInCinematicMode) return;
 	if (!InputDeviceManager) return;
 	InputDeviceManager->NotifyGamepadInput();
 	if (InputDeviceManager->GetActiveHandler())
@@ -566,6 +573,7 @@ void AML_PlayerController::OnGamepadConfirmStarted()
 
 void AML_PlayerController::OnGamepadMoveAndPlantStarted()
 {
+	if (bInCinematicMode) return;
 	if (!InputDeviceManager) return;
 	InputDeviceManager->NotifyGamepadInput();
 	if (InputDeviceManager->GetActiveHandler())
@@ -574,17 +582,19 @@ void AML_PlayerController::OnGamepadMoveAndPlantStarted()
 
 void AML_PlayerController::OnGamepadMoveAxis(const FVector2D& Value)
 {
+	if (bInCinematicMode) return;
 	if (!InputDeviceManager) return;
-	
+
 	// OnInputHardwareDeviceChanged does not fire for analog axes, so we switch here directly.
 	InputDeviceManager->NotifyGamepadInput();
-	
+
 	if (InputDeviceManager->GetActiveHandler())
 		InputDeviceManager->GetActiveHandler()->OnStickAxis(Value, GetWorld()->GetDeltaSeconds());
 }
 
 void AML_PlayerController::OnGamepadMoveReleased()
 {
+	if (bInCinematicMode) return;
 	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
 		InputDeviceManager->GetActiveHandler()->OnStickReleased();
 }
@@ -838,6 +848,13 @@ void AML_PlayerController::RequestBoardEntry(AML_Tile* TargetTile)
 void AML_PlayerController::StopNavMeshMovement()
 {
 	if (NavigationBridgeComponent) NavigationBridgeComponent->StopNavMeshMovement();
+}
+
+void AML_PlayerController::CancelPendingNavigation()
+{
+	StopNavMeshMovement();
+	if (TransitionComponent)
+		TransitionComponent->CancelPendingBoardEntry();
 }
 
 AML_Tile* AML_PlayerController::FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const

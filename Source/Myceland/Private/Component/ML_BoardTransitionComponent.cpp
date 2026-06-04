@@ -212,6 +212,17 @@ void UML_BoardTransitionComponent::RequestBoardEntry(AML_Tile* TargetTile)
 	OwningController->SetMovementMode(EML_PlayerMovementMode::EnteringBoard);
 }
 
+void UML_BoardTransitionComponent::CancelPendingBoardEntry()
+{
+	if (!bPendingBoardEntryOnArrival) return;
+
+	bPendingBoardEntryOnArrival = false;
+	PendingBoardEntryTargetTile = nullptr;
+
+	if (CurrentMovementMode == EML_PlayerMovementMode::EnteringBoard)
+		OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
+}
+
 // ==================== Turn toward tile ====================
 
 void UML_BoardTransitionComponent::StartTurnTowardTile(AML_Tile* Target)

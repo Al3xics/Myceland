@@ -24,6 +24,9 @@ private:
 	/** World position under cursor, cached every frame during free movement hold. */
 	FVector HoldMoveCachedDestination = FVector::ZeroVector;
 
+	/** Set when Started detects a non-walkable tile; suppresses Triggered and Released for this click cycle. */
+	bool bIgnoreCurrentClick = false;
+
 	void HandleInsideBoardClick();
 	void HandleFreeMovementClick();
 

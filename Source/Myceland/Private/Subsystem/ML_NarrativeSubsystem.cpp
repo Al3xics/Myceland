@@ -201,6 +201,11 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 
 void UML_NarrativeSubsystem::SetupCinematicMode()
 {
+	// Cancel any in-progress navmesh move and pending board entry before taking over player movement.
+	// Without this, a fast click toward a board can leave bPendingBoardEntryOnArrival=true, causing
+	// the player to enter the board mid-cinematic once the navmesh proximity check fires.
+	GetPlayerController()->CancelPendingNavigation();
+
 	// Swap IMCs: remove main (no movement/click) and add cinematic-only (skip only)
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())

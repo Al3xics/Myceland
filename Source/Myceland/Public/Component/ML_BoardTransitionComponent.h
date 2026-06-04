@@ -173,6 +173,9 @@ public:
 	 */
 	void RequestBoardEntry(AML_Tile* TargetTile);
 
+	/** Cancels any pending board entry intent (e.g. interrupted by a narrative trigger). */
+	void CancelPendingBoardEntry();
+
 	/** Starts the turn-toward-tile timer; sets BoardActionState = TurningToPlant. */
 	void StartTurnTowardTile(AML_Tile* Target);
 

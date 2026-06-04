@@ -271,6 +271,9 @@ public:
 	void CancelExitHold();
 	void RequestBoardEntry(AML_Tile* TargetTile);
 	void StopNavMeshMovement();
+
+	/** Stops NavMesh movement and cancels any pending board entry. Called when a cinematic interrupts navigation. */
+	void CancelPendingNavigation();
 	AML_Tile* FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const;
 	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
 	void SetForcedHoverTile(AML_Tile* Tile);

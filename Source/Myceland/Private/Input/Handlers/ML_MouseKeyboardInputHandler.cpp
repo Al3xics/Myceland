@@ -4,11 +4,13 @@
 
 #include "Player/ML_PlayerController.h"
 #include "Player/ML_PlayerCharacter.h"
+#include "Player/ML_HexPathfinder.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_BoardSpawner.h"
 
 void UML_MouseKeyboardInputHandler::OnMoveActionStarted()
 {
+	bIgnoreCurrentClick = false;
 	FollowTime = 0.f;
 
 	const EML_PlayerMovementMode Mode = Controller->GetMovementMode();
@@ -21,6 +23,8 @@ void UML_MouseKeyboardInputHandler::OnMoveActionStarted()
 void UML_MouseKeyboardInputHandler::OnMoveActionTriggered(float DeltaTime)
 {
 	FollowTime += DeltaTime;
+
+	if (bIgnoreCurrentClick) return;
 
 	if (Controller->GetMovementMode() != EML_PlayerMovementMode::FreeMovement)
 		return;
@@ -35,10 +39,13 @@ void UML_MouseKeyboardInputHandler::OnMoveActionTriggered(float DeltaTime)
 	if (!Controller->IsClickableGround(Hit))
 		return;
 
-	// Only follow on open ground — clicking on a board still triggers re-entry on release.
-	if (!Cast<AML_Tile>(Hit.GetActor()))
-		HoldMoveCachedDestination = Hit.Location;
+	// Don't redirect toward non-walkable tiles (obstacle child actors were previously missed by Cast<AML_Tile>).
+	// Walkable tiles do update the destination — the player approaches the board, physical obstacle collision blocks entry.
+	const AML_Tile* HitTile = AML_PlayerController::ExtractTileFromHit(Hit);
+	if (HitTile && !UML_HexPathfinder::IsTileWalkable(HitTile))
+		return;
 
+	HoldMoveCachedDestination = Hit.Location;
 	const FVector Direction = (HoldMoveCachedDestination - Character->GetActorLocation()).GetSafeNormal();
 	Character->AddMovementInput(Direction, Controller->GetMoveSpeedScale());
 }
@@ -52,6 +59,13 @@ void UML_MouseKeyboardInputHandler::OnMoveActionReleased()
 		// Cursor is outside the board after releasing — clear the exit tile glow and path preview.
 		Controller->ClearForcedHoverTile();
 		Controller->ClearHoverPreview();
+	}
+
+	if (bIgnoreCurrentClick)
+	{
+		bIgnoreCurrentClick = false;
+		FollowTime = 0.f;
+		return;
 	}
 
 	if (Controller->GetMovementMode() == EML_PlayerMovementMode::FreeMovement)
@@ -103,22 +117,27 @@ void UML_MouseKeyboardInputHandler::HandleInsideBoardClick()
 
 void UML_MouseKeyboardInputHandler::HandleFreeMovementClick()
 {
-	Controller->StopNavMeshMovement();
-
 	AML_Tile* TargetTile = Controller->GetTileUnderCursor();
-	
-	// Click on a tile in the board (wants to enter the board)
+
 	if (IsValid(TargetTile))
 	{
 		AML_BoardSpawner* Board = TargetTile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) return;
 
+		if (!UML_HexPathfinder::IsTileWalkable(TargetTile))
+		{
+			bIgnoreCurrentClick = true;
+			return;
+		}
+
+		Controller->StopNavMeshMovement();
 		Controller->RequestBoardEntry(TargetTile);
 		Controller->StartNavMeshMovement(TargetTile->GetActorLocation());
 		return;
 	}
 
-	// Didn't click in the board, continue to move outside (free movement)
+	// No board tile hit: free movement on open ground.
+	Controller->StopNavMeshMovement();
 	FHitResult Hit;
 	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
 	if (!Controller->IsClickableGround(Hit)) return;
