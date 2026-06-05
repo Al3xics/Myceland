@@ -31,7 +31,9 @@ public class Myceland : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Slate",
-			"SlateCore", "FMODStudio"
+			"SlateCore",
+			"FMODStudio",
+			"ApplicationCore"
 		});
 
 		// Uncomment if you are using online features

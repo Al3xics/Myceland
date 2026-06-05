@@ -50,7 +50,10 @@ private:
 	AML_Tile* ForcedHoverTile = nullptr;
 	
 	bool bShowPreviews = true;
-	
+
+	// False when a gamepad is active: cursor position must not influence tile hover.
+	bool bCursorHoverEnabled = true;
+
 	void UpdateHoverPreview();
 	void TickHoverPreview();
 	void TickCursorHoverPreview();
@@ -75,4 +78,5 @@ public:
 	void ClearForcedHoverTile();
 
 	void UpdateShowPreviews(const bool Value);
+	void NotifyInputDeviceChanged(EML_InputDevice NewDevice);
 };

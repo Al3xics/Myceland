@@ -58,6 +58,9 @@ public:
 	void GoBack();
     
 	UFUNCTION(BlueprintCallable, Category = "Myceland UI Manager|Navigation")
+	void GoBackTo(UPARAM(meta=(Categories="UI.Widget")) FGameplayTag InWidgetTag);
+    
+	UFUNCTION(BlueprintCallable, Category = "Myceland UI Manager|Navigation")
 	void ClearNavigationStack();
     
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Myceland UI Manager|Info")
