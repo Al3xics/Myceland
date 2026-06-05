@@ -20,6 +20,8 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
+#include "FMODBlueprintStatics.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
 class UML_WavePropagationSubsystem;
@@ -243,6 +245,8 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 	{
 		OnGrassPlanted.Broadcast(HitTile);
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
+		//UFMODBlueprintStatics::PlayEventAtLocation(GetWorld(), TilePlantEvent, FTransform(HitTile->GetActorLocation()),true);
+		UML_SoundSubsystem::Get(this)->StartSoundAtLocation(TilePlantEvent,FTransform(HitTile->GetActorLocation()),true);
 	}
 }
 

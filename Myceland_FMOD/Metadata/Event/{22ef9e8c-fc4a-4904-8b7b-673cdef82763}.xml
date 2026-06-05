@@ -31,6 +31,9 @@
 		<relationship name="parameters">
 			<destination>{29db86c3-8f3b-4f0d-a520-670bb4f77b38}</destination>
 		</relationship>
+		<relationship name="userProperties">
+			<destination>{1a881d58-54e3-48b4-8957-2ed9dd677ff1}</destination>
+		</relationship>
 		<relationship name="banks">
 			<destination>{51a83855-b274-403c-8360-a40feddd8071}</destination>
 		</relationship>
@@ -70,6 +73,14 @@
 		<relationship name="modules">
 			<destination>{f1c3e9bf-3288-482e-a9db-f02a2b7135fa}</destination>
 		</relationship>
+	</object>
+	<object class="UserProperty" id="{1a881d58-54e3-48b4-8957-2ed9dd677ff1}">
+		<property name="key">
+			<value>DurationSeconds</value>
+		</property>
+		<property name="value">
+			<value>1.968</value>
+		</property>
 	</object>
 	<object class="EventMixerMaster" id="{7528a994-d214-44d4-8a9a-e2edb7c398b3}">
 		<relationship name="effectChain">

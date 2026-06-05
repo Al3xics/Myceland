@@ -14,6 +14,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Player/ML_PlayerController.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 
 AML_PlayerController* UML_NarrativeSubsystem::GetPlayerController() const
 {
@@ -40,8 +41,8 @@ void UML_NarrativeSubsystem::CleanupCurrentSequence()
 			if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
 			{
 				AudioComp->OnEventStopped.RemoveAll(this);
-				if (AudioComp->IsPlaying())
-					AudioComp->Stop();
+				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+					SoundSubsystem->StopSound(AudioComp);
 			}
 			Speaker->SetIsTalking(false);
 		}
@@ -139,9 +140,21 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 		return;
 	}
 
-	AudioComp->SetEvent(Line.Sound);
+	AudioComp->OnEventStopped.RemoveAll(this);
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		SoundSubsystem->StopSound(AudioComp);
+	
 	AudioComp->OnEventStopped.AddDynamic(this, &UML_NarrativeSubsystem::OnFMODEventStopped);
-	AudioComp->Play();
+	
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		SoundSubsystem->StartSound(Line.Sound, AudioComp);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Could not find SoundSubsystem for line %d"), CurrentLineIndex);
+		OnFMODEventStopped();
+	}
 }
 
 void UML_NarrativeSubsystem::OnLineFinished()
@@ -156,9 +169,9 @@ void UML_NarrativeSubsystem::OnLineFinished()
 		{
 			// Unbind callback to prevent double-triggering
 			AudioComp->OnEventStopped.RemoveAll(this);
-
-			if (AudioComp->IsPlaying())
-				AudioComp->Stop();
+			
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+				SoundSubsystem->StopSound(AudioComp);
 		}
 
 		Speaker->SetIsTalking(false);
@@ -191,9 +204,9 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 			{
 				// Unbind callback BEFORE stopping to prevent async OnEventStopped call
 				AudioComp->OnEventStopped.RemoveAll(this);
-
-				if (AudioComp->IsPlaying())
-					AudioComp->Stop();
+				
+				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+					SoundSubsystem->StopSound(AudioComp);
 			}
 
 			Speaker->SetIsTalking(false);
