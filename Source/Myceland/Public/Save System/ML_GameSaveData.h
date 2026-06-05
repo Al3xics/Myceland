@@ -48,6 +48,17 @@ struct FML_TileSaveEntry
 	EML_TileType TileType = EML_TileType::Dirt;
 };
 
+// Ordered list of puzzle IDs solved within one level (oldest → most recent).
+// Wrapped in a struct because UHT forbids TArray as a direct TMap value.
+USTRUCT(BlueprintType)
+struct FML_LevelSolveOrder
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame, BlueprintReadWrite)
+	TArray<FName> PuzzleIDs;
+};
+
 // All persistent data for one puzzle board, keyed by PuzzleID in the save object.
 USTRUCT(BlueprintType)
 struct FML_PuzzleSaveRecord

@@ -640,6 +640,15 @@ UML_SaveSubsystem* AML_BoardSpawner::GetSaveSubsystem() const
 	return GI ? GI->GetSubsystem<UML_SaveSubsystem>() : nullptr;
 }
 
+FName AML_BoardSpawner::GetLevelKey() const
+{
+	// Strip the "UEDPIE_N_" prefix that Unreal prepends in PIE so the key is identical
+	// whether the puzzle is solved in the editor or in a packaged build.
+	FString MapName = GetWorld()->GetMapName();
+	MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+	return FName(*MapName);
+}
+
 void AML_BoardSpawner::HandlePuzzleWon()
 {
 	// Only save for the board that actually triggered the win.
@@ -652,16 +661,16 @@ void AML_BoardSpawner::HandlePuzzleWon()
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
 	if (!SaveSys) return;
 
-	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid());
+	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid(), GetLevelKey());
 }
 
-void AML_BoardSpawner::ReplayPuzzle()
+void AML_BoardSpawner::RestoreToInitialState()
 {
-	if (!PuzzleID.IsValid()) return;
-
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
-	if (!SaveSys) return;
+	if (!SaveSys || !PuzzleID.IsValid()) return;
 
+	// InitialGrid is preserved by ResetPuzzle (only bIsSolved and SolvedGrid are cleared),
+	// so it is always safe to read here whether called before or after the save cascade.
 	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
 	if (Record.InitialGrid.IsEmpty()) return;
 
@@ -675,12 +684,40 @@ void AML_BoardSpawner::ReplayPuzzle()
 	}
 
 	bIsPuzzleSolved = false;
+	bGridMapCacheBuilt = false;
+
 	if (IsValid(AssociatedObstacle))
 	{
 		AssociatedObstacle->SetActorHiddenInGame(false);
 		AssociatedObstacle->SetActorEnableCollision(true);
 	}
-	SaveSys->ResetPuzzle(PuzzleID.GetTagName());
+
+	RefreshTileCaches();
+}
+
+void AML_BoardSpawner::ReplayPuzzle()
+{
+	if (!PuzzleID.IsValid()) return;
+
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	// Cascade the save reset within this level only. ResetPuzzle returns every puzzle ID
+	// that was cleared (this one + all solved after it in this level).
+	const TArray<FName> ResetIDs = SaveSys->ResetPuzzle(PuzzleID.GetTagName(), GetLevelKey());
+	if (ResetIDs.IsEmpty()) return;
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// Restore every affected board to its initial tile state.
+	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
+	{
+		AML_BoardSpawner* Board = *It;
+		if (!IsValid(Board) || !Board->PuzzleID.IsValid()) continue;
+		if (ResetIDs.Contains(Board->PuzzleID.GetTagName()))
+			Board->RestoreToInitialState();
+	}
 }
 
 void AML_BoardSpawner::AnalyzeCurrentPuzzle()

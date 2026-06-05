@@ -41,12 +41,16 @@ public:
 	void EnsureInitialGridSaved(FName PuzzleID, const TArray<FML_TileSaveEntry>& InitialEntries);
 
 	// Marks the puzzle as solved, stores the SolvedGrid snapshot, and saves to disk.
+	// LevelName scopes the solve into the correct per-level order log.
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
-	void MarkPuzzleSolved(FName PuzzleID, const TArray<FML_TileSaveEntry>& SolvedEntries);
+	void MarkPuzzleSolved(FName PuzzleID, const TArray<FML_TileSaveEntry>& SolvedEntries, FName LevelName);
 
-	// Clears the solved flag so the player can replay the puzzle. Saves to disk.
+	// Clears the solved flag for PuzzleID and every puzzle solved after it within
+	// the same level (cascade is level-scoped — other levels are never affected).
+	// Returns the full list of reset IDs so callers can restore the matching boards.
+	// LastSolvedPuzzleID is re-derived from the global order after removal.
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
-	void ResetPuzzle(FName PuzzleID);
+	TArray<FName> ResetPuzzle(FName PuzzleID, FName LevelName);
 
 	// Returns true if the puzzle has been solved at least once.
 	UFUNCTION(BlueprintPure, Category="Myceland Save")

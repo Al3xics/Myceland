@@ -193,12 +193,19 @@ public:
 	void AnalyzeCurrentPuzzle();
 	
 	
+	// Restores this board's tiles to their authored initial state and re-enables the
+	// obstacle. Does NOT write to the save — call ReplayPuzzle (or ResetPuzzle on the
+	// subsystem) to commit the change. Used directly for cascade resets.
+	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
+	void RestoreToInitialState();
+
 private:
-	
-	// Resets all tiles to their original authored state so the player can replay.
+
+	// Resets this puzzle (and every puzzle solved after it) back to its initial state
+	// and updates the save. Intended for editor and Blueprint use.
 	UFUNCTION(CallInEditor, BlueprintCallable, Category="Myceland Hex Grid", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
 	void ReplayPuzzle();
-	
+
 	// ==================== Save / Load Helpers ====================
 
 	// Returns a snapshot of the current GridMap as a flat array of tile entries.
@@ -206,6 +213,10 @@ private:
 
 	// Fetches the SaveSubsystem from the owning GameInstance. Returns null if unavailable.
 	UML_SaveSubsystem* GetSaveSubsystem() const;
+
+	// Returns a stable level key (map name with PIE prefix stripped) used to scope
+	// solve orders and cascade resets to the current level.
+	FName GetLevelKey() const;
 
 	// Bound to UML_WinLoseSubsystem::OnWin; captures the solved grid and saves to disk.
 	UFUNCTION()
