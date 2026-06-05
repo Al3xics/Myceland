@@ -106,6 +106,12 @@ private:
 	bool bIsResetAllAnimating = false;
 
 	UPROPERTY(Transient)
+	bool bIsUndoUntilPlantAnimating = false;
+
+	UPROPERTY(Transient)
+	bool bUndoUntilPlantReachedPlant = false;
+
+	UPROPERTY(Transient)
 	bool bUndoTimeDilationApplied = false;
 	
 	UFUNCTION()
@@ -114,11 +120,20 @@ private:
 	void RunUndoWave();
 	void ScheduleNextUndoWave(float Delay);
 	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
+	bool UndoSingleAction_Animated();
+	bool UndoUntilPlant_Animated();
+	void StartNextUndoUntilPlantStep();
+	void ContinueUndoUntilPlantIfNeeded();
 	void StartNextResetUndoStep();
 	void ContinueResetAllIfNeeded();
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
-	void ApplyUndoTimeDilation();
-	void ApplyResetTimeDilation();
+	void ApplyUndoTimeDilation(const TArray<FML_ActionUndoRecord>& Stack);
+	void ApplyResetTimeDilation(const TArray<FML_ActionUndoRecord>& Stack);
+	float EstimateUndoGameDuration(const TArray<FML_ActionUndoRecord>& Stack) const;
+	float EstimateResetGameDuration(const TArray<FML_ActionUndoRecord>& Stack) const;
+	float EstimateActionResetGameDuration(const FML_ActionUndoRecord& Action) const;
+	float EstimateMoveResetGameDuration(const FML_MoveUndoRecord& Move) const;
+	float EstimatePlantResetGameDuration(const FML_TurnUndoRecord& Turn) const;
 	void ClearTimeDilation();
 	void ResetRuntimeState();
 };
