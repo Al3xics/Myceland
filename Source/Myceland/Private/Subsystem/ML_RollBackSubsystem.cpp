@@ -464,11 +464,26 @@ void UML_RollBackSubsystem::NotifyMoveCompleted(
 	Stack->Add(Action);
 }
 
-void UML_RollBackSubsystem::ApplyUndoTimeDilation()
+void UML_RollBackSubsystem::ApplyUndoTimeDilation(const TArray<FML_ActionUndoRecord>& Stack)
 {
 	if (!GetWorld() || bUndoTimeDilationApplied) return;
 
-	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->UndoSpeed);
+	const UML_MycelandDeveloperSettings* Settings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	const float MinRollBackSpeed = Settings ? FMath::Max(Settings->UndoSpeed, 0.01f) : 1.0f;
+	if (!Settings || !Settings->bUseDynamicRollBackSpeed)
+	{
+		UGameplayStatics::SetGlobalTimeDilation(GetWorld(), MinRollBackSpeed);
+		bUndoTimeDilationApplied = true;
+		return;
+	}
+
+	const float EstimatedGameDuration = EstimateUndoGameDuration(Stack);
+	const float TargetDuration = Settings->ResetTargetDuration;
+	const float UndoTimeDilation = (EstimatedGameDuration > KINDA_SMALL_NUMBER && TargetDuration > KINDA_SMALL_NUMBER)
+		? EstimatedGameDuration / TargetDuration
+		: Settings->UndoSpeed;
+
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Max(UndoTimeDilation, MinRollBackSpeed));
 	bUndoTimeDilationApplied = true;
 }
 
@@ -477,7 +492,7 @@ void UML_RollBackSubsystem::ApplyResetTimeDilation(const TArray<FML_ActionUndoRe
 	if (!GetWorld() || bUndoTimeDilationApplied) return;
 
 	const UML_MycelandDeveloperSettings* Settings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
-	if (!Settings || !Settings->bUseDynamicResetSpeed)
+	if (!Settings || !Settings->bUseDynamicRollBackSpeed)
 	{
 		const float FixedSpeed = Settings ? Settings->ResetSpeed : 1.0f;
 		UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Max(FixedSpeed, 0.01f));
@@ -494,6 +509,33 @@ void UML_RollBackSubsystem::ApplyResetTimeDilation(const TArray<FML_ActionUndoRe
 
 	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Max(ResetTimeDilation, MinDynamicSpeed));
 	bUndoTimeDilationApplied = true;
+}
+
+float UML_RollBackSubsystem::EstimateUndoGameDuration(const TArray<FML_ActionUndoRecord>& Stack) const
+{
+	if (Stack.Num() == 0)
+	{
+		return 0.0f;
+	}
+
+	if (!bIsUndoUntilPlantAnimating)
+	{
+		return EstimateActionResetGameDuration(Stack.Last());
+	}
+
+	float Duration = 0.0f;
+	for (int32 Index = Stack.Num() - 1; Index >= 0; --Index)
+	{
+		const FML_ActionUndoRecord& Action = Stack[Index];
+		Duration += EstimateActionResetGameDuration(Action);
+
+		if (Action.Type == EML_UndoActionType::PlantWaves)
+		{
+			break;
+		}
+	}
+
+	return Duration;
 }
 
 float UML_RollBackSubsystem::EstimateResetGameDuration(const TArray<FML_ActionUndoRecord>& Stack) const
@@ -823,7 +865,7 @@ bool UML_RollBackSubsystem::UndoSingleAction_Animated()
 
 	WaveSubsystem->CancelAllWaveTimers();
 	PlayerController->DisableInput(PlayerController);
-	ApplyUndoTimeDilation();
+	ApplyUndoTimeDilation(*Stack);
 
 	const FML_ActionUndoRecord Action = Stack->Pop();
 	if (bIsUndoUntilPlantAnimating && Action.Type == EML_UndoActionType::PlantWaves)

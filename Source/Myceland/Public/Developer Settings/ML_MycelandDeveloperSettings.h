@@ -93,8 +93,8 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	float ResetSpeed = 3.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Use Dynamic Reset Speed", Tooltip="When enabled, reset speed is computed from the current undo stack to target Reset Target Duration. When disabled, Reset Speed is used directly."))
-	bool bUseDynamicResetSpeed = true;
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Use Dynamic Rollback Speed", Tooltip="When enabled, undo and reset speeds are computed from the current rollback stack to target Reset Target Duration. When disabled, Undo Speed and Reset Speed are used directly."))
+	bool bUseDynamicRollBackSpeed = true;
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
 	float ResetTargetDuration = 4.0f;
