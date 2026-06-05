@@ -96,8 +96,16 @@ private:
 	UFUNCTION()
 	void HandleResetAnimating(bool bIsAnimating);
 
-UFUNCTION()
+	UFUNCTION()
 	void BroadcastNextConnectedGoalPathTile();
+
+	/**
+	 * Broadcasts OnWin, clears the pending flag, and runs both ClearWinPath
+	 * passes (player→exit now, entry→exit deferred one tick).
+	 * Called from BroadcastNextConnectedGoalPathTile when the queue drains,
+	 * and as a fallback from CheckWinLose when no new tiles need to be animated.
+	 */
+	void FireWinSequence();
 
 	UPROPERTY()
 	TSet<AML_Tile*> PreviousConnectedPathTiles;

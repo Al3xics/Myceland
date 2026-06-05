@@ -45,6 +45,31 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		bPendingClearWinPath = true;
+
+		// Kick off (or re-sync) the link-animation sequence.
+		// OnWin fires inside BroadcastNextConnectedGoalPathTile once the queue drains.
+		// Calling this here guarantees the flag is set BEFORE the queue is populated,
+		// regardless of the order the Blueprint calls CheckWinLose / TriggerFindConnectedGoalCheck.
+		TriggerFindConnectedGoalCheck();
+
+		// Fallback: if the winning state produced no new path tiles to animate
+		// (all tiles already resided in PreviousConnectedPathTiles), the queue is
+		// empty and no repeating timer is running — nothing will drain the queue
+		// and fire OnWin.  Schedule the win sequence for the next tick so the
+		// call stack has fully unwound before delegates broadcast.
+		const bool bQueueHasWork = QueueReadIndex < PendingConnectedGoalPathQueue.Num();
+		if (!bQueueHasWork
+			&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
+		{
+			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+			{
+				if (bPendingClearWinPath)
+				{
+					OnConnectedGoalPathComplete.Broadcast();
+					FireWinSequence();
+				}
+			});
+		}
 	}
 
 	return GameResult;
@@ -372,40 +397,8 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
 		OnConnectedGoalPathComplete.Broadcast();
 
-
 		if (bPendingClearWinPath)
-		{
-			OnWin.Broadcast();
-			bPendingClearWinPath = false;
-			for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
-			{
-				ClearWinPath(
-					CurrentBoardSpawner,
-					GetPlayerCurrentTile(),
-					WaterPath.ExitTile,
-					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
-				);
-			}
-
-			// Defer the Entry→Exit clear by one tick so UpdateClassAtRuntime changes
-			// from the first call are fully applied before the second BFS runs.
-			AML_BoardSpawner* Board = CurrentBoardSpawner;
-			GetWorld()->GetTimerManager().SetTimerForNextTick([this, Board]()
-			{
-				if (IsValid(CurrentBoardSpawner))
-				{
-					for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
-					{
-						ClearWinPath(
-							CurrentBoardSpawner,
-							WaterPath.EntryTile,
-							WaterPath.ExitTile,
-							{EML_TileType::Grass, EML_TileType::Water,EML_TileType::WaterPath, EML_TileType::Dirt}
-						);
-					}
-				}
-			});
-		}
+			FireWinSequence();
 
 		return;
 	}
@@ -413,6 +406,44 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 	AML_Tile* Next = PendingConnectedGoalPathQueue[QueueReadIndex++];
 	if (IsValid(Next))
 		OnConnectedGoalPathTile.Broadcast(Next);
+}
+
+void UML_WinLoseSubsystem::FireWinSequence()
+{
+	OnWin.Broadcast();
+	bPendingClearWinPath = false;
+
+	if (!IsValid(CurrentBoardSpawner))
+		return;
+
+	// First pass: player position → exit tile (converts Water → WaterPath along the way).
+	for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
+	{
+		ClearWinPath(
+			CurrentBoardSpawner,
+			GetPlayerCurrentTile(),
+			WaterPath.ExitTile,
+			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
+		);
+	}
+
+	// Defer the Entry→Exit pass by one tick so UpdateClassAtRuntime changes
+	// from the first pass are fully applied before the second BFS runs.
+	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+	{
+		if (IsValid(CurrentBoardSpawner))
+		{
+			for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
+			{
+				ClearWinPath(
+					CurrentBoardSpawner,
+					WaterPath.EntryTile,
+					WaterPath.ExitTile,
+					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
+				);
+			}
+		}
+	});
 }
 
 AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
