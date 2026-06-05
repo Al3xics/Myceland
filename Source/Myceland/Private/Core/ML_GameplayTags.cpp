@@ -8,8 +8,9 @@ namespace ML_GameplayTags
 	// ============================ Levels ============================
 	UE_DEFINE_GAMEPLAY_TAG(Level_Menu, "Level.Menu");
 	UE_DEFINE_GAMEPLAY_TAG(Level_WorldMap, "Level.WorldMap");
-	UE_DEFINE_GAMEPLAY_TAG(Level_TutoShowcase, "Level.TutoShowcase");
-	UE_DEFINE_GAMEPLAY_TAG(Level_LevelShowcase, "Level.LevelShowcase");
+	UE_DEFINE_GAMEPLAY_TAG(Level_World1_Level0, "Level.World1.Level0");
+	UE_DEFINE_GAMEPLAY_TAG(Level_World1_Level1, "Level.World1.Level1");
+	UE_DEFINE_GAMEPLAY_TAG(Level_World1_Level2, "Level.World1.Level2");
 	
 	
 	// ============================ UI ============================

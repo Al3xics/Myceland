@@ -11,6 +11,7 @@
 
 class UML_WidgetBase;
 class UML_RootWidgetBase;
+class UML_InputDeviceManager;
 
 UCLASS()
 class MYCELAND_API UML_UIManagerSubsystem : public UGameInstanceSubsystem
@@ -36,7 +37,20 @@ private :
 	FGameplayTag CurrentWidgetTag;
 	
 	void SwitchWidgetInternal(FGameplayTag InWidgetTag, bool bAddToStack);
-	void ApplyInputModeFromWidget(UML_WidgetBase* Widget) const;
+	void ApplyInputModeFromWidget(UML_WidgetBase* Widget);
+
+	// Defers SetFocus by a short delay (0.1s) — required because Slate drops focus assigned
+	// before the widget's first layout pass after becoming visible. A single-frame delay
+	// proved unreliable in practice, hence the explicit timer rather than SetTimerForNextTick.
+	void SetFocusDeferred(UML_WidgetBase* Widget);
+
+	FTimerHandle PendingFocusTimer;
+
+	void SubscribeToDeviceChanges();
+	void UnsubscribeFromDeviceChanges();
+
+	UFUNCTION()
+	void HandleInputDeviceChanged(EML_InputDevice NewDevice);
 
 public:
 	// Register the active context root widget (called when a level loads)
@@ -56,6 +70,9 @@ public:
     
 	UFUNCTION(BlueprintCallable, Category = "Myceland UI Manager|Navigation")
 	void GoBack();
+    
+	UFUNCTION(BlueprintCallable, Category = "Myceland UI Manager|Navigation")
+	void GoBackTo(UPARAM(meta=(Categories="UI.Widget")) FGameplayTag InWidgetTag);
     
 	UFUNCTION(BlueprintCallable, Category = "Myceland UI Manager|Navigation")
 	void ClearNavigationStack();

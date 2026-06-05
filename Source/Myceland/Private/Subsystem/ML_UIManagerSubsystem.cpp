@@ -4,6 +4,7 @@
 #include "Subsystem/ML_UIManagerSubsystem.h"
 
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "Input/ML_InputDeviceManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/ML_RootWidgetBase.h"
 #include "UI/ML_WidgetBase.h"
@@ -45,7 +46,7 @@ void UML_UIManagerSubsystem::SwitchWidgetInternal(FGameplayTag InWidgetTag, bool
 	CurrentWidgetTag = InWidgetTag;
 }
 
-void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) const
+void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget)
 {
 	ensureMsgf(Widget, TEXT("Trying to apply input mode from null widget"));
 	if (!Widget) return;
@@ -53,6 +54,14 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	ensureMsgf(PC, TEXT("Trying to apply input mode from null player controller"));
 	if (!PC) return;
+
+	// Initial focus anchor for the input mode. We target the interactive widget
+	// (GetDefaultFocusWidget — e.g. the inner SButton) rather than the page container,
+	// so input has a valid focus the instant the mode is applied. Slate frequently drops
+	// this focus because the widget hasn't had its first layout pass yet; SetFocusDeferred()
+	// below re-applies the real focus a fraction of a second later (this is the call that sticks).
+	UWidget* FocusTarget = Widget->GetDefaultFocusWidget();
+	TSharedRef<SWidget> FocusSlateWidget = FocusTarget ? FocusTarget->TakeWidget() : Widget->TakeWidget();
 
 	switch (Widget->InputMode)
 	{
@@ -68,7 +77,7 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 		case EML_WidgetInputMode::UIOnly:
 			{
 				FInputModeUIOnly Mode;
-				Mode.SetWidgetToFocus(Widget->TakeWidget());
+				Mode.SetWidgetToFocus(FocusSlateWidget);
 				Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 				PC->SetInputMode(Mode);
 				PC->SetShowMouseCursor(true);
@@ -78,19 +87,73 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget) co
 		case EML_WidgetInputMode::GameAndUI:
 			{
 				FInputModeGameAndUI Mode;
-				Mode.SetWidgetToFocus(Widget->TakeWidget());
+				Mode.SetWidgetToFocus(FocusSlateWidget);
 				Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 				Mode.SetHideCursorDuringCapture(false);
 				PC->SetInputMode(Mode);
 				PC->SetShowMouseCursor(true);
 				break;
 			}
-			
-		default: 
+
+		default:
 			break;
 	}
 
-	Widget->SetFocus();
+	SetFocusDeferred(Widget);
+}
+
+void UML_UIManagerSubsystem::SetFocusDeferred(UML_WidgetBase* Widget)
+{
+	if (!Widget) return;
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	TWeakObjectPtr<UML_WidgetBase> WeakWidget = Widget;
+	World->GetTimerManager().ClearTimer(PendingFocusTimer);
+	World->GetTimerManager().SetTimer(PendingFocusTimer, [WeakWidget]()
+	{
+		if (!WeakWidget.IsValid()) return;
+		// Resolve the focus target now (not when the timer was scheduled): the widget tree is
+		// settled by this point. GetDefaultFocusWidget() must return an interactive *primitive*
+		// (e.g. a UButton, whose cached SWidget is the focusable SButton) — never a UUserWidget
+		// wrapper, whose SObjectWidget would receive focus instead of the button and swallow Enter.
+		if (UWidget* FocusTarget = WeakWidget->GetDefaultFocusWidget())
+			FocusTarget->SetFocus();
+	}, 0.1f, false);
+}
+
+void UML_UIManagerSubsystem::SubscribeToDeviceChanges()
+{
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!PC) return;
+
+	UML_InputDeviceManager* DevMgr = PC->FindComponentByClass<UML_InputDeviceManager>();
+	if (!DevMgr) return;
+
+	DevMgr->OnInputDeviceChanged.RemoveDynamic(this, &UML_UIManagerSubsystem::HandleInputDeviceChanged);
+	DevMgr->OnInputDeviceChanged.AddDynamic(this, &UML_UIManagerSubsystem::HandleInputDeviceChanged);
+}
+
+void UML_UIManagerSubsystem::UnsubscribeFromDeviceChanges()
+{
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!PC) return;
+
+	UML_InputDeviceManager* DevMgr = PC->FindComponentByClass<UML_InputDeviceManager>();
+	if (!DevMgr) return;
+
+	DevMgr->OnInputDeviceChanged.RemoveDynamic(this, &UML_UIManagerSubsystem::HandleInputDeviceChanged);
+}
+
+void UML_UIManagerSubsystem::HandleInputDeviceChanged(EML_InputDevice NewDevice)
+{
+	if (NewDevice != EML_InputDevice::Gamepad) return;
+	if (!CurrentWidgetTag.IsValid()) return;
+
+	UML_WidgetBase* Widget = Cast<UML_WidgetBase>(RegisteredWidgets.FindRef(CurrentWidgetTag));
+	if (!Widget || !Widget->bReceivesGamepadFocus) return;
+
+	SetFocusDeferred(Widget);
 }
 
 void UML_UIManagerSubsystem::RegisterContextRoot(FGameplayTag InContextTag, UUserWidget* InWidget)
@@ -105,7 +168,9 @@ void UML_UIManagerSubsystem::RegisterContextRoot(FGameplayTag InContextTag, UUse
 	CurrentContextRoot = InWidget;
 	CurrentContextTag = InContextTag;
 	CurrentWidgetTag = FGameplayTag();
-    
+
+	SubscribeToDeviceChanges();
+
 	UE_LOG(LogTemp, Log, TEXT("UI Manager: Registered context root '%s'"), *InContextTag.ToString());
 }
 
@@ -124,10 +189,12 @@ void UML_UIManagerSubsystem::RegisterWidget(FGameplayTag InWidgetTag, UUserWidge
 
 void UML_UIManagerSubsystem::UnregisterAllWidgets()
 {
+	UnsubscribeFromDeviceChanges();
+
 	RegisteredWidgets.Empty();
 	NavigationStack.Empty();
 	CurrentWidgetTag = FGameplayTag();
-    
+
 	UE_LOG(LogTemp, Log, TEXT("UI Manager: Unregistered all widgets"));
 }
 
@@ -143,6 +210,27 @@ void UML_UIManagerSubsystem::GoBack()
 	
 	const FGameplayTag PreviousTag = NavigationStack.Pop();
 	SwitchWidgetInternal(PreviousTag, false);
+}
+
+void UML_UIManagerSubsystem::GoBackTo(FGameplayTag InWidgetTag)
+{
+	ensureMsgf(NavigationStack.Num() > 0, TEXT("Navigation stack empty"));
+	if (NavigationStack.Num() <= 0) return;
+	
+	for (int32 i = NavigationStack.Num() - 1; i >= 0; i--)
+	{
+		if (NavigationStack[i] == InWidgetTag)
+		{
+			const int32 RemoveStartIndex = i + 1;
+			const int32 RemoveCount = NavigationStack.Num() - RemoveStartIndex;
+			
+			if (RemoveCount > 0)
+				NavigationStack.RemoveAt(RemoveStartIndex, RemoveCount);
+			
+			SwitchWidgetInternal(InWidgetTag, false);
+			return;
+		}
+	}
 }
 
 void UML_UIManagerSubsystem::ClearNavigationStack()
