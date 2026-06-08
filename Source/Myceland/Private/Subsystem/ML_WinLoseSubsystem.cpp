@@ -382,6 +382,40 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 	}
 }
 
+void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board)
+{
+	if (!IsValid(Board)) return;
+
+	// Compute connected groups on the requested board — does NOT alter
+	// CurrentBoardSpawner or PreviousConnectedPathTiles, so the active
+	// board's pathfinding state is completely unaffected.
+	FindConnectedGoalGroups(Board, EML_TileType::Tree, CachedGoalPathAllowedSet, false, 2);
+
+	bool bAddedAny = false;
+	for (const FML_TileGroup& Group : ConnectedGoalGroups)
+	{
+		for (AML_Tile* Tile : Group.Tiles)
+		{
+			if (!IsValid(Tile)) continue;
+			// PersistentAnimatedTiles tracks what has already been shown so
+			// re-entering the hub (or solving a second puzzle on the same hub)
+			// never re-plays the animation for tiles that are already lit.
+			if (PersistentAnimatedTiles.Contains(Tile)) continue;
+
+			PersistentAnimatedTiles.Add(Tile);
+			PendingConnectedGoalPathQueue.Add(Tile);
+			bAddedAny = true;
+		}
+	}
+
+	if (bAddedAny
+		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
+			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, 0.1f, true);
+	}
+}
+
 void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 {
 	while (QueueReadIndex < PendingConnectedGoalPathQueue.Num()
