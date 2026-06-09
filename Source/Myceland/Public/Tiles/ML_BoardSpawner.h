@@ -44,6 +44,9 @@ private:
 	TArray<AActor*> AssociatedNatureZones;
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	TArray<AActor*> AssociatedWaterPaths;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	ULevelSequence* AssociatedWinCinematic;
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
@@ -177,6 +180,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AActor*> GetAssociatedNatureZones() const { return AssociatedNatureZones; } 
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	TArray<AActor*> GetAssociatedWaterPaths() const { return AssociatedWaterPaths; } 
 	
 	// ==================== Myceland Hex Procedural Grid ====================
 	
