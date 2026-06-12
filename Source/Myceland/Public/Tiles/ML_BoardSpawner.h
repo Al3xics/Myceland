@@ -137,6 +137,9 @@ public:
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Clear Grid"))
 	void ClearTiles();
 	
+	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Destroy Stale Tiles"))
+	void DestroyStaleTiles() const;
+	
 	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
 	TArray<AML_Tile*> GetNeighbors(AML_Tile* CenterTile);
 	
