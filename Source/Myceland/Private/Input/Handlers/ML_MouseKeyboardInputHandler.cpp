@@ -39,12 +39,9 @@ void UML_MouseKeyboardInputHandler::OnMoveActionTriggered(float DeltaTime)
 	if (!Controller->IsClickableGround(Hit))
 		return;
 
-	// Don't redirect toward non-walkable tiles (obstacle child actors were previously missed by Cast<AML_Tile>).
-	// Walkable tiles do update the destination — the player approaches the board, physical obstacle collision blocks entry.
-	const AML_Tile* HitTile = AML_PlayerController::ExtractTileFromHit(Hit);
-	if (HitTile && !UML_HexPathfinder::IsTileWalkable(HitTile))
-		return;
-
+	// Keep driving the player toward the cursor even when it's over a non-walkable tile:
+	// the player should approach the obstacle and let physical collision stop it just short of entry,
+	// rather than freezing in place the moment the cursor crosses onto an obstacle tile.
 	HoldMoveCachedDestination = Hit.Location;
 	const FVector Direction = (HoldMoveCachedDestination - Character->GetActorLocation()).GetSafeNormal();
 	Character->AddMovementInput(Direction, Controller->GetMoveSpeedScale());
