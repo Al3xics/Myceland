@@ -28,12 +28,19 @@ void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode
 
 void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
 {
-	// If the player just arrived on the highlighted tile, clear its glow immediately.
 	if (IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
 		(ForcedHoverTile == PlayerCharacter->CurrentTileOn ||
 		 LastCursorHoveredTile == PlayerCharacter->CurrentTileOn))
 	{
+		// Player just arrived on the highlighted tile → clear its glow immediately.
 		ClearCursorHoverPreview();
+	}
+	else if (bLastCursorTileIsPlayerTile && IsValid(LastCursorHoveredTile) && bCurrentHoveredTileReachable)
+	{
+		// Player left the tile the cursor is still hovering → refresh it from the
+		// special player-tile glow back to a normal cursor hover.
+		LastCursorHoveredTile->GlowCursorHovered(false);
+		bLastCursorTileIsPlayerTile = false;
 	}
 
 	// Force the preview path update from the new position.
@@ -142,6 +149,11 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 		const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
 		                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
 		CursorHoveredTile->GlowCursorHovered(bIsPlayerTile);
+		bLastCursorTileIsPlayerTile = bIsPlayerTile;
+	}
+	else
+	{
+		bLastCursorTileIsPlayerTile = false;
 	}
 
 	LastCursorHoveredTile = CursorHoveredTile;
@@ -154,6 +166,7 @@ void UML_HoverPreviewComponent::ClearCursorHoverPreview()
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
 		LastCursorHoveredTile = nullptr;
 	}
+	bLastCursorTileIsPlayerTile = false;
 }
 
 void UML_HoverPreviewComponent::SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable)
