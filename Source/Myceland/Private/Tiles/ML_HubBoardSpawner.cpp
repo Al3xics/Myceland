@@ -240,6 +240,9 @@ void AML_HubBoardSpawner::FinalizeTileChanges(int32 EntryIndex)
 
 	if (PuzzleEntries.Num() > 0 && AppliedEntryIndices.Num() == PuzzleEntries.Num())
 		OnHubAllTilesPlaced.Broadcast();
+
+	if (!IsValid(WinLoseSubsystem)) return;
+	WinLoseSubsystem->TriggerConnectedGoalAnimationForBoard(this);
 }
 
 // ==================== Tile Revert ====================
