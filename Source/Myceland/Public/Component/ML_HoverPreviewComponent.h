@@ -30,6 +30,10 @@ private:
 	UPROPERTY(Transient)
 	AML_Tile* LastCursorHoveredTile = nullptr;
 
+	// True when LastCursorHoveredTile is currently glowing as the player's own tile.
+	// Lets us refresh its glow back to a normal cursor hover once the player leaves it.
+	bool bLastCursorTileIsPlayerTile = false;
+
 	UPROPERTY(Transient)
 	AML_Tile* LastHoveredTile = nullptr;
 
