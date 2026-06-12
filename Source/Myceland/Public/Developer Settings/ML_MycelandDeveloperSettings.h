@@ -99,6 +99,11 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
 	float ResetTargetDuration = 4.0f;
 	
+
+	// ==================== Win ====================
+
+	UPROPERTY(EditAnywhere,Category = "Myceland WinLose")
+	float WinDelay = 2.0f;
 	
 	
 	// ==================== Helper ====================

@@ -7,6 +7,7 @@
 #include "Tiles/ML_BoardSpawner.h"
 #include "ML_WinLoseSubsystem.generated.h"
 
+class UML_MycelandDeveloperSettings;
 class AML_Tile;
 class AML_PlayerCharacter;
 struct FML_GameResult;
@@ -135,6 +136,10 @@ private:
 	TArray<AML_Tile*> PendingConnectedGoalPathQueue;
 
 	FTimerHandle ConnectedGoalPathTimerHandle;
+	FTimerHandle ConnectedWinTimerHandle;
+
+	UPROPERTY()
+	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
 
 	int32 QueueReadIndex = 0;
 	bool bPendingClearWinPath = false;

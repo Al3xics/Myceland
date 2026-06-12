@@ -6,6 +6,7 @@
 #include "Containers/Deque.h"
 #include "Core/ML_CoreData.h"
 #include "Core/ML_TileTypeTraits.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
@@ -429,10 +430,18 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 		PendingConnectedGoalPathQueue.Reset();
 		QueueReadIndex = 0;
 		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
-		OnConnectedGoalPathComplete.Broadcast();
 
 		if (bPendingClearWinPath)
-			FireWinSequence();
+		{
+			OnConnectedGoalPathComplete.Broadcast();
+			GetWorld()->GetTimerManager().SetTimer(
+				ConnectedWinTimerHandle,
+				this,
+				&UML_WinLoseSubsystem::FireWinSequence,
+				DevSettings->WinDelay,
+				false
+			);			
+		}
 
 		return;
 	}
@@ -520,6 +529,7 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	}
 
 	CachedGoalPathAllowedSet = UML_TileTypeTraits::GetWinPathTypes();
+	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 }
 
 void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
