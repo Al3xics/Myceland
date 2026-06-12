@@ -47,6 +47,26 @@ void AML_Tile::NotifyTileChangedNative()
 	OnTileChangedNative.Broadcast(this);
 }
 
+void AML_Tile::DestroyStaleChildActors()
+{
+	if (!TileChildActor) return;
+
+	const AActor* CurrentChild = TileChildActor->GetChildActor();
+
+	TArray<AActor*> Attached;
+	GetAttachedActors(Attached);
+
+	for (AActor* Actor : Attached)
+	{
+		if (!IsValid(Actor)) continue;
+		if (!Actor->IsA(AML_TileBase::StaticClass())) continue;
+		if (Actor == CurrentChild) continue;
+
+		// Orphaned tile visual from a previous class or an editor duplication.
+		Actor->Destroy();
+	}
+}
+
 void AML_Tile::SetBlocked(bool bNewBlocked)
 {
 	bBlocked = bNewBlocked;
@@ -103,6 +123,7 @@ void AML_Tile::UpdateClassInEditor(const EML_TileType NewTileType)
 	}
 
 	TileChildActor->SetChildActorClass(TileBase);
+	DestroyStaleChildActors();
 	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 }
 #endif
@@ -119,6 +140,7 @@ void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubcl
 	bConsumedGrass = (OldType == EML_TileType::Grass && NewTileType == EML_TileType::Parasite);
 	
 	TileChildActor->SetChildActorClass(NewClass);
+	DestroyStaleChildActors();
 	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 
 	OnTileTypeChanged(OldType, NewTileType);
@@ -138,6 +160,7 @@ void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const
 	CurrentType = NewTileType;
 
 	TileChildActor->SetChildActorClass(NewClass);
+	DestroyStaleChildActors();
 	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 
 	// NO OnTileTypeChanged(OldType, NewTileType) in silent mode
