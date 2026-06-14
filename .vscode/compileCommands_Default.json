@@ -1,0 +1,1954 @@
+[
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Classes\\FMODAmbientSoundActorFactory.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Classes\\FMODAssetBuilder.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Classes\\FMODGenerateAssetsCommandlet.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\FMODStudioEditor.Build.cs",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\AssetTypeActions_FMODEvent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\AssetTypeActions_FMODEvent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODAmbientSoundActorFactory.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODAssetBroker.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODAssetBuilder.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODAudioComponentDetails.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODAudioComponentDetails.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODAudioComponentVisualizer.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODAudioComponentVisualizer.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODBankUpdateNotifier.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODBankUpdateNotifier.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODEventEditor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODEventEditor.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODGenerateAssetsCommandlet.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODSettingsCustomization.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODSettingsCustomization.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODStudioEditorModule.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODStudioEditorPrivatePCH.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODStudioStyle.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\FMODStudioStyle.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\SFMODEventEditorPanel.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\SFMODEventEditorPanel.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODChannelEditors.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODChannelEditors.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODEventControlTrackEditor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODEventControlTrackEditor.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODEventParameterTrackEditor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODEventParameterTrackEditor.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODParameterSection.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Private\\Sequencer\\FMODParameterSection.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudioEditor\\Public\\FMODStudioEditorModule.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudioEditor.67.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODAmbientSound.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODAnimNotifyPlay.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODAsset.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODAudioComponent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODBank.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODBlueprintStatics.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODBus.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODEvent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODPort.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODSettings.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODSnapshot.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODSnapshotReverb.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Classes\\FMODVCA.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\FMODStudio.Build.cs",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\FMODStudioL_APL.xml",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\FMODStudio_APL.xml",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAmbientSound.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAnimNotifyPlay.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAsset.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAssetLookup.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAssetLookup.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAssetTable.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAssetTable.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODAudioComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODBank.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODBankLookup.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODBankLookup.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODBlueprintStatics.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODBus.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODEvent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODFileCallbacks.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODFileCallbacks.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODListener.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODListener.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODPlatform.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODPort.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODSettings.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODSnapshot.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODSnapshotReverb.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODStudioModule.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODStudioPrivatePCH.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\FMODVCA.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventControlSection.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventControlSection.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventControlSectionTemplate.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventControlSectionTemplate.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventControlTrack.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventControlTrack.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventParameterSectionTemplate.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventParameterSectionTemplate.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventParameterTrack.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Private\\Sequencer\\FMODEventParameterTrack.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMODCallbackHandler.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMODStudioModule.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMODUtils.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\FMODCallbackHandler.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod.hpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_android.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_codec.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_common.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_dsp.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_dsp_effects.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_errors.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_output.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_studio.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_studio.hpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Plugins\\FMODStudio\\Source\\FMODStudio\\Public\\FMOD\\fmod_studio_common.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\FMODStudio.66.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Myceland.Build.cs",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Myceland.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Myceland.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\MyceliumCharacter.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\MyceliumCharacter.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\MyceliumGameMode.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\MyceliumGameMode.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\MyceliumPlayerController.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\MyceliumPlayerController.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Actors\\ML_CameraRail.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Actors\\ML_CinematicCameraRail .cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Actors\\ML_NarrativeTrigger.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Actors\\ML_TalkingThing.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Collectible\\ML_Collectible.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Component\\ML_BoardTransitionComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Component\\ML_EnergyComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Component\\ML_HoverPreviewComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Component\\ML_MoveRecordingComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Component\\ML_NavigationBridgeComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Core\\ML_GameplayTags.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Core\\ML_TileTypeTraits.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Data Asset\\ML_BiomeTileSet.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Data Asset\\ML_NarrativeSequence.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Developer Settings\\ML_MycelandDeveloperSettings.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Input\\Handlers\\ML_GamepadInputHandler.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Input\\Handlers\\ML_MouseKeyboardInputHandler.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Input\\ML_InputDeviceManager.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Input\\ML_InputHandlerBase.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Interfaces\\ML_DialogueSpeaker.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Player\\ML_HexPathfinder.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Player\\ML_PlayerCharacter.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Player\\ML_PlayerController.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\PuzzleGeneration\\ML_PuzzleSimulator.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\PuzzleGeneration\\ML_PuzzleSolver.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Save System\\ML_GameSaveData.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Save System\\ML_JsonConsoleCommands.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Save System\\ML_JsonSaveSystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_CinematicSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_NarrativeSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_RollBackSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_SoundSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_UIManagerSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_WavePropagationSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_WinLoseSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Subsystem\\ML_WinPropagationSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\TechArt\\ML_LakeFishManager.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\TechArt\\ML_NatureZone.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\TechArt\\ML_ParasiteBlobField.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\TechArt\\ML_ParasiteRootNetwork.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\ML_BoardSpawner.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\ML_HubBoardSpawner.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\ML_Tile.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\ML_TileBase.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\TileBase\\ML_TileDirt.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\TileBase\\ML_TileGrass.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\TileBase\\ML_TileObstacle.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\TileBase\\ML_TileParasite.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\TileBase\\ML_TileTree.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\TileBase\\ML_TileWater.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\TileBase\\ML_TileWaterPath.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\UI\\ML_RootWidgetBase.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\UI\\ML_TabButtonWidget.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\UI\\ML_TabContainerWidget.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\UI\\ML_UserWidgetTemplate.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\UI\\ML_WidgetBase.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\User Settings\\ML_GameUserSettings.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\User Settings\\ML_InputUserSettings.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\User Settings\\ML_PlayerMappableKeyProfile.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Waves\\ChildWaves\\ML_WaveCollectible.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Waves\\ChildWaves\\ML_WaveGrass.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Waves\\ChildWaves\\ML_WaveParasite.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Waves\\ChildWaves\\ML_WaveWater.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Waves\\ML_PropagationWaves.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Actors\\ML_CameraRail.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Actors\\ML_CinematicCameraRail.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Actors\\ML_NarrativeTrigger.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Actors\\ML_TalkingThing.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Collectible\\ML_Collectible.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Component\\ML_BoardTransitionComponent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Component\\ML_EnergyComponent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Component\\ML_HoverPreviewComponent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Component\\ML_MoveRecordingComponent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Component\\ML_NavigationBridgeComponent.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Core\\ML_CoreData.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Core\\ML_GameplayTags.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Core\\ML_NarrativeData.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Core\\ML_TileTypeTraits.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Core\\ML_UndoTypes.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Data Asset\\ML_BiomeTileSet.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Data Asset\\ML_NarrativeSequence.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Developer Settings\\ML_MycelandDeveloperSettings.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Input\\Handlers\\ML_GamepadInputHandler.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Input\\Handlers\\ML_MouseKeyboardInputHandler.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Input\\ML_InputDeviceManager.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Input\\ML_InputHandlerBase.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Interfaces\\ML_DialogueSpeaker.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Player\\ML_HexPathfinder.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Player\\ML_PlayerCharacter.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Player\\ML_PlayerController.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\PuzzleGeneration\\ML_PuzzleGenerationTypes.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\PuzzleGeneration\\ML_PuzzleSimulator.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\PuzzleGeneration\\ML_PuzzleSolver.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Save System\\ML_GameSaveData.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Save System\\ML_JsonConsoleCommands.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Save System\\ML_JsonSaveSystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_CinematicSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_NarrativeSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_RollBackSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_SoundSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_UIManagerSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_WavePropagationSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_WinLoseSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Subsystem\\ML_WinPropagationSubsystem.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\TechArt\\ML_LakeFishManager.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\TechArt\\ML_NatureZone.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\TechArt\\ML_ParasiteBlobField.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\TechArt\\ML_ParasiteRootNetwork.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\ML_BoardSpawner.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\ML_HubBoardSpawner.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\ML_Tile.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\ML_TileBase.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\TileBase\\ML_TileDirt.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\TileBase\\ML_TileGrass.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\TileBase\\ML_TileObstacle.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\TileBase\\ML_TileParasite.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\TileBase\\ML_TileTree.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\TileBase\\ML_TileWater.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Tiles\\TileBase\\ML_TileWaterPath.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\UI\\ML_RootWidgetBase.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\UI\\ML_TabButtonWidget.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\UI\\ML_TabContainerWidget.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\UI\\ML_UserWidgetTemplate.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\UI\\ML_WidgetBase.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\User Settings\\ML_GameUserSettings.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\User Settings\\ML_InputUserSettings.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\User Settings\\ML_PlayerMappableKeyProfile.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Waves\\ChildWaves\\ML_WaveCollectible.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Waves\\ChildWaves\\ML_WaveGrass.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Waves\\ChildWaves\\ML_WaveParasite.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Waves\\ChildWaves\\ML_WaveWater.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Waves\\ML_PropagationWaves.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	}
+]
