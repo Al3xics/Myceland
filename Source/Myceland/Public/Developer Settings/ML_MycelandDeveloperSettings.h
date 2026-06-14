@@ -31,9 +31,20 @@ public:
 
 	UPROPERTY(EditAnywhere, config, Category="Input")
 	float ExitBoardHoldDuration = 2.f;
-	
-	
-	
+
+	// Gamepad: inside a board, how long the stick must be held in a direction before the
+	// tile selection starts auto-advancing to the next tile (the first tile is always
+	// selected immediately on push).
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Seconds the stick must be held before tile selection starts auto-advancing."))
+	float GamepadHoldRepeatDelay = 0.4f;
+
+	// Gamepad: once auto-advance is active, seconds between each step to the next tile.
+	// Lower = faster. Acts as the hold movement speed of the selection cursor.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.01", Tooltip="Seconds between each tile step while the stick is held (lower = faster)."))
+	float GamepadHoldRepeatInterval = 0.15f;
+
+
+
 	// ==================== UI ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
