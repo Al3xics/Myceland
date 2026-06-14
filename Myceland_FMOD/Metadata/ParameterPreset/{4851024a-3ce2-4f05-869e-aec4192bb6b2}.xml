@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="ParameterPreset" id="{4851024a-3ce2-4f05-869e-aec4192bb6b2}">
+		<property name="name">
+			<value>PuzzleProgress</value>
+		</property>
+		<relationship name="folder">
+			<destination>{f0283846-891d-4a40-920f-49dbe71e006e}</destination>
+		</relationship>
+		<relationship name="parameter">
+			<destination>{b1eb0315-2b90-4a48-8deb-441ad612ee84}</destination>
+		</relationship>
+	</object>
+	<object class="GameParameter" id="{b1eb0315-2b90-4a48-8deb-441ad612ee84}">
+		<property name="initialValue">
+			<value>0</value>
+		</property>
+	</object>
+</objects>

@@ -12,7 +12,6 @@ class AML_PlayerCharacter;
 class AML_BoardSpawner;
 class AML_Tile;
 class UML_MycelandDeveloperSettings;
-class UML_EnergyComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardActivityStateChanged, bool, bIsMoving);
@@ -54,9 +53,6 @@ private:
 
 	UPROPERTY(Transient)
 	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
-	
-	UPROPERTY(Transient)
-	UML_EnergyComponent* EnergyComponent = nullptr;
 
 	float RotateSpeed = 10.f;
 
@@ -113,8 +109,7 @@ private:
 
 public:
 
-	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, UML_EnergyComponent* Energy,
-	                const UML_MycelandDeveloperSettings* Settings, float InRotateSpeed);
+	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, const UML_MycelandDeveloperSettings* Settings, float InRotateSpeed);
 
 	
 	
@@ -177,6 +172,9 @@ public:
 	 * Controller still starts the NavMesh movement after calling this.
 	 */
 	void RequestBoardEntry(AML_Tile* TargetTile);
+
+	/** Cancels any pending board entry intent (e.g. interrupted by a narrative trigger). */
+	void CancelPendingBoardEntry();
 
 	/** Starts the turn-toward-tile timer; sets BoardActionState = TurningToPlant. */
 	void StartTurnTowardTile(AML_Tile* Target);

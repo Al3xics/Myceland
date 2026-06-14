@@ -118,13 +118,7 @@ public:
 	AML_BoardSpawner* GetBoardSpawnerFromTile() const { return Cast<AML_BoardSpawner>(GetOwner()); }
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void Glow();
-
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void StopGlowing();
-
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void GlowCursorHovered();
+	void GlowCursorHovered(bool bIsPlayerTile);
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowingCursorUnhovered();
@@ -153,6 +147,11 @@ public:
 
 	UFUNCTION()
 	void UpdateClassAtRuntime_Silent(EML_TileType NewTileType, TSubclassOf<AML_TileBase> NewClass);
+
+	// Destroys any AML_TileBase actor attached to this tile that is NOT the child actor
+	// currently tracked by TileChildActor. Guards against orphaned child actors left behind
+	// by editor duplication / reattachment, which otherwise keep showing the previous type.
+	void DestroyStaleChildActors();
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;

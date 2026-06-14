@@ -61,6 +61,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Myceland|Tile")
 	static bool IsWinPathTile(EML_TileType Type);
 
+	/**
+	 * Returns the set of all tile types for which IsWinPathTile is true.
+	 * Use this to initialise traversal-allowed sets so they stay in sync with the trait.
+	 */
+	static TSet<EML_TileType> GetWinPathTypes();
+
 	/** Returns true if this is a Water tile (original water, not converted). */
 	UFUNCTION(BlueprintPure, Category = "Myceland|Tile")
 	static bool IsWaterType(EML_TileType Type);

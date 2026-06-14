@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="ParameterPreset" id="{b5bcf0a2-cf32-4f5a-90f7-4cf5f152f024}">
+		<property name="name">
+			<value>ChainLength</value>
+		</property>
+		<relationship name="folder">
+			<destination>{f0283846-891d-4a40-920f-49dbe71e006e}</destination>
+		</relationship>
+		<relationship name="parameter">
+			<destination>{6168c05b-5719-481f-b5ca-d29aeac069ab}</destination>
+		</relationship>
+	</object>
+	<object class="GameParameter" id="{6168c05b-5719-481f-b5ca-d29aeac069ab}">
+		<property name="parameterType">
+			<value>1</value>
+		</property>
+		<property name="maximum">
+			<value>9</value>
+		</property>
+		<property name="initialValue">
+			<value>0</value>
+		</property>
+	</object>
+</objects>

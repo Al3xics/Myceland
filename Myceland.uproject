@@ -33,16 +33,14 @@
 			"Name": "PCG",
 			"Enabled": true
 		},
+        {
+            "Name": "GeometryScripting",
+            "Enabled": true
+        },
 		{
-			"Name": "GeometryScripting",
-			"Enabled": true
-		},
-		{
-			"Name": "WinDualShock",
+			"Name": "WindowsDualsense_ds5w",
 			"Enabled": true,
-			"SupportedTargetPlatforms": [
-				"Win64"
-			]
+			"Optional": true
 		}
 	]
 }

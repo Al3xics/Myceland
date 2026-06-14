@@ -293,15 +293,9 @@ bool AML_LakeFishManager::IsWaterTile(const AML_Tile* Tile) const
 {
 	if (!IsValid(Tile)) return false;
 
-	if (Tile->GetCurrentType() != EML_TileType::Water && Tile->GetCurrentType() != EML_TileType::WaterPath)
-	{
-		return false;
-	}
-
-	const UChildActorComponent* ChildComponent = Tile->GetTileChildActor();
-	return ChildComponent && Cast<AML_TileWater>(ChildComponent->GetChildActor()) != nullptr;
+	return Tile->GetCurrentType() == EML_TileType::Water
+		|| Tile->GetCurrentType() == EML_TileType::WaterPath;
 }
-
 bool AML_LakeFishManager::IsGrassTile(const AML_Tile* Tile) const
 {
 	if (!IsValid(Tile)) return false;

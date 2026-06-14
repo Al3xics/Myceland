@@ -10,8 +10,9 @@ namespace ML_GameplayTags
 	// ============================ Levels ============================
 	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_Menu);
 	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_WorldMap);
-	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_TutoShowcase);
-	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_LevelShowcase);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_World1_Level0);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_World1_Level1);
+	MYCELAND_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Level_World1_Level2);
 	
 	
 	// ============================ UI ============================

@@ -5,6 +5,8 @@
 #include "Algo/Reverse.h"
 #include "Containers/Deque.h"
 #include "Core/ML_CoreData.h"
+#include "Core/ML_TileTypeTraits.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
@@ -44,7 +46,31 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 		GameResult.Result = EML_WinLose::Win;
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
 		bPendingClearWinPath = true;
-		OnWin.Broadcast();
+
+		// Kick off (or re-sync) the link-animation sequence.
+		// OnWin fires inside BroadcastNextConnectedGoalPathTile once the queue drains.
+		// Calling this here guarantees the flag is set BEFORE the queue is populated,
+		// regardless of the order the Blueprint calls CheckWinLose / TriggerFindConnectedGoalCheck.
+		TriggerFindConnectedGoalCheck();
+
+		// Fallback: if the winning state produced no new path tiles to animate
+		// (all tiles already resided in PreviousConnectedPathTiles), the queue is
+		// empty and no repeating timer is running — nothing will drain the queue
+		// and fire OnWin.  Schedule the win sequence for the next tick so the
+		// call stack has fully unwound before delegates broadcast.
+		const bool bQueueHasWork = QueueReadIndex < PendingConnectedGoalPathQueue.Num();
+		if (!bQueueHasWork
+			&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
+		{
+			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+			{
+				if (bPendingClearWinPath)
+				{
+					OnConnectedGoalPathComplete.Broadcast();
+					FireWinSequence();
+				}
+			});
+		}
 	}
 
 	return GameResult;
@@ -58,7 +84,7 @@ bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
 	}
 
 	const EML_TileType TileType = CurrentTileOn->GetCurrentType();
-	if (TileType == EML_TileType::Water || TileType == EML_TileType::Parasite)
+	if (UML_TileTypeTraits::IsLethalTile(TileType))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You died"));
 		bIsPlayerDead = true;
@@ -357,6 +383,40 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 	}
 }
 
+void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board)
+{
+	if (!IsValid(Board)) return;
+
+	// Compute connected groups on the requested board — does NOT alter
+	// CurrentBoardSpawner or PreviousConnectedPathTiles, so the active
+	// board's pathfinding state is completely unaffected.
+	FindConnectedGoalGroups(Board, EML_TileType::Tree, CachedGoalPathAllowedSet, false, 2);
+
+	bool bAddedAny = false;
+	for (const FML_TileGroup& Group : ConnectedGoalGroups)
+	{
+		for (AML_Tile* Tile : Group.Tiles)
+		{
+			if (!IsValid(Tile)) continue;
+			// PersistentAnimatedTiles tracks what has already been shown so
+			// re-entering the hub (or solving a second puzzle on the same hub)
+			// never re-plays the animation for tiles that are already lit.
+			if (PersistentAnimatedTiles.Contains(Tile)) continue;
+
+			PersistentAnimatedTiles.Add(Tile);
+			PendingConnectedGoalPathQueue.Add(Tile);
+			bAddedAny = true;
+		}
+	}
+
+	if (bAddedAny
+		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
+			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, 0.1f, true);
+	}
+}
+
 void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 {
 	while (QueueReadIndex < PendingConnectedGoalPathQueue.Num()
@@ -370,39 +430,17 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 		PendingConnectedGoalPathQueue.Reset();
 		QueueReadIndex = 0;
 		GetWorld()->GetTimerManager().ClearTimer(ConnectedGoalPathTimerHandle);
-		OnConnectedGoalPathComplete.Broadcast();
 
 		if (bPendingClearWinPath)
 		{
-			bPendingClearWinPath = false;
-			for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
-			{
-				ClearWinPath(
-					CurrentBoardSpawner,
-					GetPlayerCurrentTile(),
-					WaterPath.ExitTile,
-					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
-				);
-			}
-
-			// Defer the Entry→Exit clear by one tick so UpdateClassAtRuntime changes
-			// from the first call are fully applied before the second BFS runs.
-			AML_BoardSpawner* Board = CurrentBoardSpawner;
-			GetWorld()->GetTimerManager().SetTimerForNextTick([this, Board]()
-			{
-				if (IsValid(CurrentBoardSpawner))
-				{
-					for (auto WaterPath : CurrentBoardSpawner->WaterPaths)
-					{
-						ClearWinPath(
-							CurrentBoardSpawner,
-							WaterPath.EntryTile,
-							WaterPath.ExitTile,
-							{EML_TileType::Grass, EML_TileType::Water,EML_TileType::WaterPath, EML_TileType::Dirt}
-						);
-					}
-				}
-			});
+			OnConnectedGoalPathComplete.Broadcast();
+			GetWorld()->GetTimerManager().SetTimer(
+				ConnectedWinTimerHandle,
+				this,
+				&UML_WinLoseSubsystem::FireWinSequence,
+				DevSettings->WinDelay,
+				false
+			);			
 		}
 
 		return;
@@ -411,6 +449,44 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 	AML_Tile* Next = PendingConnectedGoalPathQueue[QueueReadIndex++];
 	if (IsValid(Next))
 		OnConnectedGoalPathTile.Broadcast(Next);
+}
+
+void UML_WinLoseSubsystem::FireWinSequence()
+{
+	OnWin.Broadcast();
+	bPendingClearWinPath = false;
+
+	if (!IsValid(CurrentBoardSpawner))
+		return;
+
+	// First pass: player position → exit tile (converts Water → WaterPath along the way).
+	for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
+	{
+		ClearWinPath(
+			CurrentBoardSpawner,
+			GetPlayerCurrentTile(),
+			WaterPath.ExitTile,
+			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
+		);
+	}
+
+	// Defer the Entry→Exit pass by one tick so UpdateClassAtRuntime changes
+	// from the first pass are fully applied before the second BFS runs.
+	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+	{
+		if (IsValid(CurrentBoardSpawner))
+		{
+			for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
+			{
+				ClearWinPath(
+					CurrentBoardSpawner,
+					WaterPath.EntryTile,
+					WaterPath.ExitTile,
+					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
+				);
+			}
+		}
+	});
 }
 
 AML_Tile* UML_WinLoseSubsystem::GetPlayerCurrentTile() const
@@ -452,8 +528,8 @@ void UML_WinLoseSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		RollBack->OnResetAnimating.AddDynamic(this, &UML_WinLoseSubsystem::HandleResetAnimating);
 	}
 
-	CachedGoalPathAllowedSet.Add(EML_TileType::Grass);
-	CachedGoalPathAllowedSet.Add(EML_TileType::Water);
+	CachedGoalPathAllowedSet = UML_TileTypeTraits::GetWinPathTypes();
+	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 }
 
 void UML_WinLoseSubsystem::ResetConnectedGoalPathState()
@@ -575,9 +651,9 @@ void UML_WinLoseSubsystem::ClearWinPath(
 			continue;
 		}
 
-		if ((*TilePtr)->GetCurrentType() == EML_TileType::Water)
+		if (UML_TileTypeTraits::IsWaterType((*TilePtr)->GetCurrentType()))
 		{
-			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::Grass, CurrentBoardSpawner->WaterChangeTile);
+			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::WaterPath, CurrentBoardSpawner->WaterChangeTile);
 		}
 	}
 }

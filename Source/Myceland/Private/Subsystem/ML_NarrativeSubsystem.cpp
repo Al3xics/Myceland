@@ -1,4 +1,4 @@
-﻿// Copyright Myceland Team, All Rights Reserved.
+// Copyright Myceland Team, All Rights Reserved.
 
 
 #include "Subsystem/ML_NarrativeSubsystem.h"
@@ -14,6 +14,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Player/ML_PlayerController.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 
 AML_PlayerController* UML_NarrativeSubsystem::GetPlayerController() const
 {
@@ -40,12 +41,20 @@ void UML_NarrativeSubsystem::CleanupCurrentSequence()
 			if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
 			{
 				AudioComp->OnEventStopped.RemoveAll(this);
-				if (AudioComp->IsPlaying())
-					AudioComp->Stop();
+				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+					SoundSubsystem->StopSound(AudioComp);
 			}
 			Speaker->SetIsTalking(false);
 		}
+
+		// Notify UI that the current line was interrupted
+		if (bCurrentLineStarted)
+			OnDialogueLineEnd.Broadcast(Line, Line.SpeakerTag);
 	}
+
+	// Notify UI that the sequence was interrupted (mirrors the natural end broadcast in PlayNextLine)
+	if (CurrentSequence)
+		OnSequenceEnd.Broadcast(CurrentSequence);
 
 	// If in cinematic mode, restore player control
 	if (CurrentSequence && CurrentSequence->bIsCinematicMode)
@@ -102,7 +111,7 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 		UE_LOG(LogTemp, Warning, TEXT("StartLine called but CurrentSequence is null"));
 		return;
 	}
-	
+
 	// Validate and set speaker talking
 	IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag);
 	if (Speaker)
@@ -112,7 +121,7 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 		UE_LOG(LogTemp, Error, TEXT("No speaker found for tag %d in line %d of trigger %s"), static_cast<int32>(Line.SpeakerTag), CurrentLineIndex, *CurrentNarrativeTrigger->GetName());
 		return;
 	}
-	
+
 	bCurrentLineStarted = true;
 	OnDialogueLineStart.Broadcast(Line, Line.SpeakerTag);
 
@@ -131,9 +140,21 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 		return;
 	}
 
-	AudioComp->SetEvent(Line.Sound);
+	AudioComp->OnEventStopped.RemoveAll(this);
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		SoundSubsystem->StopSound(AudioComp);
+	
 	AudioComp->OnEventStopped.AddDynamic(this, &UML_NarrativeSubsystem::OnFMODEventStopped);
-	AudioComp->Play();
+	
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		SoundSubsystem->StartSound(Line.Sound, AudioComp);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Could not find SoundSubsystem for line %d"), CurrentLineIndex);
+		OnFMODEventStopped();
+	}
 }
 
 void UML_NarrativeSubsystem::OnLineFinished()
@@ -149,10 +170,10 @@ void UML_NarrativeSubsystem::OnLineFinished()
 			// Unbind callback to prevent double-triggering
 			AudioComp->OnEventStopped.RemoveAll(this);
 			
-			if (AudioComp->IsPlaying())
-				AudioComp->Stop();
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+				SoundSubsystem->StopSound(AudioComp);
 		}
-		
+
 		Speaker->SetIsTalking(false);
 	}
 
@@ -184,10 +205,10 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 				// Unbind callback BEFORE stopping to prevent async OnEventStopped call
 				AudioComp->OnEventStopped.RemoveAll(this);
 				
-				if (AudioComp->IsPlaying())
-					AudioComp->Stop();
+				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+					SoundSubsystem->StopSound(AudioComp);
 			}
-			
+
 			Speaker->SetIsTalking(false);
 		}
 
@@ -201,6 +222,11 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 
 void UML_NarrativeSubsystem::SetupCinematicMode()
 {
+	// Cancel any in-progress navmesh move and pending board entry before taking over player movement.
+	// Without this, a fast click toward a board can leave bPendingBoardEntryOnArrival=true, causing
+	// the player to enter the board mid-cinematic once the navmesh proximity check fires.
+	GetPlayerController()->CancelPendingNavigation();
+
 	// Swap IMCs: remove main (no movement/click) and add cinematic-only (skip only)
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
@@ -228,7 +254,7 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 			CurrentSequence->CameraBlendTime,
 			VTBlend_Linear
 		);
-		
+
 		// Start timer for camera blend completion
 		if (CurrentSequence->bWaitForCameraBlendToFinish)
 		{
@@ -257,7 +283,7 @@ void UML_NarrativeSubsystem::OnCinematicMoveFinished(FAIRequestID, const FPathFo
 	const FRotator CurrentRot = Pawn->GetActorRotation();
 	const float TargetYaw = CurrentNarrativeTrigger->TargetArrow->GetComponentRotation().Yaw;
 	Pawn->SetActorRotation(FRotator(CurrentRot.Pitch, TargetYaw, CurrentRot.Roll));
-	
+
 	// Mark player movement as finished
 	bPlayerMovementFinished = true;
 	CheckCinematicSetupComplete();
@@ -297,7 +323,7 @@ void UML_NarrativeSubsystem::RestorePlayerControl() const
 		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
 			InputSub->AddMappingContext(MainIMC, DevSettings->DefaultInputMappingContext.Priority);
 	}
-	
+
 	GetPlayerController()->NotifyCinematicModeChanged(false); // false because cinematic ends
 
 	GetPlayerController()->BlendToViewTarget(
@@ -306,7 +332,7 @@ void UML_NarrativeSubsystem::RestorePlayerControl() const
 		VTBlend_Linear
 	);
 
-	// Deactivate the cinematic camera AFTER THE BLEND so it doesn't interfere with future view targets 
+	// Deactivate the cinematic camera AFTER THE BLEND so it doesn't interfere with future view targets
 	UCameraComponent* CamToDeactivate = CurrentNarrativeTrigger ? CurrentNarrativeTrigger->GetCinematicCamera() : nullptr;
 	const float BlendTime = CurrentSequence->CameraBlendTime;
 
@@ -337,21 +363,21 @@ void UML_NarrativeSubsystem::PlaySequence(UML_NarrativeSequence* Sequence, AML_N
 	// Clean up any existing sequence first
 	if (CurrentSequence)
 		CleanupCurrentSequence();
-	
+
 	CurrentSequence = Sequence;
 	CurrentNarrativeTrigger = Trigger;
 	CurrentLineIndex = 0;
-	
+
 	OnSequenceStart.Broadcast(CurrentSequence);
-	
+
 	if (CurrentSequence->bIsCinematicMode)
 	{
 		bWaitingForCinematicSetup = true;
 		bCameraBlendFinished = !CurrentSequence->bWaitForCameraBlendToFinish; // if bWaitForCameraBlendToFinish is false, then tell bCameraBlendFinished that it is already considered finished
 		bPlayerMovementFinished = !CurrentSequence->bWaitForPlayerMovementToFinish; // if bWaitForPlayerMovementToFinish is false, then tell bPlayerMovementFinished that it is already considered finished
-		
+
 		GetPlayerController()->NotifyCinematicModeChanged(true); // true because cinematic starts
-		
+
 		SetupCinematicMode();
 		CheckCinematicSetupComplete();
 	}
@@ -376,12 +402,12 @@ void UML_NarrativeSubsystem::OnFMODEventStopped()
 	}
 
 	const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
-	
+
 	// Unbind le callback
 	if (const IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
 		if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
 			AudioComp->OnEventStopped.RemoveAll(this);
-	
+
 	// If PostDelay, then wait
 	if (Line.PostDelay > 0.f)
 	{
@@ -401,7 +427,7 @@ float UML_NarrativeSubsystem::GetSequenceProgress() const
 {
 	if (!CurrentSequence || CurrentSequence->DialogueLines.Num() == 0)
 		return 0.0f;
-	
+
 	return static_cast<float>(CurrentLineIndex) / static_cast<float>(CurrentSequence->DialogueLines.Num());
 }
 
@@ -413,6 +439,5 @@ void UML_NarrativeSubsystem::StopSequence()
 		return;
 	}
 
-	OnSequenceEnd.Broadcast(CurrentSequence);
-	CleanupCurrentSequence();
+	CleanupCurrentSequence(); // OnSequenceEnd is broadcast inside CleanupCurrentSequence
 }
