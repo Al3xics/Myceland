@@ -328,23 +328,11 @@ bool AML_LakeFishManager::IsTileAliveWater(const AML_Tile* Tile) const
 	AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return false;
 
-	int32 TreeNeighborCount = 0;
-
 	for (AML_Tile* Neighbor : Board->GetNeighbors(const_cast<AML_Tile*>(Tile)))
 	{
 		if (IsGrassTile(Neighbor))
 		{
 			return true;
-		}
-
-		if (IsTreeTile(Neighbor))
-		{
-			TreeNeighborCount++;
-
-			if (TreeNeighborCount >= 2)
-			{
-				return true;
-			}
 		}
 	}
 
@@ -381,11 +369,29 @@ void AML_LakeFishManager::FloodFillWaterLake(AML_Tile* StartTile, TSet<AML_Tile*
 
 bool AML_LakeFishManager::DoesLakeTouchGrass(const TArray<AML_Tile*>& LakeTiles) const
 {
+	TSet<AML_Tile*> UniqueTreeNeighbors;
+
 	for (AML_Tile* Tile : LakeTiles)
 	{
 		if (IsTileAliveWater(Tile))
 		{
 			return true;
+		}
+
+		AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
+		if (!IsValid(Board)) continue;
+
+		for (AML_Tile* Neighbor : Board->GetNeighbors(Tile))
+		{
+			if (IsTreeTile(Neighbor))
+			{
+				UniqueTreeNeighbors.Add(Neighbor);
+
+				if (UniqueTreeNeighbors.Num() >= 2)
+				{
+					return true;
+				}
+			}
 		}
 	}
 
