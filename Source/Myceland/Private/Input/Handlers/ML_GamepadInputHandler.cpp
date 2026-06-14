@@ -138,8 +138,7 @@ FVector UML_GamepadInputHandler::StickToWorldDirection(FVector2D StickValue) con
 	const FVector WorldForward = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	const FVector WorldRight   = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-	// Gamepad Y axis is hardware-negative when pushing up; negate to match screen-space convention.
-	return (WorldForward * (-StickValue.Y) + WorldRight * StickValue.X).GetSafeNormal();
+	return (WorldForward * StickValue.Y + WorldRight * StickValue.X).GetSafeNormal();
 }
 
 AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold) const

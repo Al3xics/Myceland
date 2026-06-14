@@ -18,7 +18,9 @@ class AML_TileGrass;
 class AML_TileDirt;
 class AML_BoardSpawner;
 enum class EML_TileType : uint8;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
+
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Tile : public AActor
 {
