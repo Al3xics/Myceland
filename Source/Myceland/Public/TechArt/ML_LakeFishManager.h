@@ -150,7 +150,7 @@ private:
 	USplineComponent* PickSpline(const FML_LakeRuntime& Lake) const;
 	
 	void PlaceFishOnSpline(FML_LakeFishRuntime& FishData, bool bRandomizeDistance);
-
+	void InitializeLakeManager();
 	void DestroyLake(FML_LakeRuntime& Lake);
 	void DestroyFish(FML_LakeFishRuntime& FishData);
 	void DestroySpline(USplineComponent* Spline);
