@@ -126,6 +126,8 @@ private:
 	void ContinueUndoUntilPlantIfNeeded();
 	void StartNextResetUndoStep();
 	void ContinueResetAllIfNeeded();
+	TSet<FIntPoint> GetSpawnedCollectibleAxials(const TArray<FML_SpawnUndoDelta>& SpawnDeltas) const;
+	bool RestoreCollectibleActorOnTile(AML_Tile* Tile);
 	void DestroyCollectibleActorOnTile(AML_Tile* Tile);
 	void ApplyUndoTimeDilation(const TArray<FML_ActionUndoRecord>& Stack);
 	void ApplyResetTimeDilation(const TArray<FML_ActionUndoRecord>& Stack);

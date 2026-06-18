@@ -107,6 +107,14 @@ void UML_RollBackSubsystem::RecordSpawnedActor(AActor* Spawned, int32 DistanceFr
 
 	FML_SpawnUndoDelta Delta;
 	Delta.SpawnedActor = Spawned;
+	if (AML_Collectible* Collectible = Cast<AML_Collectible>(Spawned))
+	{
+		if (AML_Tile* OwningTile = Collectible->GetOwningTile())
+		{
+			Delta.bIsCollectible = true;
+			Delta.CollectibleAxial = OwningTile->GetAxialCoord();
+		}
+	}
 	Delta.PriorityIndex = PriorityIndex;
 	Delta.DistanceFromOrigin = DistanceFromOrigin;
 	Delta.Sequence = UndoSequenceCounter++;
@@ -240,6 +248,8 @@ void UML_RollBackSubsystem::RunUndoWave()
 
 void UML_RollBackSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin)
 {
+	const TSet<FIntPoint> SpawnedCollectibleAxials = GetSpawnedCollectibleAxials(ActiveUndoRecord.SpawnDeltas);
+
 	for (int32 i = 0; i < PendingUndoSpawnDeltas.Num(); )
 	{
 		const FML_SpawnUndoDelta& SpawnDelta = PendingUndoSpawnDeltas[i];
@@ -283,7 +293,7 @@ void UML_RollBackSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32 Distan
 						Tile->OnTileTypeChanged(PreviousType, NewType);
 					}
 
-					const bool bShouldHaveCollectible = TileDelta.bOldHasCollectible;
+					const bool bShouldHaveCollectible = TileDelta.bOldHasCollectible && !SpawnedCollectibleAxials.Contains(Tile->GetAxialCoord());
 					const bool bHasCollectibleNow = Tile->HasCollectible();
 
 					if (!bShouldHaveCollectible && bHasCollectibleNow)
@@ -294,6 +304,10 @@ void UML_RollBackSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32 Distan
 					else
 					{
 						Tile->SetHasCollectible(bShouldHaveCollectible);
+						if (bShouldHaveCollectible)
+						{
+							RestoreCollectibleActorOnTile(Tile);
+						}
 					}
 
 					Tile->bConsumedGrass = TileDelta.bOldConsumedGrass;
@@ -413,6 +427,66 @@ bool UML_RollBackSubsystem::RestoreCollectibleDuringUndoMove(const FIntPoint& Ax
 			}
 		}, 0.05f, false);
 	}
+
+	return true;
+}
+
+TSet<FIntPoint> UML_RollBackSubsystem::GetSpawnedCollectibleAxials(const TArray<FML_SpawnUndoDelta>& SpawnDeltas) const
+{
+	TSet<FIntPoint> SpawnedCollectibleAxials;
+	for (const FML_SpawnUndoDelta& SpawnDelta : SpawnDeltas)
+	{
+		if (SpawnDelta.bIsCollectible)
+		{
+			SpawnedCollectibleAxials.Add(SpawnDelta.CollectibleAxial);
+		}
+	}
+
+	return SpawnedCollectibleAxials;
+}
+
+bool UML_RollBackSubsystem::RestoreCollectibleActorOnTile(AML_Tile* Tile)
+{
+	if (!GetWorld() || !IsValid(Tile)) return false;
+
+	if (AML_Collectible* ExistingCollectible = Tile->CollectibleActor.Get())
+	{
+		if (IsValid(ExistingCollectible))
+		{
+			Tile->SetHasCollectible(true);
+			return true;
+		}
+	}
+
+	AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return false;
+
+	UML_BiomeTileSet* TileSet = Board->GetBiomeTileSet();
+	if (!IsValid(TileSet)) return false;
+
+	TSubclassOf<AML_Collectible> CollectibleClass = TileSet->GetCollectibleClass();
+	if (!*CollectibleClass) return false;
+
+	const FVector SpawnLocation = Tile->GetActorLocation();
+	AML_Collectible* SpawnedCollectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(
+		CollectibleClass,
+		FTransform(FRotator::ZeroRotator, SpawnLocation),
+		nullptr,
+		nullptr,
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn
+	);
+
+	if (SpawnedCollectible)
+	{
+		SpawnedCollectible->SetOwningTile(Tile);
+		SpawnedCollectible->FinishSpawning(FTransform(FRotator::ZeroRotator, SpawnLocation));
+	}
+
+	if (!IsValid(SpawnedCollectible)) return false;
+
+	SpawnedCollectible->InitOwningAxial(Tile->GetAxialCoord());
+	Tile->CollectibleActor = SpawnedCollectible;
+	Tile->SetHasCollectible(true);
 
 	return true;
 }
@@ -1043,6 +1117,7 @@ void UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_BoardSpaw
 		if (Action.Type != EML_UndoActionType::PlantWaves) continue;
 
 		const FML_TurnUndoRecord& Turn = Action.Turn;
+		const TSet<FIntPoint> SpawnedCollectibleAxials = GetSpawnedCollectibleAxials(Turn.SpawnDeltas);
 
 		for (const FML_SpawnUndoDelta& SpawnDelta : Turn.SpawnDeltas)
 		{
@@ -1076,7 +1151,7 @@ void UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_BoardSpaw
 				Tile->OnTileTypeChanged(PreviousType, NewType);
 			}
 
-			const bool bShouldHaveCollectible = TileDelta.bOldHasCollectible;
+			const bool bShouldHaveCollectible = TileDelta.bOldHasCollectible && !SpawnedCollectibleAxials.Contains(Tile->GetAxialCoord());
 			const bool bHasCollectibleNow = Tile->HasCollectible();
 
 			if (!bShouldHaveCollectible && bHasCollectibleNow)
@@ -1087,6 +1162,10 @@ void UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_BoardSpaw
 			else
 			{
 				Tile->SetHasCollectible(bShouldHaveCollectible);
+				if (bShouldHaveCollectible)
+				{
+					RestoreCollectibleActorOnTile(Tile);
+				}
 			}
 
 			Tile->bConsumedGrass = TileDelta.bOldConsumedGrass;
