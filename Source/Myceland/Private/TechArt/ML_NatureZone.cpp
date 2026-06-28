@@ -124,6 +124,81 @@ TArray<FML_NatureInstanceReference> AML_NatureZone::GetFoliageInstancesInsideBox
 	return Result;
 }
 
+TArray<FML_NatureInstanceReference> AML_NatureZone::GetMaterialTargetFoliageInstancesInsideBox() const
+{
+	TArray<FML_NatureInstanceReference> Result;
+
+	if (!GetWorld() || !DetectionBox)
+	{
+		return Result;
+	}
+
+	const FBox WorldBox = DetectionBox->Bounds.GetBox();
+
+	for (TActorIterator<AInstancedFoliageActor> It(GetWorld()); It; ++It)
+	{
+		AInstancedFoliageActor* FoliageActor = *It;
+
+		if (!IsValid(FoliageActor))
+		{
+			continue;
+		}
+
+		TArray<UActorComponent*> Components;
+		FoliageActor->GetComponents(
+			UInstancedStaticMeshComponent::StaticClass(),
+			Components
+		);
+
+		for (UActorComponent* RawComponent : Components)
+		{
+			UInstancedStaticMeshComponent* ISM =
+				Cast<UInstancedStaticMeshComponent>(RawComponent);
+
+			if (!IsValid(ISM))
+			{
+				continue;
+			}
+
+			UStaticMesh* Mesh = ISM->GetStaticMesh();
+
+			if (!ShouldAcceptMaterialMesh(Mesh))
+			{
+				continue;
+			}
+
+			const TArray<int32> Indices =
+				ISM->GetInstancesOverlappingBox(WorldBox, true);
+
+			for (int32 Index : Indices)
+			{
+				FTransform WorldTransform;
+
+				if (!ISM->GetInstanceTransform(Index, WorldTransform, true))
+				{
+					continue;
+				}
+
+				if (bUsePreciseRotatedBoxCheck &&
+					!IsWorldLocationInsideDetectionBox(WorldTransform.GetLocation()))
+				{
+					continue;
+				}
+
+				FML_NatureInstanceReference Ref;
+				Ref.Component = ISM;
+				Ref.InstanceIndex = Index;
+				Ref.StaticMesh = Mesh;
+				Ref.WorldTransform = WorldTransform;
+
+				Result.Add(Ref);
+			}
+		}
+	}
+
+	return Result;
+}
+
 bool AML_NatureZone::SetFoliageInstanceScale(
 	const FML_NatureInstanceReference& InstanceRef,
 	FVector NewScale,
@@ -383,6 +458,63 @@ void AML_NatureZone::ApplyGrowthAlpha(float Alpha)
 	}
 }
 
+int32 AML_NatureZone::SetMaterialTargetCustomDataInsideBox(int32 CustomDataIndex, float Value)
+{
+	if (CustomDataIndex < 0)
+	{
+		return 0;
+	}
+
+	const TArray<FML_NatureInstanceReference> Instances =
+		GetMaterialTargetFoliageInstancesInsideBox();
+
+	int32 ChangedCount = 0;
+	TSet<TObjectPtr<UInstancedStaticMeshComponent>> DirtyComponents;
+
+	for (const FML_NatureInstanceReference& Ref : Instances)
+	{
+		if (!Ref.IsValid())
+		{
+			continue;
+		}
+
+		UInstancedStaticMeshComponent* ISM = Ref.Component.Get();
+
+		if (!IsValid(ISM))
+		{
+			continue;
+		}
+
+		if (ISM->NumCustomDataFloats <= CustomDataIndex)
+		{
+			ISM->SetNumCustomDataFloats(CustomDataIndex + 1);
+		}
+
+		const bool bUpdated = ISM->SetCustomDataValue(
+			Ref.InstanceIndex,
+			CustomDataIndex,
+			Value,
+			false
+		);
+
+		if (bUpdated)
+		{
+			ChangedCount++;
+			DirtyComponents.Add(ISM);
+		}
+	}
+
+	for (UInstancedStaticMeshComponent* ISM : DirtyComponents)
+	{
+		if (IsValid(ISM))
+		{
+			ISM->MarkRenderStateDirty();
+		}
+	}
+
+	return ChangedCount;
+}
+
 bool AML_NatureZone::ShouldAcceptMesh(const UStaticMesh* Mesh) const
 {
 	if (!IsValid(Mesh))
@@ -396,6 +528,29 @@ bool AML_NatureZone::ShouldAcceptMesh(const UStaticMesh* Mesh) const
 	}
 
 	for (const UStaticMesh* TargetMesh : TargetMeshes)
+	{
+		if (Mesh == TargetMesh)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool AML_NatureZone::ShouldAcceptMaterialMesh(const UStaticMesh* Mesh) const
+{
+	if (!IsValid(Mesh))
+	{
+		return false;
+	}
+
+	if (MaterialTargetMeshes.IsEmpty())
+	{
+		return false;
+	}
+
+	for (const UStaticMesh* TargetMesh : MaterialTargetMeshes)
 	{
 		if (Mesh == TargetMesh)
 		{
