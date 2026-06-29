@@ -1,6 +1,22 @@
 .idea/
 .vsconfig
 *.sln.DotSettings.user
+*.code-workspace
+
+
+# FMOD Project - Generated/Temp files
+Myceland_FMOD/.cache/*
+Myceland_FMOD/.user/*
+Myceland_FMOD/.unsaved/*
+Myceland_FMOD/Build/*
+
+# FMOD Plugin - Generated files
+Plugins/FMODStudio/Intermediate/*
+Plugins/FMODStudio/Content/*
+Plugins/FMODStudio/Docs/*
+
+
+
 
 # Created by https://www.toptal.com/developers/gitignore/api/unrealengine
 # Edit at https://www.toptal.com/developers/gitignore?templates=unrealengine
@@ -98,3 +114,10 @@ Plugins/**/Binaries/*
 Plugins/**/Intermediate/*
 
 # End of https://www.toptal.com/developers/gitignore/api/unrealengine
+
+# FMOD Plugin - keep distributed binaries tracked for team compatibility.
+!Plugins/FMODStudio/Binaries/
+!Plugins/FMODStudio/Binaries/**
+
+# FMOD Plugin - local debug symbols are too large for Git.
+Plugins/FMODStudio/Binaries/**/*.pdb

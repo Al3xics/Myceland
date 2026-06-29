@@ -4,6 +4,7 @@
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Components/ChildActorComponent.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -171,7 +172,7 @@ AML_Tile* AML_ParasiteRootNetwork::FindTileFromParasiteActor(AActor* ParasiteAct
 AML_TileParasite* AML_ParasiteRootNetwork::GetParasiteChildFromTile(AML_Tile* Tile) const
 {
 	if (!IsValid(Tile)) return nullptr;
-	if (Tile->GetCurrentType() != EML_TileType::Parasite) return nullptr;
+	if (!UML_TileTypeTraits::IsParasiteType(Tile->GetCurrentType())) return nullptr;
 
 	UChildActorComponent* ChildComp = Tile->GetTileChildActor();
 	if (!IsValid(ChildComp)) return nullptr;

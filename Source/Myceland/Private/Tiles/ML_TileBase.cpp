@@ -6,7 +6,7 @@
 
 AML_TileBase::AML_TileBase()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 	
 	SceneRoot = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SceneRoot"));
 	RootComponent = SceneRoot;
@@ -14,9 +14,8 @@ AML_TileBase::AML_TileBase()
 	GroundBase = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GroundBase"));
 	GroundBase->SetupAttachment(SceneRoot);
 	GroundBase->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	GroundBase->SetCollisionObjectType(ECC_WorldStatic);
+	GroundBase->SetCollisionObjectType(ECC_GameTraceChannel1);
 	GroundBase->SetCollisionResponseToAllChannels(ECR_Block);
-	GroundBase->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 	GroundBase->SetGenerateOverlapEvents(false);
 }
 	
@@ -25,8 +24,4 @@ void AML_TileBase::BeginPlay()
 	Super::BeginPlay();
 }
 
-void AML_TileBase::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-}
 

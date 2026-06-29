@@ -3,6 +3,7 @@
 
 #include "Waves/ChildWaves/ML_WaveParasite.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
 #include "Tiles/ML_Tile.h"
@@ -21,12 +22,12 @@ void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>&
 	TSet<AML_Tile*> Visited;
 
 	// Get all the tiles in the board spawner
-	const TArray<AML_Tile*>& AllTiles = Board->GetGridTiles(); 
+	const TArray<AML_Tile*>& AllTiles = Board->GetGridTiles();
 	for (AML_Tile* Tile : AllTiles)
 	{
 		if (!Tile) continue;
 
-		if (Tile->GetCurrentType() == EML_TileType::Parasite)
+		if (UML_TileTypeTraits::IsParasiteType(Tile->GetCurrentType()))
 		{
 			Queue.Enqueue({ Tile, 0 });
 			Visited.Add(Tile);
@@ -55,7 +56,7 @@ void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>&
 			Visited.Add(Neighbor);
 
 			// A parasite eats only grass
-			if (Neighbor->GetCurrentType() == EML_TileType::Grass)
+			if (UML_TileTypeTraits::CanParasitePropagateTo(Neighbor->GetCurrentType()))
 			{
 				OutChanges.Add(FML_WaveChange(Neighbor, EML_TileType::Parasite, Distance + 1));
 

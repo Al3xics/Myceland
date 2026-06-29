@@ -29,6 +29,8 @@ struct FML_SpawnUndoDelta
 	GENERATED_BODY()
 
 	UPROPERTY() TWeakObjectPtr<AActor> SpawnedActor;
+	UPROPERTY() bool bIsCollectible = false;
+	UPROPERTY() FIntPoint CollectibleAxial = FIntPoint::ZeroValue;
 
 	// ordering
 	UPROPERTY() int32 PriorityIndex = 0;

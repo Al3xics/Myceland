@@ -7,6 +7,7 @@
 #include "Tiles/ML_BoardSpawner.h"
 #include "ML_WinLoseSubsystem.generated.h"
 
+class UML_MycelandDeveloperSettings;
 class AML_Tile;
 class AML_PlayerCharacter;
 struct FML_GameResult;
@@ -14,7 +15,9 @@ struct FML_GameResult;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCheckPaths);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnConnectedGoalPathTile, AML_Tile*, Tile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDisconnectedGoalPathTile, const TArray<AML_Tile*>&, Tiles);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConnectedGoalPathComplete);
 
 UCLASS()
 class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
@@ -26,25 +29,25 @@ public:
 	FOnWin OnWin;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnLose OnLose;
+	FOnLose OnLose; 
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnDeath OnDeath;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnCheckPaths OnCheckPaths;
+	FOnConnectedGoalPathTile OnConnectedGoalPathTile;
+
+	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
+	FOnDisconnectedGoalPathTile OnDisconnectedGoalPathTile;
+
+	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
+	FOnConnectedGoalPathComplete OnConnectedGoalPathComplete;
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool CheckPlayerKilled(AML_Tile* CurrentTileOn);
-
-	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	bool AreAllGoalsConnectedByAllowedPaths(
-		AML_BoardSpawner* Board,
-		EML_TileType GoalType,
-		const TArray<EML_TileType>& AllowedPathTypes);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool FindConnectedGoalGroups(
@@ -55,7 +58,23 @@ public:
 		int32 MinGoalsInGroup);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	TArray<FML_TileGroup> TriggerFindConnectedGoalCheck();
+	void TriggerFindConnectedGoalCheck();
+
+	/**
+	 * Plays the tile-link animation for Board's connected goal groups without
+	 * touching PreviousConnectedPathTiles or CurrentBoardSpawner.
+	 *
+	 * Use this instead of TriggerFindConnectedGoalCheck when the board is NOT
+	 * the player's current active board (e.g. the HubBoardSpawner showing
+	 * solved-puzzle connections).  Tiles are tracked in PersistentAnimatedTiles
+	 * so re-entering the hub never re-animates already-shown connections.
+	 * Unlike the regular flow, these tiles are never broadcast as disconnected.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board);
+
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void ResetConnectedGoalPathState();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_Tile* GetPlayerCurrentTile() const;
@@ -76,9 +95,6 @@ public:
 	AML_BoardSpawner* CurrentBoardSpawner = nullptr;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
-	TArray<AML_Tile*> PathTiles;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
 	TArray<FML_TileGroup> ConnectedGoalGroups;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Myceland WinLose")
@@ -86,11 +102,65 @@ public:
 
 private:
 	UFUNCTION()
-	void HandleBoardChanged(const AML_Tile* NewTile);
+	void HandleBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
+
+	UFUNCTION()
+	void HandleUndoAnimating(bool bIsAnimating);
+
+	UFUNCTION()
+	void HandleResetAnimating(bool bIsAnimating);
+
+	UFUNCTION()
+	void BroadcastNextConnectedGoalPathTile();
+
+	/**
+	 * Broadcasts OnWin, clears the pending flag, and runs both ClearWinPath
+	 * passes (player→exit now, entry→exit deferred one tick).
+	 * Called from BroadcastNextConnectedGoalPathTile when the queue drains,
+	 * and as a fallback from CheckWinLose when no new tiles need to be animated.
+	 */
+	void FireWinSequence();
+
+	UPROPERTY()
+	TSet<AML_Tile*> PreviousConnectedPathTiles;
+
+	/**
+	 * Tiles already animated by TriggerConnectedGoalAnimationForBoard (hub connections).
+	 * Never cleared by board-change events so hub visuals remain after the player leaves.
+	 * Prevents re-animation if the same hub entry is re-activated.
+	 */
+	UPROPERTY()
+	TSet<AML_Tile*> PersistentAnimatedTiles;
+
+	UPROPERTY()
+	TArray<AML_Tile*> PendingConnectedGoalPathQueue;
+
+	FTimerHandle ConnectedGoalPathTimerHandle;
+	FTimerHandle ConnectedWinTimerHandle;
+
+	UPROPERTY()
+	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
+
+	int32 QueueReadIndex = 0;
+	bool bPendingClearWinPath = false;
 
 	static const FIntPoint HexDirs[6];
 
+	TSet<EML_TileType> CachedGoalPathAllowedSet;
+
 	TSet<EML_TileType> BuildAllowedSet(const TArray<EML_TileType>& AllowedPathTypes) const;
+
+	bool AreAllGoalsConnected(
+		AML_BoardSpawner* Board,
+		EML_TileType GoalType,
+		const TSet<EML_TileType>& AllowedSet);
+
+	bool FindConnectedGoalGroups(
+		AML_BoardSpawner* Board,
+		EML_TileType GoalType,
+		const TSet<EML_TileType>& AllowedSet,
+		bool bDisallowBlocked,
+		int32 MinGoalsInGroup);
 
 	TArray<FIntPoint> CollectGoalAxials(
 		const TMap<FIntPoint, AML_Tile*>& Grid,
@@ -103,6 +173,15 @@ private:
 		TFunctionRef<bool(AML_Tile*)> CanTraverse,
 		TSet<FIntPoint>& OutVisited,
 		TMap<FIntPoint, FIntPoint>& OutParent) const;
+
+	void RunZeroOneBFS(
+		const TMap<FIntPoint, AML_Tile*>& Grid,
+		const FIntPoint& Start,
+		TFunctionRef<bool(AML_Tile*)> CanTraverse,
+		TFunctionRef<int32(AML_Tile*)> GetCost,
+		TSet<FIntPoint>& OutVisited,
+		TMap<FIntPoint, FIntPoint>& OutParent,
+		TMap<FIntPoint, int32>& OutDist) const;
 
 	bool BuildPathAxialsFromParent(
 		const FIntPoint& Start,

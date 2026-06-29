@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="ParameterPreset" id="{ea150375-180c-4f47-bb8e-44ae3127006d}">
+		<property name="name">
+			<value>ChainIndex</value>
+		</property>
+		<relationship name="folder">
+			<destination>{f0283846-891d-4a40-920f-49dbe71e006e}</destination>
+		</relationship>
+		<relationship name="parameter">
+			<destination>{83831a11-b12c-4feb-ac01-6738d594cf88}</destination>
+		</relationship>
+	</object>
+	<object class="GameParameter" id="{83831a11-b12c-4feb-ac01-6738d594cf88}">
+		<property name="parameterType">
+			<value>1</value>
+		</property>
+		<property name="maximum">
+			<value>9</value>
+		</property>
+		<property name="initialValue">
+			<value>0</value>
+		</property>
+	</object>
+</objects>

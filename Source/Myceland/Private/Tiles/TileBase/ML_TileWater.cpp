@@ -7,8 +7,7 @@
 // Sets default values
 AML_TileWater::AML_TileWater()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 }
 
 // Called when the game starts or when spawned
@@ -18,9 +17,14 @@ void AML_TileWater::BeginPlay()
 	
 }
 
-// Called every frame
-void AML_TileWater::Tick(float DeltaTime)
+void AML_TileWater::SetWaterState(EML_WaterState NewState)
 {
-	Super::Tick(DeltaTime);
+	if (WaterState == NewState)
+	{
+		return;
+	}
+
+	WaterState = NewState;
+	OnWaterStateChanged(NewState);
 }
 

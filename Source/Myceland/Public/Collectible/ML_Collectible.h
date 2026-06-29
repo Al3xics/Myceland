@@ -20,6 +20,10 @@ private:
 	UPROPERTY()
 	AML_Tile* OwningTile = nullptr;
 
+	// The parasite tile that caused this collectible to spawn.
+	UPROPERTY()
+	AML_Tile* SourceParasite = nullptr;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -34,8 +38,7 @@ public:
 	FIntPoint OwningAxial = FIntPoint::ZeroValue;
 
 	AML_Collectible();
-	virtual void Tick(float DeltaTime) override;
-	
+
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible", meta=(Tooltip="Will clear the bHasCollectible from the tile it was on, and then destroy this actor !"))
 	void AddEnergy(AML_PlayerController* MycelandController, AML_PlayerCharacter* MycelandCharacter);
 	
@@ -47,6 +50,12 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
 	void SetOwningTile(AML_Tile* InOwningTile) { OwningTile = InOwningTile; }
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
+	AML_Tile* GetSourceParasite() const { return SourceParasite; }
+	
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
+	void SetSourceParasite(AML_Tile* InSourceParasite) { SourceParasite = InSourceParasite; }
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Collectible")
 	void BeforeDestroyCollectible(const AML_Tile* Tile);

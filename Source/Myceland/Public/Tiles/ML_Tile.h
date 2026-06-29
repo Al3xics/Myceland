@@ -19,6 +19,8 @@ class AML_TileDirt;
 class AML_BoardSpawner;
 enum class EML_TileType : uint8;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
+
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Tile : public AActor
 {
@@ -55,8 +57,10 @@ private:
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bHasCollectible = false;
 	
+	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
+	bool bIsBorderTile = false;
+	
 	void SetBlocked(bool bNewBlocked);
-	bool IsTileTypeBlocking(EML_TileType Type);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
@@ -78,7 +82,11 @@ protected:
 
 public:
 	bool bConsumedGrass = false;
-	
+	UPROPERTY(BlueprintAssignable, Category="Tile")
+    FOnTileChangedNative OnTileChangedNative;
+    
+    UFUNCTION(BlueprintCallable, Category="Tile")
+    void NotifyTileChangedNative();
 	AML_Tile();
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
@@ -96,6 +104,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	bool IsBlocked() const { return bBlocked; }
 
+	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
+	void SetBorderTile(const bool Value) { bIsBorderTile = Value; }
+
+	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
+	bool IsBorderTile() const { return bIsBorderTile; }
+
 	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Collectible")
 	void SetHasCollectible(const bool bNewValue) { bHasCollectible = bNewValue; }
 	
@@ -106,13 +120,7 @@ public:
 	AML_BoardSpawner* GetBoardSpawnerFromTile() const { return Cast<AML_BoardSpawner>(GetOwner()); }
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void Glow();
-
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void StopGlowing();
-
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void GlowCursorHovered();
+	void GlowCursorHovered(bool bIsPlayerTile);
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowingCursorUnhovered();
@@ -125,6 +133,9 @@ public:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
+	void OnWaveTouched();
 	
 	
 	UFUNCTION()
@@ -138,6 +149,11 @@ public:
 
 	UFUNCTION()
 	void UpdateClassAtRuntime_Silent(EML_TileType NewTileType, TSubclassOf<AML_TileBase> NewClass);
+
+	// Destroys any AML_TileBase actor attached to this tile that is NOT the child actor
+	// currently tracked by TileChildActor. Guards against orphaned child actors left behind
+	// by editor duplication / reattachment, which otherwise keep showing the previous type.
+	void DestroyStaleChildActors();
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;

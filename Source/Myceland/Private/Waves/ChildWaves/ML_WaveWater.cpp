@@ -3,6 +3,7 @@
 
 #include "Waves/ChildWaves/ML_WaveWater.h"
 
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
 #include "Tiles/ML_Tile.h"
@@ -21,12 +22,12 @@ void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
 	TSet<AML_Tile*> Visited;
 
 	// Get all the tiles in the board spawner
-	const TArray<AML_Tile*>& AllTiles = Board->GetGridTiles(); 
+	const TArray<AML_Tile*>& AllTiles = Board->GetGridTiles();
 	for (AML_Tile* Tile : AllTiles)
 	{
 		if (!Tile) continue;
 
-		if (Tile->GetCurrentType() == EML_TileType::Water)
+		if (UML_TileTypeTraits::IsWaterType(Tile->GetCurrentType()))
 		{
 			Queue.Enqueue({ Tile, 0 });
 			Visited.Add(Tile);
@@ -55,7 +56,7 @@ void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
 			Visited.Add(Neighbor);
 
 			// Water eats only a parasite
-			if (Neighbor->GetCurrentType() == EML_TileType::Parasite)
+			if (UML_TileTypeTraits::CanWaterPropagateTo(Neighbor->GetCurrentType()))
 			{
 				OutChanges.Add(FML_WaveChange(Neighbor, EML_TileType::Water, Distance + 1));
 

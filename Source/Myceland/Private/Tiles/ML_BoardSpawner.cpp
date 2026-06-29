@@ -2,13 +2,15 @@
 
 
 #include "Tiles/ML_BoardSpawner.h"
+#include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_Tile.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Actors/ML_CameraRail.h"
+#include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Tiles/TileBase/ML_TileGrass.h"
-#include "Tiles/TileBase/ML_TileParasite.h"
-#include "Tiles/TileBase/ML_TileWater.h"
+#include "Player/ML_HexPathfinder.h"
+#include "PuzzleGeneration/ML_PuzzleSolver.h"
 
 
 AML_BoardSpawner::AML_BoardSpawner()
@@ -29,7 +31,14 @@ void AML_BoardSpawner::BeginPlay()
 	ensureMsgf(BiomeTileSet, TEXT("BiomeTileSet is not set for board : %s"), *GetName());
 	if (!BiomeTileSet) return;
 	
-	UpdateCurrentGrid();
+	// At runtime, only initialize tiles that already exist in the level.
+	// Never spawn new ones — the designer may have intentionally deleted some tiles.
+	UpdateCurrentGrid(false);
+}
+
+void AML_BoardSpawner::UpdateCurrentGridEditor()
+{
+	UpdateCurrentGrid(true);
 }
 
 void AML_BoardSpawner::RebuildGrid()
@@ -41,9 +50,11 @@ void AML_BoardSpawner::RebuildGrid()
 	case EML_HexGridLayout::HexagonRadius: SpawnHexagonRadius(); break;
 	case EML_HexGridLayout::RectangleWH:   SpawnRectangleWH();   break;
 	}
+
+	RefreshTileCaches();
 }
 
-void AML_BoardSpawner::UpdateCurrentGrid()
+void AML_BoardSpawner::UpdateCurrentGrid(bool bAllowSpawn)
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
@@ -142,7 +153,7 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 	{
 		AML_Tile* Tile = nullptr;
 		
-		// Tile exists
+		// Tile exists in the level → reattach and reinitialize it
 		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(Axial))
 		{
 			Tile = Found->Get();
@@ -154,8 +165,8 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 
 			Tile->Initialize(BiomeTileSet);
 		}
-		// New tile
-		else if (TileClass)
+		// Tile was deleted by the designer — only spawn if explicitly allowed (editor operations)
+		else if (bAllowSpawn && TileClass)
 		{
 			const FVector Location = AxialToWorld(Axial.X, Axial.Y);
 			const FTransform SpawnTransform(FRotator::ZeroRotator, Location, TileScale);
@@ -172,11 +183,38 @@ void AML_BoardSpawner::UpdateCurrentGrid()
 	}
 
 	GridMap = MoveTemp(NewTilesByAxial);
+	RefreshTileCaches();
+}
+
+void AML_BoardSpawner::RefreshTileCaches()
+{
 	SpawnedTiles.Empty();
 	SpawnedTiles.Reserve(GridMap.Num());
+	TreeTiles.Empty();
+
 	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
 	{
-		SpawnedTiles.Add(Pair.Value);
+		AML_Tile* Tile = Pair.Value.Get();
+		if (!IsValid(Tile))
+			continue;
+
+		SpawnedTiles.Add(Tile);
+		Tile->SetBorderTile(false);
+
+		if (UML_TileTypeTraits::IsTreeType(Tile->GetCurrentType()))
+		{
+			TreeTiles.Add(Tile);
+		}
+
+		for (const FIntPoint& Dir : Directions)
+		{
+			const FIntPoint NeighborAxial = Pair.Key + Dir;
+			if (!GridMap.Contains(NeighborAxial))
+			{
+				Tile->SetBorderTile(true);
+				break;
+			}
+		}
 	}
 }
 
@@ -193,12 +231,27 @@ void AML_BoardSpawner::ClearTiles()
 
 		if (Tile->GetOwner() == this)
 		{
+			// Destroy attached orphan visuals first; otherwise destroying the tile only
+			// detaches them and leaves them floating in the level forever.
+			Tile->DestroyStaleChildActors();
 			Tile->Destroy();
 		}
 	}
 
 	SpawnedTiles.Empty();
+	TreeTiles.Empty();
 	GridMap.Empty();
+}
+
+void AML_BoardSpawner::DestroyStaleTiles() const
+{
+	for (TActorIterator<AML_Tile> It(GetWorld()); It; ++It)
+	{
+		AML_Tile* Tile = *It;
+		if (!IsValid(Tile)) continue;
+		if (Tile->GetOwner() != this) continue;
+		Tile->DestroyStaleChildActors();
+	}
 }
 
 TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile)
@@ -236,6 +289,18 @@ TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const
 	return Result;
 }
 
+const TMap<FIntPoint, AML_Tile*>& AML_BoardSpawner::GetGridMapRef() const
+{
+	if (!bGridMapCacheBuilt)
+	{
+		GridMapCache.Reserve(GridMap.Num());
+		for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+			GridMapCache.Add(Pair.Key, Pair.Value.Get());
+		bGridMapCacheBuilt = true;
+	}
+	return GridMapCache;
+}
+
 TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
 {
 	TArray<AML_Tile*> Result;
@@ -247,9 +312,101 @@ TArray<AML_Tile*> AML_BoardSpawner::GetGridTiles()
 	return Result;
 }
 
+TArray<AML_Tile*> AML_BoardSpawner::GetTreeTiles() const
+{
+	TArray<AML_Tile*> Result;
+	Result.Reserve(TreeTiles.Num());
+	for (const TObjectPtr<AML_Tile>& Tile : TreeTiles)
+	{
+		Result.Add(Tile.Get());
+	}
+	return Result;
+}
+
+AML_Tile* AML_BoardSpawner::FindClosestWalkableBorderTile(const FVector& WorldLocation) const
+{
+	float MinDistSq = FLT_MAX;
+	AML_Tile* ClosestBorderTile = nullptr;
+
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		AML_Tile* Tile = Pair.Value.Get();
+		if (!IsValid(Tile) || !UML_HexPathfinder::IsTileWalkable(Tile))
+			continue;
+
+		// Check if it's a border tile (doesn't have all 6 of its neighbors)
+		// If it's not a border tile, continue
+		if (!Tile->IsBorderTile())
+			continue;
+
+		float DistSq = FVector::DistSquared(WorldLocation, Tile->GetActorLocation());
+		if (DistSq < MinDistSq)
+		{
+			MinDistSq = DistSq;
+			ClosestBorderTile = Tile;
+		}
+	}
+
+	return ClosestBorderTile;
+}
+
+AML_Tile* AML_BoardSpawner::FindClosestWaterPathTile(const AML_Tile* Tile)
+{
+	if (WaterPaths.Num() == 0) return nullptr;
+	
+	AML_Tile* ClosestPathTile = nullptr;
+	float ClosestDistance = FLT_MAX;
+    
+	for (const auto& [EntryTile, ExitTile] : WaterPaths)
+	{
+		if (IsValid(EntryTile))
+		{
+			float Distance = FVector::Dist(Tile->GetActorLocation(), EntryTile->GetActorLocation());
+			if (Distance < ClosestDistance)
+			{
+				ClosestDistance = Distance;
+				ClosestPathTile = EntryTile;
+			}
+		}
+        
+		if (IsValid(ExitTile))
+		{
+			float Distance = FVector::Dist(Tile->GetActorLocation(), ExitTile->GetActorLocation());
+			if (Distance < ClosestDistance)
+			{
+				ClosestDistance = Distance;
+				ClosestPathTile = ExitTile;
+			}
+		}
+	}
+	
+	return ClosestPathTile;
+}
+
+AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocation) const
+{
+	float MinDistSq = FLT_MAX;
+	AML_CameraRail* ClosestCameraRail = nullptr;
+	
+	for (const auto& Rail : AssociatedCameraRails)
+	{
+		// Get the closest key from the LooAt spline from the WorldLocation parameter, then get the world location of this key
+		float InputKey = Rail->GetLookAtFromCameraRail()->FindInputKeyClosestToWorldLocation(WorldLocation);
+		FVector LookAtLocation = Rail->GetLookAtFromCameraRail()->GetLocationAtSplineInputKey(InputKey, ESplineCoordinateSpace::World);
+		
+		float Dist = FVector::DistSquared(WorldLocation, LookAtLocation);
+		if (Dist < MinDistSq)
+		{
+			MinDistSq = Dist;
+			ClosestCameraRail = Rail;
+		}
+	}
+	
+	return ClosestCameraRail;
+}
+
 FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
 {
-	// Axial -> 2D (x,y), puis -> UE (X,Y)
 	const float Sqrt3 = 1.73205080757f;
 
 	float X2D = 0.f;
@@ -257,20 +414,15 @@ FVector AML_BoardSpawner::AxialToWorld(int32 Q, int32 R) const
 
 	if (Orientation == EML_HexOrientation::FlatTop)
 	{
-		// x = size * (3/2 q)
-		// y = size * (sqrt(3) * (r + q/2))
 		X2D = TileSize * (1.5f * Q);
 		Y2D = TileSize * (Sqrt3 * (R + 0.5f * Q));
 	}
 	else // PointyTop
 	{
-		// x = size * (sqrt(3) * (q + r/2))
-		// y = size * (3/2 r)
 		X2D = TileSize * (Sqrt3 * (Q + 0.5f * R));
 		Y2D = TileSize * (1.5f * R);
 	}
 
-	// Dans UE: X,Y sur le plan, Z=0
 	return GetActorLocation() + FVector(X2D, Y2D, 0.f);
 }
 
@@ -331,9 +483,6 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 	Params.Owner = this;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	// Generates a "hexagon" of radius N in the axial direction:
-	// q ∈ [-N, N]
-	// r ∈ [max(-N, -q-N), min(N, -q+N)]
 	for (int32 Q = -Radius; Q <= Radius; ++Q)
 	{
 		const int32 RMin = FMath::Max(-Radius, -Q - Radius);
@@ -359,31 +508,26 @@ void AML_BoardSpawner::SpawnHexagonRadius()
 
 FIntPoint AML_BoardSpawner::OffsetToAxial(int32 Col, int32 Row) const
 {
-	// Returns (q,r) in FIntPoint(q,r)
 	switch (OffsetLayout)
 	{
 	case EML_HexOffsetLayout::OddR:
 		{
-			// q = col - (row - (row&1))/2 ; r = row
 			const int32 Q = Col - ((Row - (Row & 1)) / 2);
 			return FIntPoint(Q, Row);
 		}
 	case EML_HexOffsetLayout::EvenR:
 		{
-			// q = col - (row + (row&1))/2 ; r = row
 			const int32 Q = Col - ((Row + (Row & 1)) / 2);
 			return FIntPoint(Q, Row);
 		}
 	case EML_HexOffsetLayout::OddQ:
 		{
-			// q = col ; r = row - (col - (col&1))/2
 			const int32 R = Row - ((Col - (Col & 1)) / 2);
 			return FIntPoint(Col, R);
 		}
 	case EML_HexOffsetLayout::EvenQ:
 	default:
 		{
-			// q = col ; r = row - (col + (col&1))/2
 			const int32 R = Row - ((Col + (Col & 1)) / 2);
 			return FIntPoint(Col, R);
 		}
@@ -404,7 +548,7 @@ void AML_BoardSpawner::SpawnRectangleWH()
 	{
 		for (int32 Col = 0; Col < GridWidth; ++Col)
 		{
-			const FIntPoint Axial = OffsetToAxial(Col, Row); // (q,r)
+			const FIntPoint Axial = OffsetToAxial(Col, Row);
 			const int32 Q = Axial.X;
 			const int32 R = Axial.Y;
 
@@ -423,3 +567,46 @@ void AML_BoardSpawner::SpawnRectangleWH()
 		}
 	}
 }
+
+void AML_BoardSpawner::AnalyzeCurrentPuzzle()
+{
+	UpdateCurrentGrid(false);
+
+	const FML_PuzzleState State = BuildPuzzleStateFromCurrentGrid();
+	const FML_PuzzleSolveReport Report = FML_PuzzleSolver::Solve(State, PuzzleGenerationSettings);
+
+	UE_LOG(LogTemp, Error, TEXT("Puzzle analysis: Solvable=%s, Solutions=%d, Shortest=%d"),
+		Report.bSolvable ? TEXT("true") : TEXT("false"),
+		Report.SolutionCount,
+		Report.ShortestSolutionLength);
+
+	for (const FIntPoint& Action : Report.ShortestSolution.PlantActions)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Solution action: Plant at Q=%d R=%d"), Action.X, Action.Y);
+	}
+}
+
+FML_PuzzleState AML_BoardSpawner::BuildPuzzleStateFromCurrentGrid() const
+{
+	FML_PuzzleState State;
+	State.Energy = EnergyForPuzzle;
+
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		const AML_Tile* Tile = Pair.Value.Get();
+		if (!IsValid(Tile))
+		{
+			continue;
+		}
+
+		FML_PuzzleCell Cell;
+		Cell.Axial = Pair.Key;
+		Cell.Type = Tile->GetCurrentType();
+		Cell.bHasCollectible = Tile->HasCollectible();
+
+		State.Cells.Add(Cell);
+	}
+
+	return State;
+}
+ 
