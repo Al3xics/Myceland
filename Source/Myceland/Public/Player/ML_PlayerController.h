@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "FMODEvent.h"
 #include "Core/ML_CoreData.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "GameFramework/PlayerController.h"
@@ -78,6 +77,7 @@ private:
 	// ==================== Movement - Tile Movement (private helpers) ====================
 
 	void ExecutePlant(AML_Tile* HitTile);
+	bool RejectPlantWithFeedback();
 
 	// ==================== Camera Queries ====================
 
@@ -257,11 +257,6 @@ public:
 	bool IsMoveInProgress() const { return MoveRecordingComponent && MoveRecordingComponent->IsMoveInProgress(); }
 	bool IsUndoMovePlayback() const { return MoveRecordingComponent && MoveRecordingComponent->IsUndoMovePlayback(); }
 	
-	// ==================== FMOD ====================
-	
-	UPROPERTY(EditAnywhere, Category="Myceland| FMOD")
-	UFMODEvent* TilePlantEvent;
-
 	float GetMoveSpeedScale() const { return MoveSpeedScale; }
 	float GetShortPressThreshold() const { return ShortPressThreshold; }
 

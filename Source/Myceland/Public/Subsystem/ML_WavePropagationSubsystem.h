@@ -101,6 +101,10 @@ private:
 	bool bIsResolvingTiles = false;
 	bool bCycleHasChanges = false;
 	int32 CurrentWaveIndex = 0;
+	int32 CurrentNatureReactionCount = 0;
+	int32 CurrentParasiteReactionCount = 0;
+	int32 CurrentWaterReactionCount = 0;
+	int32 TotalReactionTileCount = 0;
 
 	FTimerHandle IntraWaveTimerHandle;
 	FTimerHandle InterWaveTimerHandle;

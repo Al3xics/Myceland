@@ -2,6 +2,7 @@
 
 #include "Player/ML_PlayerController.h"
 
+#include "Audio/ML_FMODEvents.h"
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
 #include "Component/ML_EnergyComponent.h"
@@ -20,7 +21,6 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
-#include "FMODBlueprintStatics.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
@@ -188,12 +188,12 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return false;
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
-	if (EnergyComponent->GetCurrentEnergy() <= 0) return false;
-	if (!IsValid(TargetTile)) return false;
+	if (EnergyComponent->GetCurrentEnergy() <= 0) return RejectPlantWithFeedback();
+	if (!IsValid(TargetTile)) return RejectPlantWithFeedback();
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return false;
-	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return false;
+	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return RejectPlantWithFeedback();
+	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return RejectPlantWithFeedback();
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
@@ -207,7 +207,7 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	}
 	const FIntPoint TargetAxial = TargetTile->GetAxialCoord();
 
-	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return false;
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return RejectPlantWithFeedback();
 
 	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
 	if (!MoveRecordingComponent->IsMoveInProgress() && CurrentNeighbors.Contains(TargetTile))
@@ -217,15 +217,15 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	}
 
 	TArray<FIntPoint> FullPath;
-	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return false;
-	if (FullPath.Num() < 2) return false;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return RejectPlantWithFeedback();
+	if (FullPath.Num() < 2) return RejectPlantWithFeedback();
 
 	const FIntPoint StopAxial = FullPath[FullPath.Num() - 2];
-	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return false;
+	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return RejectPlantWithFeedback();
 
 	AML_Tile* StopTile = GridMap[StopAxial];
 	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
-	if (!StopNeighbors.Contains(TargetTile)) return false;
+	if (!StopNeighbors.Contains(TargetTile)) return RejectPlantWithFeedback();
 
 	TArray<FIntPoint> MovePath = FullPath;
 	MovePath.RemoveAt(MovePath.Num() - 1);
@@ -234,7 +234,22 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 		MovePath.Add(StartAxial);
 	}
 
-	return StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile);
+	if (!StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile))
+	{
+		return RejectPlantWithFeedback();
+	}
+
+	return true;
+}
+
+bool AML_PlayerController::RejectPlantWithFeedback()
+{
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		SoundSubsystem->StartSound2DByPath(MLFMODEvents::TilePlacementInvalid);
+	}
+
+	return false;
 }
 
 void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
@@ -245,8 +260,13 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 	{
 		OnGrassPlanted.Broadcast(HitTile);
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
-		//UFMODBlueprintStatics::PlayEventAtLocation(GetWorld(), TilePlantEvent, FTransform(HitTile->GetActorLocation()),true);
-		UML_SoundSubsystem::Get(this)->StartSoundAtLocation(TilePlantEvent,FTransform(HitTile->GetActorLocation()),true);
+		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		{
+			SoundSubsystem->StartSound2DByPath(MLFMODEvents::TileNaturePlaceSuccess);
+			SoundSubsystem->StartSoundAtLocationByPath(
+				MLFMODEvents::TilePlant,
+				FTransform(HitTile->GetActorLocation()));
+		}
 	}
 }
 
