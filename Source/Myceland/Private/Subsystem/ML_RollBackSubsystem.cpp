@@ -3,6 +3,7 @@
 #include "Subsystem/ML_RollBackSubsystem.h"
 
 #include "Algo/Reverse.h"
+#include "Audio/ML_FMODEvents.h"
 #include "Collectible/ML_Collectible.h"
 #include "Components/PrimitiveComponent.h"
 #include "Data Asset/ML_BiomeTileSet.h"
@@ -12,6 +13,7 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_PlayerController.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Tiles/ML_Tile.h"
 
@@ -760,6 +762,11 @@ bool UML_RollBackSubsystem::ResetAllActions_Animated()
 		return false;
 	}
 
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		SoundSubsystem->StartSound2DByPath(MLFMODEvents::TimelineReset);
+	}
+
 	return true;
 }
 
@@ -831,12 +838,25 @@ bool UML_RollBackSubsystem::UndoLastAction_Animated()
 	EnsureInitialized();
 	if (!PlayerController || !DevSettings) return false;
 
+	bool bStarted = false;
 	if (DevSettings->bUndoUntilPlant && !bIsResetAllAnimating)
 	{
-		return UndoUntilPlant_Animated();
+		bStarted = UndoUntilPlant_Animated();
+	}
+	else
+	{
+		bStarted = UndoSingleAction_Animated();
 	}
 
-	return UndoSingleAction_Animated();
+	if (bStarted)
+	{
+		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		{
+			SoundSubsystem->StartSound2DByPath(MLFMODEvents::TimelineUndo);
+		}
+	}
+
+	return bStarted;
 }
 
 bool UML_RollBackSubsystem::UndoUntilPlant_Animated()

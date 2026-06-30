@@ -8,6 +8,8 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogMycelandAudio, Log, All);
+
 void UML_SoundPlaybackHandle::Initialize(UML_SoundSubsystem* InSoundSubsystem, UFMODAudioComponent* InAudioComponent, const FML_OnSoundFinished& InOnFinishedCallback)
 {
 	SoundSubsystem = InSoundSubsystem;
@@ -105,6 +107,39 @@ FFMODEventInstance UML_SoundSubsystem::StartSoundAtLocation(UFMODEvent* Sound, c
 	}
 
 	return UFMODBlueprintStatics::PlayEventAtLocation(this, Sound, Location, bAutoPlay);
+}
+
+FFMODEventInstance UML_SoundSubsystem::StartSound2DByPath(const FString& EventPath, const bool bAutoPlay)
+{
+	UFMODEvent* Sound = UFMODBlueprintStatics::FindEventByName(EventPath);
+	if (!Sound)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("FMOD event not found: %s. Build the banks and refresh FMOD assets in Unreal."), *EventPath);
+		return FFMODEventInstance();
+	}
+
+	const FFMODEventInstance Instance = StartSound2D(Sound, bAutoPlay);
+	UE_LOG(LogMycelandAudio, Log, TEXT("Played 2D event %s (valid instance: %s)"),
+		*EventPath,
+		UFMODBlueprintStatics::EventInstanceIsValid(Instance) ? TEXT("true") : TEXT("false"));
+	return Instance;
+}
+
+FFMODEventInstance UML_SoundSubsystem::StartSoundAtLocationByPath(const FString& EventPath, const FTransform& Location, const bool bAutoPlay)
+{
+	UFMODEvent* Sound = UFMODBlueprintStatics::FindEventByName(EventPath);
+	if (!Sound)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("FMOD event not found: %s. Build the banks and refresh FMOD assets in Unreal."), *EventPath);
+		return FFMODEventInstance();
+	}
+
+	const FFMODEventInstance Instance = StartSoundAtLocation(Sound, Location, bAutoPlay);
+	UE_LOG(LogMycelandAudio, Log, TEXT("Played 3D event %s at %s (valid instance: %s)"),
+		*EventPath,
+		*Location.GetLocation().ToCompactString(),
+		UFMODBlueprintStatics::EventInstanceIsValid(Instance) ? TEXT("true") : TEXT("false"));
+	return Instance;
 }
 
 UML_SoundPlaybackHandle* UML_SoundSubsystem::StartTrackedSound2D(UFMODEvent* Sound, FML_OnSoundFinished OnFinished, const bool bAutoDestroy)

@@ -3,6 +3,7 @@
 #include "Subsystem/ML_WinLoseSubsystem.h"
 
 #include "Algo/Reverse.h"
+#include "Audio/ML_FMODEvents.h"
 #include "Containers/Deque.h"
 #include "Core/ML_CoreData.h"
 #include "Core/ML_TileTypeTraits.h"
@@ -10,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
@@ -433,6 +435,11 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 
 		if (bPendingClearWinPath)
 		{
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+			{
+				SoundSubsystem->StartSound2DByPath(MLFMODEvents::TreeLinkMotif);
+			}
+
 			OnConnectedGoalPathComplete.Broadcast();
 			GetWorld()->GetTimerManager().SetTimer(
 				ConnectedWinTimerHandle,
@@ -454,6 +461,15 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 void UML_WinLoseSubsystem::FireWinSequence()
 {
 	OnWin.Broadcast();
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		if (const AML_Tile* PlayerTile = GetPlayerCurrentTile())
+		{
+			const FTransform PlayerTransform(FRotator::ZeroRotator, PlayerTile->GetActorLocation());
+			SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::AvatarVictoryVocal, PlayerTransform);
+		}
+	}
+
 	bPendingClearWinPath = false;
 
 	if (!IsValid(CurrentBoardSpawner))
@@ -654,6 +670,12 @@ void UML_WinLoseSubsystem::ClearWinPath(
 		if (UML_TileTypeTraits::IsWaterType((*TilePtr)->GetCurrentType()))
 		{
 			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::WaterPath, CurrentBoardSpawner->WaterChangeTile);
+
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+			{
+				const FTransform TileTransform(FRotator::ZeroRotator, (*TilePtr)->GetActorLocation());
+				SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileBridgeGrow, TileTransform);
+			}
 		}
 	}
 }

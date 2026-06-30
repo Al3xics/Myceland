@@ -2,6 +2,7 @@
 
 #include "Component/ML_HoverPreviewComponent.h"
 
+#include "Engine/Engine.h"
 #include "Player/ML_PlayerController.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_HexPathfinder.h"
@@ -39,7 +40,7 @@ void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
 	{
 		// Player left the tile the cursor is still hovering → refresh it from the
 		// special player-tile glow back to a normal cursor hover.
-		LastCursorHoveredTile->GlowCursorHovered(false);
+		LastCursorHoveredTile->GlowCursorHovered(false, true);
 		bLastCursorTileIsPlayerTile = false;
 	}
 
@@ -115,6 +116,8 @@ void UML_HoverPreviewComponent::UpdateShowPreviews(const bool Value)
 
 void UML_HoverPreviewComponent::UpdateHoverPreview()
 {
+	UpdateCursorOverEmptySpace();
+	
 	// Do not show preview if `bShowPreviews` is false
 	if (!bShowPreviews) return;
 
@@ -144,17 +147,13 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 	if (IsValid(LastCursorHoveredTile))
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
 
-	if (bCurrentHoveredTileReachable)
-	{
-		const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
-		                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
-		CursorHoveredTile->GlowCursorHovered(bIsPlayerTile);
-		bLastCursorTileIsPlayerTile = bIsPlayerTile;
-	}
-	else
-	{
-		bLastCursorTileIsPlayerTile = false;
-	}
+	// Non-walkable tiles still glow on hover, just with a different (blocked) color driven by bIsWalkable.
+	// The path glow is handled separately in TickHoverPreview and only triggers on reachable tiles.
+	const bool bIsWalkable = UML_HexPathfinder::IsTileWalkable(CursorHoveredTile);
+	const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
+	                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
+	CursorHoveredTile->GlowCursorHovered(bIsPlayerTile, bIsWalkable);
+	bLastCursorTileIsPlayerTile = bIsPlayerTile;
 
 	LastCursorHoveredTile = CursorHoveredTile;
 }
@@ -307,4 +306,21 @@ TArray<AML_Tile*> UML_HoverPreviewComponent::BuildPreviewPathFromTile(const AML_
 	}
 
 	return Result;
+}
+
+void UML_HoverPreviewComponent::UpdateCursorOverEmptySpace()
+{
+	if (!IsValid(OwningController)) return;
+	
+	// ExitingBoard counts as a board mode too: while the player holds the exit, the cursor is still
+	// over empty space and the exit cursor must stay visible. RequestExitHold switches the mode to
+	// ExitingBoard the instant the hold begins, so checking only InsideBoard would wrongly flip to false.
+	const bool bInBoardMode = CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard;
+	const bool bOverEmptySpace = bInBoardMode && bCursorHoverEnabled && !IsValid(OwningController->GetTileUnderCursor()); // Player in a board mode AND is using mouse AND tile under cursor is not valid
+	
+	if (bOverEmptySpace != bWasCursorOverEmptySpace)
+	{
+		bWasCursorOverEmptySpace = bOverEmptySpace;
+		OnCursorOverEmptySpaceChanged.Broadcast(bOverEmptySpace);
+	}
 }
