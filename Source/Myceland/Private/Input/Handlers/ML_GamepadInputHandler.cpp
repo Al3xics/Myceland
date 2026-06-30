@@ -134,9 +134,9 @@ void UML_GamepadInputHandler::SelectTileInStickDirection(FVector2D StickValue)
 	const float NeighborThreshold = bOnWalkableBorder ? 0.866f : 0.5f;
 
 	AML_Tile* NeighborTile = FindNeighborInStickDirection(StickValue, NeighborThreshold);
-	if (IsValid(NeighborTile) && UML_HexPathfinder::IsTileWalkable(NeighborTile))
+	if (IsValid(NeighborTile))
 	{
-		// Walkable neighbor found: advance the selection cursor.
+		// Neighbor found (walkable or not): advance the selection cursor.
 		FocusedTile = NeighborTile;
 		Controller->SetForcedHoverTile(FocusedTile);
 	}
