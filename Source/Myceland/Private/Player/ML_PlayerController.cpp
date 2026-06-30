@@ -392,11 +392,9 @@ void AML_PlayerController::ExtendMoveAlongPath(const TArray<FIntPoint>& FullMerg
 
 bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 {
-	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
-		return false;
-    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
-	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
-	return ObjectType == ECC_GameTraceChannel1;
+	// Tracing on the Cursor channel (ECC_GameTraceChannel1) already guarantees that only intentional
+	// surfaces (tile GroundBase + walkable ground) respond Block, so any blocking hit is a valid target.
+	return Hit.bBlockingHit && Hit.Component.IsValid();
 }
 
 // ==================== Camera Queries ====================
@@ -911,12 +909,16 @@ void AML_PlayerController::ClearHoverPreview()
 AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 {
 	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	// Trace on the dedicated Cursor channel (ECC_GameTraceChannel1) in SIMPLE collision.
+	// Only the tile GroundBase and the walkable ground respond Block to this channel; decorative
+	// meshes ignore it by default. bTraceComplex=false so tiles are picked via their simple collision
+	// (per-poly collision is often absent, e.g. water, which would otherwise let the trace fall through
+	// to the landscape and wrongly read as "no tile").
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit))
 		return nullptr;
 
-	if (!IsClickableGround(Hit))
-		return nullptr;
-
+	// ExtractTileFromHit returns null when the hit is the open ground (not a tile) — that correctly
+	// reads as "cursor outside the board".
 	return ExtractTileFromHit(Hit);
 }
 

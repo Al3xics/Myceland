@@ -23,14 +23,13 @@ AML_Tile::AML_Tile()
 	TileChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("TileChildActor"));
 	TileChildActor->SetupAttachment(RootComponent);
 
+	// Purely visual highlight — no collision. Cursor detection AND physical collision are both on
+	// GroundBase (a ground-level hexagon, in the child actor).
 	HighlightTileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TileMesh"));
 	HighlightTileMesh->SetupAttachment(RootComponent);
-	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	HighlightTileMesh->SetCollisionObjectType(ECC_WorldStatic);
-	HighlightTileMesh->SetCollisionResponseToAllChannels(ECR_Block);
-	HighlightTileMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HighlightTileMesh->SetGenerateOverlapEvents(false);
-	
+
 	HexagonCollision = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HexagonCollision"));
 	HexagonCollision->SetupAttachment(RootComponent);
 	HexagonCollision->SetRelativeScale3D(FVector(0.9f, 0.9f, 0.9f));

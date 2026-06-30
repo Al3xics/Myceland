@@ -34,7 +34,7 @@ void UML_MouseKeyboardInputHandler::OnMoveActionTriggered(float DeltaTime)
 		return;
 
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit))
 		return;
 	if (!Controller->IsClickableGround(Hit))
 		return;
@@ -101,7 +101,7 @@ void UML_MouseKeyboardInputHandler::HandleInsideBoardClick()
 
 	// If arrives here, then the click is outside the board (wants to leave the board)
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit)) return;
 	if (!Controller->IsClickableGround(Hit)) return;
 
 	AML_Tile* ExitGate = Controller->FindReachableExitBorderTile(Board, Hit.Location);
@@ -136,7 +136,7 @@ void UML_MouseKeyboardInputHandler::HandleFreeMovementClick()
 	// No board tile hit: free movement on open ground.
 	Controller->StopNavMeshMovement();
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit)) return;
 	if (!Controller->IsClickableGround(Hit)) return;
 	HoldMoveCachedDestination = Hit.Location;
 }
