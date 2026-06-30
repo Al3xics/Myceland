@@ -7,6 +7,7 @@
 #include "Tiles/ML_BoardSpawner.h"
 #include "ML_WinLoseSubsystem.generated.h"
 
+class UML_MycelandDeveloperSettings;
 class AML_Tile;
 class AML_PlayerCharacter;
 struct FML_GameResult;
@@ -59,6 +60,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void TriggerFindConnectedGoalCheck();
 
+	/**
+	 * Plays the tile-link animation for Board's connected goal groups without
+	 * touching PreviousConnectedPathTiles or CurrentBoardSpawner.
+	 *
+	 * Use this instead of TriggerFindConnectedGoalCheck when the board is NOT
+	 * the player's current active board (e.g. the HubBoardSpawner showing
+	 * solved-puzzle connections).  Tiles are tracked in PersistentAnimatedTiles
+	 * so re-entering the hub never re-animates already-shown connections.
+	 * Unlike the regular flow, these tiles are never broadcast as disconnected.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board);
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void ResetConnectedGoalPathState();
 
@@ -96,16 +110,36 @@ private:
 	UFUNCTION()
 	void HandleResetAnimating(bool bIsAnimating);
 
-UFUNCTION()
+	UFUNCTION()
 	void BroadcastNextConnectedGoalPathTile();
+
+	/**
+	 * Broadcasts OnWin, clears the pending flag, and runs both ClearWinPath
+	 * passes (player→exit now, entry→exit deferred one tick).
+	 * Called from BroadcastNextConnectedGoalPathTile when the queue drains,
+	 * and as a fallback from CheckWinLose when no new tiles need to be animated.
+	 */
+	void FireWinSequence();
 
 	UPROPERTY()
 	TSet<AML_Tile*> PreviousConnectedPathTiles;
+
+	/**
+	 * Tiles already animated by TriggerConnectedGoalAnimationForBoard (hub connections).
+	 * Never cleared by board-change events so hub visuals remain after the player leaves.
+	 * Prevents re-animation if the same hub entry is re-activated.
+	 */
+	UPROPERTY()
+	TSet<AML_Tile*> PersistentAnimatedTiles;
 
 	UPROPERTY()
 	TArray<AML_Tile*> PendingConnectedGoalPathQueue;
 
 	FTimerHandle ConnectedGoalPathTimerHandle;
+	FTimerHandle ConnectedWinTimerHandle;
+
+	UPROPERTY()
+	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
 
 	int32 QueueReadIndex = 0;
 	bool bPendingClearWinPath = false;

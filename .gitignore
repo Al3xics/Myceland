@@ -1,6 +1,7 @@
 .idea/
 .vsconfig
 *.sln.DotSettings.user
+*.code-workspace
 
 
 # FMOD Project - Generated/Temp files

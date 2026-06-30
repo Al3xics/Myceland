@@ -15,11 +15,15 @@ AML_CinematicCameraRail::AML_CinematicCameraRail()
 	Rail = CreateDefaultSubobject<USplineComponent>(TEXT("Rail"));
 	Rail->SetupAttachment(Root);
 	Rail->SetRelativeLocation(FVector(0.f, 1400.f, 1400.f));
+#if WITH_EDITORONLY_DATA
 	Rail->EditorUnselectedSplineSegmentColor = FColor::Red;
+#endif
 
 	LookAt = CreateDefaultSubobject<USplineComponent>(TEXT("LookAt"));
 	LookAt->SetupAttachment(Root);
+#if WITH_EDITORONLY_DATA
 	LookAt->EditorUnselectedSplineSegmentColor = FColor::Emerald;
+#endif
 
 	Camera = CreateDefaultSubobject<UCineCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(Root);

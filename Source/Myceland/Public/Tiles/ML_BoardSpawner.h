@@ -47,6 +47,9 @@ private:
 	TArray<AActor*> AssociatedNatureZones;
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	TArray<AActor*> AssociatedWaterPaths;
+	
+	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	ULevelSequence* AssociatedWinCinematic;
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
@@ -140,6 +143,9 @@ public:
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Clear Grid"))
 	void ClearTiles();
 	
+	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Destroy Stale Tiles"))
+	void DestroyStaleTiles() const;
+	
 	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
 	TArray<AML_Tile*> GetNeighbors(AML_Tile* CenterTile);
 	
@@ -183,6 +189,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TArray<AActor*> GetAssociatedNatureZones() const { return AssociatedNatureZones; } 
+	
+	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	TArray<AActor*> GetAssociatedWaterPaths() const { return AssociatedWaterPaths; } 
 	
 	// ==================== Myceland Hex Procedural Grid ====================
 	

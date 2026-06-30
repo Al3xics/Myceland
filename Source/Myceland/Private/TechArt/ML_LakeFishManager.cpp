@@ -25,11 +25,14 @@ void AML_LakeFishManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	GetWorld()->GetTimerManager().SetTimerForNextTick(this, &AML_LakeFishManager::InitializeLakeManager);
+}
+void AML_LakeFishManager::InitializeLakeManager()
+{
 	GatherBoardsAndTiles();
 	BindTileEvents();
 	RebuildLakes();
 }
-
 void AML_LakeFishManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	for (FML_LakeRuntime& Lake : Lakes)
@@ -293,15 +296,9 @@ bool AML_LakeFishManager::IsWaterTile(const AML_Tile* Tile) const
 {
 	if (!IsValid(Tile)) return false;
 
-	if (Tile->GetCurrentType() != EML_TileType::Water && Tile->GetCurrentType() != EML_TileType::WaterPath)
-	{
-		return false;
-	}
-
-	const UChildActorComponent* ChildComponent = Tile->GetTileChildActor();
-	return ChildComponent && Cast<AML_TileWater>(ChildComponent->GetChildActor()) != nullptr;
+	return Tile->GetCurrentType() == EML_TileType::Water
+		|| Tile->GetCurrentType() == EML_TileType::WaterPath;
 }
-
 bool AML_LakeFishManager::IsGrassTile(const AML_Tile* Tile) const
 {
 	if (!IsValid(Tile)) return false;
@@ -334,23 +331,11 @@ bool AML_LakeFishManager::IsTileAliveWater(const AML_Tile* Tile) const
 	AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return false;
 
-	int32 TreeNeighborCount = 0;
-
 	for (AML_Tile* Neighbor : Board->GetNeighbors(const_cast<AML_Tile*>(Tile)))
 	{
 		if (IsGrassTile(Neighbor))
 		{
 			return true;
-		}
-
-		if (IsTreeTile(Neighbor))
-		{
-			TreeNeighborCount++;
-
-			if (TreeNeighborCount >= 2)
-			{
-				return true;
-			}
 		}
 	}
 
@@ -387,11 +372,29 @@ void AML_LakeFishManager::FloodFillWaterLake(AML_Tile* StartTile, TSet<AML_Tile*
 
 bool AML_LakeFishManager::DoesLakeTouchGrass(const TArray<AML_Tile*>& LakeTiles) const
 {
+	TSet<AML_Tile*> UniqueTreeNeighbors;
+
 	for (AML_Tile* Tile : LakeTiles)
 	{
 		if (IsTileAliveWater(Tile))
 		{
 			return true;
+		}
+
+		AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
+		if (!IsValid(Board)) continue;
+
+		for (AML_Tile* Neighbor : Board->GetNeighbors(Tile))
+		{
+			if (IsTreeTile(Neighbor))
+			{
+				UniqueTreeNeighbors.Add(Neighbor);
+
+				if (UniqueTreeNeighbors.Num() >= 2)
+				{
+					return true;
+				}
+			}
 		}
 	}
 

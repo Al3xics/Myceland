@@ -2,11 +2,13 @@
 
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 
+#include "Audio/ML_FMODEvents.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_PlayerController.h"
 #include "Collectible/ML_Collectible.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Tiles/ML_Tile.h"
@@ -48,6 +50,29 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	WinLoseSubsystem->CheckWinLose();
 	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 
+	if (TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
+	{
+		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		{
+			if (const AML_Tile* PlayerTile = WinLoseSubsystem->GetPlayerCurrentTile())
+			{
+				const TCHAR* SurpriseEvent = MLFMODEvents::AvatarSurpriseLow;
+				if (TotalReactionTileCount >= 6)
+				{
+					SurpriseEvent = MLFMODEvents::AvatarSurpriseHigh;
+				}
+				else if (TotalReactionTileCount >= 3)
+				{
+					SurpriseEvent = MLFMODEvents::AvatarSurpriseMedium;
+				}
+
+				const FTransform PlayerTransform(FRotator::ZeroRotator, PlayerTile->GetActorLocation());
+				SoundSubsystem->StartSoundAtLocationByPath(SurpriseEvent, PlayerTransform);
+			}
+		}
+	}
+	TotalReactionTileCount = 0;
+
 	bIsResolvingTiles = false;
 
 	if (RollBackSubsystem)
@@ -75,6 +100,10 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 	CurrentOriginTile = HitTile;
 	CurrentWaveIndex = 0;
 	bCycleHasChanges = false;
+	CurrentNatureReactionCount = 0;
+	CurrentParasiteReactionCount = 0;
+	CurrentWaterReactionCount = 0;
+	TotalReactionTileCount = 0;
 
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
@@ -129,6 +158,50 @@ void UML_WavePropagationSubsystem::RunWave()
 				Tile->UpdateClassAtRuntime(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
 			else
 				Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
+
+			const bool bIsUndo = RollBackSubsystem && RollBackSubsystem->IsUndoInProgress();
+			const bool bTileChanged = OldType != Change.TargetType;
+			if (bTileChanged && !bIsUndo)
+			{
+				if (Change.TargetType == EML_TileType::Grass && Change.DistanceFromOrigin > 0)
+				{
+					++CurrentNatureReactionCount;
+					++TotalReactionTileCount;
+				}
+				else if (Change.TargetType == EML_TileType::Parasite)
+				{
+					++CurrentParasiteReactionCount;
+					++TotalReactionTileCount;
+				}
+				else if (Change.TargetType == EML_TileType::Water)
+				{
+					++CurrentWaterReactionCount;
+					++TotalReactionTileCount;
+				}
+
+				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+				{
+					const FTransform SoundTransform(FRotator::ZeroRotator, Tile->GetActorLocation());
+
+					if (OldType == EML_TileType::Grass && Change.TargetType == EML_TileType::Parasite)
+					{
+						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteSpread, SoundTransform);
+
+						if (Tile == WinLoseSubsystem->GetPlayerCurrentTile())
+						{
+							SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteEngulf, SoundTransform);
+							SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::AvatarEngulfedVocal, SoundTransform);
+						}
+					}
+
+					if (OldType == EML_TileType::Parasite && Change.TargetType == EML_TileType::Water)
+					{
+						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteDieWater, SoundTransform);
+						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileEarthDig, SoundTransform);
+						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileWaterFill, SoundTransform);
+					}
+				}
+			}
 
 			// Destroy collectible if the tile changed to something other than dirt or grass
 			// (because on dirt or grass it can stay)
@@ -186,6 +259,11 @@ void UML_WavePropagationSubsystem::RunWave()
 				if (RollBackSubsystem)
 					RollBackSubsystem->RecordSpawnedActor(Collectible, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);
 
+				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+				{
+					SoundSubsystem->StartSound2DByPath(MLFMODEvents::EnergySpawn);
+				}
+
 				bCycleHasChanges = true;
 			}
 		}
@@ -198,6 +276,22 @@ void UML_WavePropagationSubsystem::RunWave()
 	}
 	else
 	{
+		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		{
+			if (CurrentNatureReactionCount > 0)
+			{
+				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainNature);
+			}
+			else if (CurrentParasiteReactionCount > 0)
+			{
+				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainParasite);
+			}
+			else if (CurrentWaterReactionCount > 0)
+			{
+				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainWater);
+			}
+		}
+
 		ScheduleNextPriority();
 	}
 }
@@ -252,6 +346,9 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 	CurrentWaveIndex++;
 
 	PendingChanges.Empty();
+	CurrentNatureReactionCount = 0;
+	CurrentParasiteReactionCount = 0;
+	CurrentWaterReactionCount = 0;
 
 	// Collectible wave uses a dedicated entry point
 	if (UML_WaveCollectible* CollectibleWave = Cast<UML_WaveCollectible>(WaveLogic))
@@ -300,6 +397,10 @@ void UML_WavePropagationSubsystem::AbortPropagationRuntime()
 	CurrentOriginTile = nullptr;
 	CurrentWaveIndex = 0;
 	bCycleHasChanges = false;
+	CurrentNatureReactionCount = 0;
+	CurrentParasiteReactionCount = 0;
+	CurrentWaterReactionCount = 0;
+	TotalReactionTileCount = 0;
 }
 
 void UML_WavePropagationSubsystem::BuildTouchQueue(AML_Tile* OriginTile)

@@ -19,7 +19,9 @@ class AML_TileDirt;
 class AML_TileWaterPath;
 class AML_BoardSpawner;
 enum class EML_TileType : uint8;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
+
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Tile : public AActor
 {
@@ -121,8 +123,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	AML_BoardSpawner* GetBoardSpawnerFromTile() const { return Cast<AML_BoardSpawner>(GetOwner()); }
 
+	// bIsWalkable is false when hovering a non-walkable tile type (water, obstacle, parasite, tree).
+	// The Blueprint uses it to pick a different "blocked" glow color.
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void GlowCursorHovered(bool bIsPlayerTile);
+	void GlowCursorHovered(bool bIsPlayerTile, bool bIsWalkable);
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowingCursorUnhovered();
@@ -151,6 +155,11 @@ public:
 
 	UFUNCTION()
 	void UpdateClassAtRuntime_Silent(EML_TileType NewTileType, TSubclassOf<AML_TileBase> NewClass);
+
+	// Destroys any AML_TileBase actor attached to this tile that is NOT the child actor
+	// currently tracked by TileChildActor. Guards against orphaned child actors left behind
+	// by editor duplication / reattachment, which otherwise keep showing the previous type.
+	void DestroyStaleChildActors();
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;

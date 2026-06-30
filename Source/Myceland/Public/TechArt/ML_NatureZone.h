@@ -13,21 +13,21 @@ struct FML_NatureInstanceReference
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature")
+	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<UInstancedStaticMeshComponent> Component = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature")
+	UPROPERTY(BlueprintReadOnly)
 	int32 InstanceIndex = INDEX_NONE;
 
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature")
+	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<UStaticMesh> StaticMesh = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature")
-	FTransform WorldTransform = FTransform::Identity;
+	UPROPERTY(BlueprintReadOnly)
+	FTransform WorldTransform;
 
 	bool IsValid() const
 	{
-		return Component != nullptr && InstanceIndex != INDEX_NONE;
+		return Component.Get() != nullptr && InstanceIndex != INDEX_NONE;
 	}
 };
 
@@ -36,14 +36,14 @@ struct FML_NatureCachedInstance
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature")
+	UPROPERTY(BlueprintReadOnly)
 	FML_NatureInstanceReference InstanceRef;
 
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature")
+	UPROPERTY(BlueprintReadOnly)
 	FVector OriginalScale = FVector::OneVector;
 };
 
-UCLASS(Blueprintable)
+UCLASS()
 class MYCELAND_API AML_NatureZone : public AActor
 {
 	GENERATED_BODY()
@@ -53,69 +53,71 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
-public:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Nature")
-	TObjectPtr<USceneComponent> SceneRoot = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Nature")
-	TObjectPtr<UBoxComponent> DetectionBox = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Myceland Nature")
-	TArray<TObjectPtr<UStaticMesh>> TargetMeshes;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Myceland Nature")
-	bool bUsePreciseRotatedBoxCheck = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Myceland Nature|Growth")
-	float HiddenScale = 0.01f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Myceland Nature|Growth")
-	float GrowthDuration = 2.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Myceland Nature|Growth")
-	bool bUseSmoothStepGrowth = true;
-
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature|Growth")
-	bool bIsGrowing = false;
-
-	UPROPERTY(BlueprintReadOnly, Category="Myceland Nature|Growth")
-	TArray<FML_NatureCachedInstance> CachedInstances;
-
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature")
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
 	TArray<FML_NatureInstanceReference> GetFoliageInstancesInsideBox() const;
 
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature")
-	bool SetFoliageInstanceScale(
-		const FML_NatureInstanceReference& InstanceRef,
-		FVector NewScale,
-		bool bMarkRenderStateDirty = true
-	);
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
+	TArray<FML_NatureInstanceReference> GetMaterialTargetFoliageInstancesInsideBox() const;
 
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature")
-	int32 SetFoliageInstancesScale(
-		const TArray<FML_NatureInstanceReference>& InstanceRefs,
-		FVector NewScale
-	);
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
+	bool SetFoliageInstanceScale(const FML_NatureInstanceReference& InstanceRef, FVector NewScale, bool bMarkRenderStateDirty = true);
 
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature|Growth")
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
+	int32 SetFoliageInstancesScale(const TArray<FML_NatureInstanceReference>& InstanceRefs, FVector NewScale);
+
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
 	int32 CacheFoliageInstancesInsideBox();
 
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature|Growth")
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
 	int32 CacheAndHideFoliageInstancesInsideBox();
 
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature|Growth")
-	void StartGrowCachedFoliage();
-
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature|Growth")
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
 	int32 HideCachedFoliage();
 
-	UFUNCTION(BlueprintCallable, Category="Myceland Nature|Growth")
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
+	void StartGrowCachedFoliage();
+
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
 	void ClearCachedFoliage();
 
-private:
+	UFUNCTION(BlueprintCallable, Category="Nature Zone|Material")
+	int32 SetMaterialTargetCustomDataInsideBox(int32 CustomDataIndex, float Value);
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Nature Zone")
+	TObjectPtr<USceneComponent> SceneRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Nature Zone")
+	TObjectPtr<UBoxComponent> DetectionBox;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Foliage")
+	TArray<TObjectPtr<UStaticMesh>> TargetMeshes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Material")
+	TArray<TObjectPtr<UStaticMesh>> MaterialTargetMeshes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Growth")
+	float GrowthDuration = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Growth")
+	bool bUseSmoothStepGrowth = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Growth")
+	float HiddenScale = 0.01f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Detection")
+	bool bUsePreciseRotatedBoxCheck = true;
+
+	UPROPERTY(BlueprintReadOnly, Category="Nature Zone|Foliage")
+	TArray<FML_NatureCachedInstance> CachedInstances;
+
+	bool bIsGrowing = false;
 	float GrowthElapsed = 0.0f;
 
-	bool ShouldAcceptMesh(const UStaticMesh* Mesh) const;
-	bool IsWorldLocationInsideDetectionBox(const FVector& WorldLocation) const;
 	void ApplyGrowthAlpha(float Alpha);
+
+	bool ShouldAcceptMesh(const UStaticMesh* Mesh) const;
+	bool ShouldAcceptMaterialMesh(const UStaticMesh* Mesh) const;
+
+	bool IsWorldLocationInsideDetectionBox(const FVector& WorldLocation) const;
 };

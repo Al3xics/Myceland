@@ -23,14 +23,13 @@ AML_Tile::AML_Tile()
 	TileChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("TileChildActor"));
 	TileChildActor->SetupAttachment(RootComponent);
 
+	// Purely visual highlight — no collision. Cursor detection AND physical collision are both on
+	// GroundBase (a ground-level hexagon, in the child actor).
 	HighlightTileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TileMesh"));
 	HighlightTileMesh->SetupAttachment(RootComponent);
-	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	HighlightTileMesh->SetCollisionObjectType(ECC_WorldStatic);
-	HighlightTileMesh->SetCollisionResponseToAllChannels(ECR_Block);
-	HighlightTileMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HighlightTileMesh->SetGenerateOverlapEvents(false);
-	
+
 	HexagonCollision = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HexagonCollision"));
 	HexagonCollision->SetupAttachment(RootComponent);
 	HexagonCollision->SetRelativeScale3D(FVector(0.9f, 0.9f, 0.9f));
@@ -45,6 +44,26 @@ AML_Tile::AML_Tile()
 void AML_Tile::NotifyTileChangedNative()
 {
 	OnTileChangedNative.Broadcast(this);
+}
+
+void AML_Tile::DestroyStaleChildActors()
+{
+	if (!TileChildActor) return;
+
+	const AActor* CurrentChild = TileChildActor->GetChildActor();
+
+	TArray<AActor*> Attached;
+	GetAttachedActors(Attached);
+
+	for (AActor* Actor : Attached)
+	{
+		if (!IsValid(Actor)) continue;
+		if (!Actor->IsA(AML_TileBase::StaticClass())) continue;
+		if (Actor == CurrentChild) continue;
+
+		// Orphaned tile visual from a previous class or an editor duplication.
+		Actor->Destroy();
+	}
 }
 
 void AML_Tile::SetBlocked(bool bNewBlocked)
@@ -103,6 +122,7 @@ void AML_Tile::UpdateClassInEditor(const EML_TileType NewTileType)
 	}
 
 	TileChildActor->SetChildActorClass(TileBase);
+	DestroyStaleChildActors();
 	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 }
 #endif
@@ -119,6 +139,7 @@ void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubcl
 	bConsumedGrass = (OldType == EML_TileType::Grass && NewTileType == EML_TileType::Parasite);
 	
 	TileChildActor->SetChildActorClass(NewClass);
+	DestroyStaleChildActors();
 	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 
 	OnTileTypeChanged(OldType, NewTileType);
@@ -138,6 +159,7 @@ void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const
 	CurrentType = NewTileType;
 
 	TileChildActor->SetChildActorClass(NewClass);
+	DestroyStaleChildActors();
 	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
 
 	// NO OnTileTypeChanged(OldType, NewTileType) in silent mode

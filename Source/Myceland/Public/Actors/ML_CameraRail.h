@@ -97,9 +97,11 @@ public:
 	UFUNCTION(CallInEditor, Category="Camera Rail", meta = (DisplayName = "Sync LookAt -> Rail", ToolTip = "Copies LookAt's spline points structure to Rail. Rail keeps its own world offset. WARNING: overwrites Rail points permanently."))
 	void SyncLookAtToRailSpline() const { SyncSplines(LookAt, Rail); }
 	
+#if WITH_EDITOR
 	UFUNCTION(CallInEditor, Category="Camera Rail", meta = (DisplayName = "Add Transition"))
 	void AddTransition();
-	
+
 	UFUNCTION(CallInEditor, Category="Camera Rail", meta = (DisplayName = "Remove Last Transition"))
 	void RemoveLastTransition();
+#endif
 };

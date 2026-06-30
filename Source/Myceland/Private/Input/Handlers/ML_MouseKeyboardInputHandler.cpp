@@ -34,17 +34,14 @@ void UML_MouseKeyboardInputHandler::OnMoveActionTriggered(float DeltaTime)
 		return;
 
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit))
 		return;
 	if (!Controller->IsClickableGround(Hit))
 		return;
 
-	// Don't redirect toward non-walkable tiles (obstacle child actors were previously missed by Cast<AML_Tile>).
-	// Walkable tiles do update the destination — the player approaches the board, physical obstacle collision blocks entry.
-	const AML_Tile* HitTile = AML_PlayerController::ExtractTileFromHit(Hit);
-	if (HitTile && !UML_HexPathfinder::IsTileWalkable(HitTile))
-		return;
-
+	// Keep driving the player toward the cursor even when it's over a non-walkable tile:
+	// the player should approach the obstacle and let physical collision stop it just short of entry,
+	// rather than freezing in place the moment the cursor crosses onto an obstacle tile.
 	HoldMoveCachedDestination = Hit.Location;
 	const FVector Direction = (HoldMoveCachedDestination - Character->GetActorLocation()).GetSafeNormal();
 	Character->AddMovementInput(Direction, Controller->GetMoveSpeedScale());
@@ -104,7 +101,7 @@ void UML_MouseKeyboardInputHandler::HandleInsideBoardClick()
 
 	// If arrives here, then the click is outside the board (wants to leave the board)
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit)) return;
 	if (!Controller->IsClickableGround(Hit)) return;
 
 	AML_Tile* ExitGate = Controller->FindReachableExitBorderTile(Board, Hit.Location);
@@ -139,7 +136,7 @@ void UML_MouseKeyboardInputHandler::HandleFreeMovementClick()
 	// No board tile hit: free movement on open ground.
 	Controller->StopNavMeshMovement();
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit)) return;
 	if (!Controller->IsClickableGround(Hit)) return;
 	HoldMoveCachedDestination = Hit.Location;
 }

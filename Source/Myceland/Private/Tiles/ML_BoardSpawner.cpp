@@ -294,6 +294,9 @@ void AML_BoardSpawner::ClearTiles()
 
 		if (Tile->GetOwner() == this)
 		{
+			// Destroy attached orphan visuals first; otherwise destroying the tile only
+			// detaches them and leaves them floating in the level forever.
+			Tile->DestroyStaleChildActors();
 			Tile->Destroy();
 		}
 	}
@@ -301,6 +304,17 @@ void AML_BoardSpawner::ClearTiles()
 	SpawnedTiles.Empty();
 	TreeTiles.Empty();
 	GridMap.Empty();
+}
+
+void AML_BoardSpawner::DestroyStaleTiles() const
+{
+	for (TActorIterator<AML_Tile> It(GetWorld()); It; ++It)
+	{
+		AML_Tile* Tile = *It;
+		if (!IsValid(Tile)) continue;
+		if (Tile->GetOwner() != this) continue;
+		Tile->DestroyStaleChildActors();
+	}
 }
 
 TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile)
