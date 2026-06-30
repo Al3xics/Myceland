@@ -38,7 +38,9 @@ void AML_BoardSpawner::BeginPlay()
 
 void AML_BoardSpawner::UpdateCurrentGridEditor()
 {
-	UpdateCurrentGrid(true);
+	// Never spawn new tiles — the designer may have intentionally deleted some.
+	// Use "Clear & Rebuild Grid" to regenerate the full procedural shape.
+	UpdateCurrentGrid(false);
 }
 
 void AML_BoardSpawner::RebuildGrid()
