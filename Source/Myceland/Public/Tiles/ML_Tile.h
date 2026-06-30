@@ -119,8 +119,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	AML_BoardSpawner* GetBoardSpawnerFromTile() const { return Cast<AML_BoardSpawner>(GetOwner()); }
 
+	// bIsWalkable is false when hovering a non-walkable tile type (water, obstacle, parasite, tree).
+	// The Blueprint uses it to pick a different "blocked" glow color.
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void GlowCursorHovered(bool bIsPlayerTile);
+	void GlowCursorHovered(bool bIsPlayerTile, bool bIsWalkable);
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowingCursorUnhovered();

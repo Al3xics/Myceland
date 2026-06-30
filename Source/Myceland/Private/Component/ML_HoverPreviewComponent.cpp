@@ -40,7 +40,7 @@ void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
 	{
 		// Player left the tile the cursor is still hovering → refresh it from the
 		// special player-tile glow back to a normal cursor hover.
-		LastCursorHoveredTile->GlowCursorHovered(false);
+		LastCursorHoveredTile->GlowCursorHovered(false, true);
 		bLastCursorTileIsPlayerTile = false;
 	}
 
@@ -147,17 +147,13 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 	if (IsValid(LastCursorHoveredTile))
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
 
-	if (bCurrentHoveredTileReachable)
-	{
-		const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
-		                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
-		CursorHoveredTile->GlowCursorHovered(bIsPlayerTile);
-		bLastCursorTileIsPlayerTile = bIsPlayerTile;
-	}
-	else
-	{
-		bLastCursorTileIsPlayerTile = false;
-	}
+	// Non-walkable tiles still glow on hover, just with a different (blocked) color driven by bIsWalkable.
+	// The path glow is handled separately in TickHoverPreview and only triggers on reachable tiles.
+	const bool bIsWalkable = UML_HexPathfinder::IsTileWalkable(CursorHoveredTile);
+	const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
+	                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
+	CursorHoveredTile->GlowCursorHovered(bIsPlayerTile, bIsWalkable);
+	bLastCursorTileIsPlayerTile = bIsPlayerTile;
 
 	LastCursorHoveredTile = CursorHoveredTile;
 }
