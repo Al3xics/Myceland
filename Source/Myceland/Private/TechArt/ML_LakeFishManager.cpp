@@ -25,11 +25,14 @@ void AML_LakeFishManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	GetWorld()->GetTimerManager().SetTimerForNextTick(this, &AML_LakeFishManager::InitializeLakeManager);
+}
+void AML_LakeFishManager::InitializeLakeManager()
+{
 	GatherBoardsAndTiles();
 	BindTileEvents();
 	RebuildLakes();
 }
-
 void AML_LakeFishManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	for (FML_LakeRuntime& Lake : Lakes)
