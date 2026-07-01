@@ -928,6 +928,14 @@
 		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
 	},
 	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Audio\\ML_AnimNotify_FootstepDirt.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
 		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Collectible\\ML_Collectible.cpp",
 		"arguments": [
 			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
@@ -1216,6 +1224,14 @@
 		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
 	},
 	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\TechArt\\SplineFilledMeshActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
 		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Private\\Tiles\\ML_BoardSpawner.cpp",
 		"arguments": [
 			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
@@ -1433,6 +1449,22 @@
 	},
 	{
 		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Actors\\ML_TalkingThing.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Audio\\ML_AnimNotify_FootstepDirt.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\Audio\\ML_FMODEvents.h",
 		"arguments": [
 			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
 			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
@@ -1753,6 +1785,14 @@
 	},
 	{
 		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\TechArt\\ML_ParasiteRootNetwork.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
+			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
+		],
+		"directory": "C:\\Program Files\\Epic Games\\UE_5.6\\Engine\\Source"
+	},
+	{
+		"file": "C:\\Users\\findj\\Documents\\GitHub\\Myceland\\Source\\Myceland\\Public\\TechArt\\SplineFilledMeshActor.h",
 		"arguments": [
 			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.38.33130\\bin\\Hostx64\\x64\\cl.exe",
 			"@C:\\Users\\findj\\Documents\\GitHub\\Myceland\\.vscode\\compileCommands_Default\\Myceland.1.rsp"
