@@ -206,16 +206,16 @@ public:
 	// obstacle. Does NOT write to the save — call ReplayPuzzle (or ResetPuzzle on the
 	// subsystem) to commit the change. Used directly for cascade resets.
 	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
-	void RestoreToInitialState();
+	virtual void RestoreToInitialState();
 
-private:
-
-	// Resets this puzzle (and every puzzle solved after it) back to its initial state
-	// and updates the save. Intended for editor and Blueprint use.
-	UFUNCTION(CallInEditor, BlueprintCallable, Category="Myceland Hex Grid", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
-	void ReplayPuzzle();
+protected:
 
 	// ==================== Save / Load Helpers ====================
+
+	// If false, BeginPlay skips the automatic solved-grid restore so a subclass can
+	// own its own restore path (e.g. the hub, which must snapshot pre-change tile
+	// state for reverts before repainting). Default: true.
+	virtual bool ShouldAutoRestoreSolvedGrid() const { return true; }
 
 	// Returns a snapshot of the current GridMap as a flat array of tile entries.
 	TArray<FML_TileSaveEntry> SnapshotGrid() const;
@@ -226,6 +226,13 @@ private:
 	// Returns a stable level key (map name with PIE prefix stripped) used to scope
 	// solve orders and cascade resets to the current level.
 	FName GetLevelKey() const;
+
+private:
+
+	// Resets this puzzle (and every puzzle solved after it) back to its initial state
+	// and updates the save. Intended for editor and Blueprint use.
+	UFUNCTION(CallInEditor, BlueprintCallable, Category="Myceland Hex Grid", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
+	void ReplayPuzzle();
 
 	// Bound to UML_WinLoseSubsystem::OnWin; captures the solved grid and saves to disk.
 	UFUNCTION()

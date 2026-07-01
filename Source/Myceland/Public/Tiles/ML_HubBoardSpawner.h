@@ -163,9 +163,26 @@ private:
 	void CancelPendingSpawnTimers();
 	int32 FindEntryIndexForBoard(const AML_BoardSpawner* Board) const;
 
+	// Repaints the board from the persisted hub grid (which captures wave-propagation
+	// results). Returns false if no snapshot exists so the caller can fall back to
+	// replaying the per-entry TileChanges.
+	bool RestoreSavedHubGrid();
+
+	// Writes the current hub grid to the save. When bMarkSolved is true the hub is also
+	// marked solved so it becomes the player's respawn anchor (only when fully revitalized).
+	void PersistHubGrid(bool bMarkSolved);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	// The hub owns its restore (see RehydrateAlreadySolvedPuzzles) so it can snapshot
+	// pre-change tile state for reverts before repainting — opt out of the base auto-restore.
+	virtual bool ShouldAutoRestoreSolvedGrid() const override { return false; }
+
+	// The hub is never reset as one board: drop the per-entry bookkeeping and repaint
+	// from whichever linked puzzles are still solved, rather than blanking to dirt.
+	virtual void RestoreToInitialState() override;
 
 public:
 	AML_HubBoardSpawner();

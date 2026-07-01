@@ -78,9 +78,13 @@ public:
 	 * solved-puzzle connections).  Tiles are tracked in PersistentAnimatedTiles
 	 * so re-entering the hub never re-animates already-shown connections.
 	 * Unlike the regular flow, these tiles are never broadcast as disconnected.
+	 *
+	 * When bImmediate is true the tiles are broadcast synchronously instead of staggered
+	 * over a timer. This is used on load: it avoids the shared queue/timer so a board
+	 * change (which calls ResetConnectedGoalPathState) can't cancel a partial reveal.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	void TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board);
+	void TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board, bool bImmediate = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void ResetConnectedGoalPathState();

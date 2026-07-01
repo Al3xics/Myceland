@@ -45,6 +45,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
 	void MarkPuzzleSolved(FName PuzzleID, const TArray<FML_TileSaveEntry>& SolvedEntries, FName LevelName);
 
+	// Stores only the SolvedGrid snapshot for a puzzle and saves, WITHOUT touching the
+	// solved flag, solve order, or LastSolvedPuzzleID. Used by the hub to persist its
+	// evolving grid on each definitive tile change while it isn't yet fully revitalized.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save")
+	void SaveGridSnapshot(FName PuzzleID, const TArray<FML_TileSaveEntry>& Entries);
+
 	// Clears the solved flag for PuzzleID and every puzzle solved after it within
 	// the same level (cascade is level-scoped — other levels are never affected).
 	// Returns the full list of reset IDs so callers can restore the matching boards.

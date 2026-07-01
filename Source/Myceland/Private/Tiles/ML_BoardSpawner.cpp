@@ -65,8 +65,9 @@ void AML_BoardSpawner::BeginPlay()
 	SaveSys->EnsureInitialGridSaved(PuzzleID.GetTagName(), Snapshot);
 
 	// If this puzzle was already solved, restore the solved grid so the player sees it.
+	// Subclasses that own their own restore (e.g. the hub) opt out via ShouldAutoRestoreSolvedGrid().
 	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
-	if (Record.bIsSolved && Record.SolvedGrid.Num() > 0)
+	if (ShouldAutoRestoreSolvedGrid() && Record.bIsSolved && Record.SolvedGrid.Num() > 0)
 	{
 		int32 Applied = 0;
 		for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)

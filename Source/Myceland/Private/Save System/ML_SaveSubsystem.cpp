@@ -90,6 +90,18 @@ void UML_SaveSubsystem::MarkPuzzleSolved(FName PuzzleID, const TArray<FML_TileSa
 		*PuzzleID.ToString(), *LevelName.ToString());
 }
 
+void UML_SaveSubsystem::SaveGridSnapshot(FName PuzzleID, const TArray<FML_TileSaveEntry>& Entries)
+{
+	if (!SaveObject || PuzzleID.IsNone()) return;
+
+	// Only the grid is updated — solved flag, solve order and LastSolvedPuzzleID are
+	// intentionally left untouched (the hub isn't "solved" until fully revitalized).
+	FML_PuzzleSaveRecord& Record = SaveObject->PuzzleRecords.FindOrAdd(PuzzleID);
+	Record.SolvedGrid = Entries;
+
+	SaveToDisk();
+}
+
 TArray<FName> UML_SaveSubsystem::ResetPuzzle(FName PuzzleID, FName LevelName)
 {
 	TArray<FName> ResetIDs;
