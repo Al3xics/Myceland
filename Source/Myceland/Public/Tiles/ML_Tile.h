@@ -17,6 +17,7 @@ class AML_TileParasite;
 class AML_TileGrass;
 class AML_TileDirt;
 class AML_BoardSpawner;
+class UNavModifierComponent;
 enum class EML_TileType : uint8;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
@@ -74,7 +75,18 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
 	UStaticMeshComponent* HexagonCollision;
-	
+
+	// Carves a hole in the navmesh when this tile blocks movement, so pathfinding routes
+	// around non-walkable tiles (water, obstacle, tree, parasite) instead of through them.
+	// Lives on the parent tile (not the child actor) and uses the owner's location.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile|Navigation")
+	UNavModifierComponent* NavBlocker;
+
+	// Half-extents of the navmesh carve box applied while blocked. Z must be tall enough to
+	// reach the navmesh, which is generated above the tile ground. Tune per tile size / navmesh height.
+	UPROPERTY(EditAnywhere, Category="Myceland Tile|Navigation")
+	FVector NavBlockerExtent = FVector(55.f, 55.f, 500.f);
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	void UpdateClassInEditor(EML_TileType NewTileType);

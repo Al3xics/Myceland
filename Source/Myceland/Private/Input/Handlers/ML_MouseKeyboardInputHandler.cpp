@@ -55,7 +55,7 @@ void UML_MouseKeyboardInputHandler::OnMoveActionReleased()
 	{
 		// Cursor is outside the board after releasing — clear the exit tile glow and path preview.
 		Controller->ClearForcedHoverTile();
-		Controller->ClearHoverPreview();
+		Controller->ClearPathHoverPreview();
 	}
 
 	if (bIgnoreCurrentClick)

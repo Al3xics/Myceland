@@ -47,7 +47,7 @@ void UML_GamepadInputHandler::OnMoveActionStarted()
 	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
 	if (!IsValid(FocusedTile)) return;
 	Controller->Move(FocusedTile);
-	// ForcedHoverTile kept so TickHoverPreview continues updating the path glow during the walk.
+	// ForcedHoverTile kept so TickPathHoverPreview continues updating the path glow during the walk.
 	// FocusedTile cleared so the next flick starts from CurrentTileOn (the destination).
 	FocusedTile = nullptr;
 }

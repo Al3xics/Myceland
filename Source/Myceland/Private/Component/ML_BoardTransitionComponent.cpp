@@ -59,6 +59,30 @@ bool UML_BoardTransitionComponent::IsOutsideBoardMovementMode() const
 		CurrentMovementMode == EML_PlayerMovementMode::EnteringBoard;
 }
 
+void UML_BoardTransitionComponent::ForceFreeMovement()
+{
+	// Clear the exit-hold timer + state (SetMovementMode alone would leak the running timer).
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
+
+	if (bIsHoldingExitInput || bWasExitingLastFrame)
+		OnExitCursorHold.Broadcast(false, 0.f);
+
+	ExitHoldTimer         = 0.f;
+	bIsHoldingExitInput   = false;
+	bWasExitingLastFrame  = false;
+	bHasExitTargetWorld   = false;
+	LastBroadcastProgress = -1.f;
+	PendingExitBorderTile = nullptr;
+
+	// Clear pending board-entry state.
+	bPendingBoardEntryOnArrival   = false;
+	PendingBoardEntryTargetTile   = nullptr;
+	bPendingFreeMovementOnArrival = false;
+
+	OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
+}
+
 // ==================== Exit hold ====================
 
 void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, const FVector& WorldTarget)
@@ -207,6 +231,11 @@ void UML_BoardTransitionComponent::SetBoardActionState(EML_PlayerBoardActionStat
 
 void UML_BoardTransitionComponent::RequestBoardEntry(AML_Tile* TargetTile)
 {
+	// Per-board transition switch: if the target board has entry/exit disabled, do nothing.
+	// The NavMesh move issued by the caller still runs, so the player walks to the tile in free movement.
+	const AML_BoardSpawner* Board = IsValid(TargetTile) ? TargetTile->GetBoardSpawnerFromTile() : nullptr;
+	if (IsValid(Board) && !Board->IsBoardTransitionEnabled()) return;
+
 	PendingBoardEntryTargetTile = TargetTile;
 	bPendingBoardEntryOnArrival = true;
 	OwningController->SetMovementMode(EML_PlayerMovementMode::EnteringBoard);

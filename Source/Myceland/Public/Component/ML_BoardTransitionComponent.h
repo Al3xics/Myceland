@@ -150,6 +150,12 @@ public:
 	/** Handles bWasMovingInBoard and broadcasts OnBoardMovementStateChanged. */
 	void NotifyIsMoving(bool bIsMoving);
 
+	/**
+	 * Hard-resets to FreeMovement: clears the exit-hold timer/state and any pending entry,
+	 * then switches mode. Used when a board's transition is disabled while the player is inside it.
+	 */
+	void ForceFreeMovement();
+
 	
 	
 	// ========== Exit hold ==========
