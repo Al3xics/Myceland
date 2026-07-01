@@ -279,5 +279,14 @@ public:
 	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
 	void SetForcedHoverTile(AML_Tile* Tile);
 	void ClearForcedHoverTile();
-	void ClearHoverPreview();
+	void ClearPathHoverPreview();
+
+	/** Clears the currently active glow (cursor + path). Called by AML_BoardSpawner when glow is toggled OFF. */
+	void ClearActiveGlow();
+
+	/**
+	 * Called by AML_BoardSpawner when its transition is toggled OFF. If the player is currently inside
+	 * that board, stops any board movement and ejects them back to free movement.
+	 */
+	void NotifyBoardTransitionDisabled(const AML_BoardSpawner* Board);
 };

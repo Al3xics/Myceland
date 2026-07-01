@@ -36,7 +36,7 @@ private:
 	bool bLastCursorTileIsPlayerTile = false;
 
 	UPROPERTY(Transient)
-	AML_Tile* LastHoveredTile = nullptr;
+	AML_Tile* LastPathHoveredTile = nullptr;
 
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> CurrentPreviewPath;
@@ -62,7 +62,7 @@ private:
 	bool bWasCursorOverEmptySpace = false;
 
 	void UpdateHoverPreview();
-	void TickHoverPreview();
+	void TickPathHoverPreview();
 	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();
 	void SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable);
@@ -81,9 +81,14 @@ public:
 	void NotifyMovementModeChanged(EML_PlayerMovementMode NewMode);
 	void NotifyPlayerTileChanged();
 
-	void ClearHoverPreview();
+	void ClearPathHoverPreview();
 	void StartHoverPreviewTimer();
 	void StopHoverPreviewTimer();
+
+	// Clears the currently active glow (cursor + path) immediately.
+	// Used when a board's glow is toggled OFF while it is being hovered: the per-tick
+	// same-tile short-circuit would otherwise leave a stale glow on the hovered tile.
+	void ClearActiveGlow();
 	
 	void SetForcedHoverTile(AML_Tile* Tile);
 	void ClearForcedHoverTile();

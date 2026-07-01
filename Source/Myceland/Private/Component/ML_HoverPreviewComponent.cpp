@@ -22,7 +22,7 @@ void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode
 	// Leaving board mode — clear path preview
 	if (NewMode != EML_PlayerMovementMode::InsideBoard && NewMode != EML_PlayerMovementMode::ExitingBoard)
 	{
-		ClearHoverPreview();
+		ClearPathHoverPreview();
 		ClearForcedHoverTile();
 	}
 }
@@ -45,9 +45,9 @@ void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
 	}
 
 	// Force the preview path update from the new position.
-	LastHoveredTile = nullptr;
+	LastPathHoveredTile = nullptr;
 	if (HoverPreviewTimerHandle.IsValid())
-		TickHoverPreview();
+		TickPathHoverPreview();
 }
 
 void UML_HoverPreviewComponent::StartHoverPreviewTimer()
@@ -67,20 +67,20 @@ void UML_HoverPreviewComponent::StartHoverPreviewTimer()
 void UML_HoverPreviewComponent::StopHoverPreviewTimer()
 {
 	GetWorld()->GetTimerManager().ClearTimer(HoverPreviewTimerHandle);
-	ClearHoverPreview();
+	ClearPathHoverPreview();
 	ClearCursorHoverPreview();
 	ClearForcedHoverTile();
 }
 
 // Bypasses cursor detection and locks the hover preview onto the given tile until cleared.
-// Invalidates LastHoveredTile so TickHoverPreview immediately recomputes the path.
+// Invalidates LastPathHoveredTile so TickPathHoverPreview immediately recomputes the path.
 void UML_HoverPreviewComponent::SetForcedHoverTile(AML_Tile* Tile)
 {
 	ForcedHoverTile = Tile;
 	// Force immediate recalculation
-	LastHoveredTile = nullptr;
+	LastPathHoveredTile = nullptr;
 	if (HoverPreviewTimerHandle.IsValid())
-		TickHoverPreview();
+		TickPathHoverPreview();
 }
 
 // Removes the forced tile override and hands control back to cursor-based detection.
@@ -88,9 +88,9 @@ void UML_HoverPreviewComponent::ClearForcedHoverTile()
 {
 	ForcedHoverTile = nullptr;
 	// Force recalculation to return to normal cursor hover
-	LastHoveredTile = nullptr;
+	LastPathHoveredTile = nullptr;
 	if (HoverPreviewTimerHandle.IsValid())
-		TickHoverPreview();
+		TickPathHoverPreview();
 }
 
 void UML_HoverPreviewComponent::NotifyInputDeviceChanged(EML_InputDevice NewDevice)
@@ -109,7 +109,7 @@ void UML_HoverPreviewComponent::UpdateShowPreviews(const bool Value)
 	// Disable previews if `bShowPreviews` is false
 	if (!bShowPreviews)
 	{
-		ClearHoverPreview();
+		ClearPathHoverPreview();
 		ClearCursorHoverPreview();
 	}
 }
@@ -121,7 +121,7 @@ void UML_HoverPreviewComponent::UpdateHoverPreview()
 	// Do not show preview if `bShowPreviews` is false
 	if (!bShowPreviews) return;
 
-	TickHoverPreview();
+	TickPathHoverPreview();
 	TickCursorHoverPreview();
 }
 
@@ -144,11 +144,19 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 		return;
 	}
 
+	// Per-board glow switch: if the hovered tile's board has glow disabled, treat it as no hover.
+	const AML_BoardSpawner* CursorBoard = CursorHoveredTile->GetBoardSpawnerFromTile();
+	if (IsValid(CursorBoard) && !CursorBoard->IsGlowEnabled())
+	{
+		ClearCursorHoverPreview();
+		return;
+	}
+
 	if (IsValid(LastCursorHoveredTile))
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
 
 	// Non-walkable tiles still glow on hover, just with a different (blocked) color driven by bIsWalkable.
-	// The path glow is handled separately in TickHoverPreview and only triggers on reachable tiles.
+	// The path glow is handled separately in TickPathHoverPreview and only triggers on reachable tiles.
 	const bool bIsWalkable = UML_HexPathfinder::IsTileWalkable(CursorHoveredTile);
 	const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
 	                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
@@ -168,13 +176,19 @@ void UML_HoverPreviewComponent::ClearCursorHoverPreview()
 	bLastCursorTileIsPlayerTile = false;
 }
 
+void UML_HoverPreviewComponent::ClearActiveGlow()
+{
+	ClearPathHoverPreview();
+	ClearCursorHoverPreview();
+}
+
 void UML_HoverPreviewComponent::SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable)
 {
 	bCurrentHoveredTileReachable = bIsReachable;
 	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
 }
 
-void UML_HoverPreviewComponent::TickHoverPreview()
+void UML_HoverPreviewComponent::TickPathHoverPreview()
 {
 	if (!IsValid(OwningController))
         return;
@@ -185,11 +199,11 @@ void UML_HoverPreviewComponent::TickHoverPreview()
 		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
 
     // Same tile as before → no update needed unless it became non-walkable.
-    if (HoveredTile == LastHoveredTile)
+    if (HoveredTile == LastPathHoveredTile)
     {
         if (IsValid(HoveredTile) && bCurrentHoveredTileReachable && !UML_HexPathfinder::IsTileWalkable(HoveredTile))
         {
-            ClearHoverPreview();
+            ClearPathHoverPreview();
             ClearCursorHoverPreview();
         }
         return;
@@ -200,7 +214,7 @@ void UML_HoverPreviewComponent::TickHoverPreview()
         if (IsValid(Tile)) Tile->StopGlowingPathWalk();
     CurrentPreviewPath.Empty();
 
-    LastHoveredTile = HoveredTile;
+    LastPathHoveredTile = HoveredTile;
 
     if (!IsValid(HoveredTile))
     {
@@ -212,6 +226,13 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     const AML_BoardSpawner* Board = HoveredTile->GetBoardSpawnerFromTile();
     
     if (!IsValid(Board))
+    {
+        SetHoveredTileState(HoveredTile, false);
+        return;
+    }
+
+    // Per-board glow switch: no path preview when this board's glow is disabled.
+    if (!Board->IsGlowEnabled())
     {
         SetHoveredTileState(HoveredTile, false);
         return;
@@ -258,16 +279,16 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     }
 }
 
-void UML_HoverPreviewComponent::ClearHoverPreview()
+void UML_HoverPreviewComponent::ClearPathHoverPreview()
 {
 	for (AML_Tile* Tile : CurrentPreviewPath)
 		if (IsValid(Tile)) Tile->StopGlowingPathWalk();
 	CurrentPreviewPath.Empty();
 
-	if (LastHoveredTile != nullptr)
+	if (LastPathHoveredTile != nullptr)
 		SetHoveredTileState(nullptr, false);
 
-	LastHoveredTile = nullptr;
+	LastPathHoveredTile = nullptr;
 }
 
 TArray<AML_Tile*> UML_HoverPreviewComponent::BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const
