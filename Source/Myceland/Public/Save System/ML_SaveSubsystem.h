@@ -60,6 +60,20 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Save")
 	FName GetLastSolvedPuzzleID() const;
 
+	// ==================== Narrative Triggers ====================
+
+	// Records that a narrative trigger has played (keyed by its level-placed name) and saves.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save")
+	void SetNarrativeTriggerPlayed(FName TriggerID);
+
+	// Clears a narrative trigger's played flag (e.g. on ResetTrigger) and saves.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save")
+	void ClearNarrativeTriggerPlayed(FName TriggerID);
+
+	// Returns true if the narrative trigger has already played.
+	UFUNCTION(BlueprintPure, Category="Myceland Save")
+	bool IsNarrativeTriggerPlayed(FName TriggerID) const;
+
 private:
 	UPROPERTY()
 	UML_GameSave* SaveObject = nullptr;

@@ -168,3 +168,31 @@ FName UML_SaveSubsystem::GetLastSolvedPuzzleID() const
 {
 	return SaveObject ? SaveObject->LastSolvedPuzzleID : NAME_None;
 }
+
+// ==================== Narrative Triggers ====================
+
+void UML_SaveSubsystem::SetNarrativeTriggerPlayed(FName TriggerID)
+{
+	if (!SaveObject || TriggerID.IsNone()) return;
+
+	bool bAlreadyPresent = false;
+	SaveObject->PlayedNarrativeTriggers.Add(TriggerID, &bAlreadyPresent);
+
+	// Avoid a redundant disk write if it was already recorded.
+	if (!bAlreadyPresent)
+		SaveToDisk();
+}
+
+void UML_SaveSubsystem::ClearNarrativeTriggerPlayed(FName TriggerID)
+{
+	if (!SaveObject || TriggerID.IsNone()) return;
+
+	if (SaveObject->PlayedNarrativeTriggers.Remove(TriggerID) > 0)
+		SaveToDisk();
+}
+
+bool UML_SaveSubsystem::IsNarrativeTriggerPlayed(FName TriggerID) const
+{
+	if (!SaveObject || TriggerID.IsNone()) return false;
+	return SaveObject->PlayedNarrativeTriggers.Contains(TriggerID);
+}

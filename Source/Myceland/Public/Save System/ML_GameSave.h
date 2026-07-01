@@ -38,4 +38,10 @@ public:
 	// Always mirrors GlobalSolvedOrder.Last() (or NAME_None when empty).
 	UPROPERTY(SaveGame)
 	FName LastSolvedPuzzleID;
+
+	// Narrative triggers that have already played, keyed by their level-placed actor
+	// name. Restored into AML_NarrativeTrigger::bHasBeenPlayed on BeginPlay so a
+	// play-once cinematic never replays after loading a save.
+	UPROPERTY(SaveGame)
+	TSet<FName> PlayedNarrativeTriggers;
 };
