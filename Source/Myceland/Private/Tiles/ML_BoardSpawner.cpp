@@ -1,4 +1,4 @@
-﻿// Copyright Myceland Team, All Rights Reserved.
+// Copyright Myceland Team, All Rights Reserved.
 
 
 #include "Tiles/ML_BoardSpawner.h"
@@ -92,10 +92,12 @@ void AML_BoardSpawner::BeginPlay()
 			*PuzzleID.ToString());
 	}
 
-	// Subscribe to the win event so we can capture and save the solvOked grid.
+	// Subscribe to the settled-path event (fires one tick after OnWin, once BOTH
+	// ClearWinPath passes have run) so the snapshot captures the fully-settled
+	// winning path — otherwise the deferred Entry→Exit tiles would still be Water.
 	if (UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
 	{
-		WinLose->OnConnectedGoalPathComplete.AddDynamic(this, &AML_BoardSpawner::HandlePuzzleWon);
+		WinLose->OnWinPathSettled.AddDynamic(this, &AML_BoardSpawner::HandlePuzzleWon);
 	}
 }
 
@@ -642,7 +644,7 @@ TArray<FML_TileSaveEntry> AML_BoardSpawner::SnapshotGrid() const
 		if (!Pair.Value) continue;
 		FML_TileSaveEntry Entry;
 		Entry.Axial    = Pair.Key;
-		Entry.TileType = Pair.Value->GetCurrentType();
+		Entry.TileType = Pair.Value->GetCurrentType();                                                                                                                                                                
 		Entries.Add(Entry);
 	}
 	return Entries;

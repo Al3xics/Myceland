@@ -13,6 +13,10 @@ class AML_PlayerCharacter;
 struct FML_GameResult;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
+// Fires after BOTH ClearWinPath passes have run and every winning-path tile has
+// settled to WaterPath. Use this (not OnWin) when you need the final board state,
+// e.g. snapshotting the solved grid for the save system.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWinPathSettled);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnConnectedGoalPathTile, AML_Tile*, Tile);
@@ -28,8 +32,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnWin OnWin;
 
+	// Broadcast one tick after OnWin, once the deferred Entry→Exit ClearWinPath
+	// pass has finished, so listeners see the fully-settled winning path.
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnLose OnLose; 
+	FOnWinPathSettled OnWinPathSettled;
+
+	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
+	FOnLose OnLose;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnDeath OnDeath;

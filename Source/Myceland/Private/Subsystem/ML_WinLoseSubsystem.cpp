@@ -501,6 +501,11 @@ void UML_WinLoseSubsystem::FireWinSequence()
 					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
 				);
 			}
+
+			// Both ClearWinPath passes have now run and every path tile's CurrentType
+			// is settled. Notify listeners that need the final board (e.g. the save
+			// snapshot) — this runs one tick after OnWin so it sees pass-2 changes.
+			OnWinPathSettled.Broadcast();
 		}
 	});
 }
