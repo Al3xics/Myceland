@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
+#include "Actors/ML_WaterNavPath.h"
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Player/ML_HexPathfinder.h"
@@ -83,6 +84,20 @@ void AML_BoardSpawner::BeginPlay()
 			AssociatedObstacle->SetActorHiddenInGame(true);
 			AssociatedObstacle->SetActorEnableCollision(false);
 		}
+
+		// Replay the water-bridge activation that ran when the puzzle was won, so the
+		// bridges are visible/collidable again on load. Deferred one tick so every
+		// WaterNavPath actor has finished its own BeginPlay before we reveal it.
+		TArray<AActor*> PathsToSpawn = AssociatedWaterPaths;
+		GetWorld()->GetTimerManager().SetTimerForNextTick([PathsToSpawn]()
+		{
+			for (AActor* PathActor : PathsToSpawn)
+			{
+				if (AML_WaterNavPath* NavPath = Cast<AML_WaterNavPath>(PathActor))
+					NavPath->Spawn();
+			}
+		});
+
 		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — solved state loaded (%d/%d tiles restored)."),
 			*PuzzleID.ToString(), Applied, Record.SolvedGrid.Num());
 	}
@@ -706,6 +721,13 @@ void AML_BoardSpawner::RestoreToInitialState()
 	{
 		AssociatedObstacle->SetActorHiddenInGame(false);
 		AssociatedObstacle->SetActorEnableCollision(true);
+	}
+
+	// Undo the water-bridge activation so replaying the puzzle starts from a clean board.
+	for (AActor* PathActor : AssociatedWaterPaths)
+	{
+		if (AML_WaterNavPath* NavPath = Cast<AML_WaterNavPath>(PathActor))
+			NavPath->Despawn();
 	}
 
 	RefreshTileCaches();
