@@ -2,9 +2,11 @@
 
 #include "Collectible/ML_Collectible.h"
 
+#include "Audio/ML_FMODEvents.h"
 #include "Components/SphereComponent.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_PlayerController.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
 
@@ -46,6 +48,11 @@ void AML_Collectible::AddEnergy(AML_PlayerController* MycelandController, AML_Pl
 	}
 
 	MycelandController->EnergyComponent->AddEnergy(+1);
+
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		SoundSubsystem->StartSound2DByPath(MLFMODEvents::EnergyCollect);
+	}
 
 	if (OwningTile)
 	{

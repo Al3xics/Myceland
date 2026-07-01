@@ -2,6 +2,7 @@
 
 #include "Player/ML_PlayerController.h"
 
+#include "Audio/ML_FMODEvents.h"
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
 #include "Component/ML_EnergyComponent.h"
@@ -20,7 +21,6 @@
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
-#include "FMODBlueprintStatics.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
@@ -188,12 +188,12 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return false;
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
-	if (EnergyComponent->GetCurrentEnergy() <= 0) return false;
-	if (!IsValid(TargetTile)) return false;
+	if (EnergyComponent->GetCurrentEnergy() <= 0) return RejectPlantWithFeedback();
+	if (!IsValid(TargetTile)) return RejectPlantWithFeedback();
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return false;
-	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return false;
+	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return RejectPlantWithFeedback();
+	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return RejectPlantWithFeedback();
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
@@ -207,7 +207,7 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	}
 	const FIntPoint TargetAxial = TargetTile->GetAxialCoord();
 
-	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return false;
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return RejectPlantWithFeedback();
 
 	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
 	if (!MoveRecordingComponent->IsMoveInProgress() && CurrentNeighbors.Contains(TargetTile))
@@ -217,15 +217,15 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	}
 
 	TArray<FIntPoint> FullPath;
-	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return false;
-	if (FullPath.Num() < 2) return false;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return RejectPlantWithFeedback();
+	if (FullPath.Num() < 2) return RejectPlantWithFeedback();
 
 	const FIntPoint StopAxial = FullPath[FullPath.Num() - 2];
-	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return false;
+	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return RejectPlantWithFeedback();
 
 	AML_Tile* StopTile = GridMap[StopAxial];
 	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
-	if (!StopNeighbors.Contains(TargetTile)) return false;
+	if (!StopNeighbors.Contains(TargetTile)) return RejectPlantWithFeedback();
 
 	TArray<FIntPoint> MovePath = FullPath;
 	MovePath.RemoveAt(MovePath.Num() - 1);
@@ -234,7 +234,22 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 		MovePath.Add(StartAxial);
 	}
 
-	return StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile);
+	if (!StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile))
+	{
+		return RejectPlantWithFeedback();
+	}
+
+	return true;
+}
+
+bool AML_PlayerController::RejectPlantWithFeedback()
+{
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		SoundSubsystem->StartSound2DByPath(MLFMODEvents::TilePlacementInvalid);
+	}
+
+	return false;
 }
 
 void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
@@ -245,8 +260,13 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 	{
 		OnGrassPlanted.Broadcast(HitTile);
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
-		//UFMODBlueprintStatics::PlayEventAtLocation(GetWorld(), TilePlantEvent, FTransform(HitTile->GetActorLocation()),true);
-		UML_SoundSubsystem::Get(this)->StartSoundAtLocation(TilePlantEvent,FTransform(HitTile->GetActorLocation()),true);
+		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		{
+			SoundSubsystem->StartSound2DByPath(MLFMODEvents::TileNaturePlaceSuccess);
+			SoundSubsystem->StartSoundAtLocationByPath(
+				MLFMODEvents::TilePlant,
+				FTransform(HitTile->GetActorLocation()));
+		}
 	}
 }
 
@@ -372,11 +392,9 @@ void AML_PlayerController::ExtendMoveAlongPath(const TArray<FIntPoint>& FullMerg
 
 bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 {
-	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
-		return false;
-    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
-	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
-	return ObjectType == ECC_GameTraceChannel1;
+	// Tracing on the Cursor channel (ECC_GameTraceChannel1) already guarantees that only intentional
+	// surfaces (tile GroundBase + walkable ground) respond Block, so any blocking hit is a valid target.
+	return Hit.bBlockingHit && Hit.Component.IsValid();
 }
 
 // ==================== Camera Queries ====================
@@ -891,12 +909,16 @@ void AML_PlayerController::ClearHoverPreview()
 AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 {
 	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	// Trace on the dedicated Cursor channel (ECC_GameTraceChannel1) in SIMPLE collision.
+	// Only the tile GroundBase and the walkable ground respond Block to this channel; decorative
+	// meshes ignore it by default. bTraceComplex=false so tiles are picked via their simple collision
+	// (per-poly collision is often absent, e.g. water, which would otherwise let the trace fall through
+	// to the landscape and wrongly read as "no tile").
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit))
 		return nullptr;
 
-	if (!IsClickableGround(Hit))
-		return nullptr;
-
+	// ExtractTileFromHit returns null when the hit is the open ground (not a tile) — that correctly
+	// reads as "cursor outside the board".
 	return ExtractTileFromHit(Hit);
 }
 

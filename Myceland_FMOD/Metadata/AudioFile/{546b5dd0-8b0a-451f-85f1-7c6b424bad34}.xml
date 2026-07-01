@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{546b5dd0-8b0a-451f-85f1-7c6b424bad34}">
+		<property name="assetPath">
+			<value>RollBack.mp3</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>1</value>
+		</property>
+		<property name="length">
+			<value>2.952</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{03b97852-04f0-4cb9-ae63-7dcd289cd534}</destination>
+		</relationship>
+	</object>
+</objects>
