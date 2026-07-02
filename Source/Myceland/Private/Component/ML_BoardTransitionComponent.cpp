@@ -20,6 +20,21 @@ void UML_BoardTransitionComponent::Initialize(AML_PlayerController* Controller, 
 	RotateSpeed      = InRotateSpeed;
 }
 
+float UML_BoardTransitionComponent::GetCursorTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetCursorDetectionTickInterval() : 1.f / 30.f;
+}
+
+float UML_BoardTransitionComponent::GetExitHoldTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetExitHoldTickInterval() : 1.f / 60.f;
+}
+
+float UML_BoardTransitionComponent::GetTurnTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetTurnTowardTileTickInterval() : 1.f / 60.f;
+}
+
 // ==================== Mode management ====================
 
 void UML_BoardTransitionComponent::SwitchToMode(EML_PlayerMovementMode NewMode)
@@ -111,7 +126,7 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, con
 		ExitHoldTimerHandle,
 		this,
 		&UML_BoardTransitionComponent::TickExitHold,
-		1.f / 60.f,
+		GetExitHoldTickInterval(),
 		true
 	);
 }
@@ -166,7 +181,8 @@ void UML_BoardTransitionComponent::TickExitHold()
 	}
 
 	bWasExitingLastFrame = true;
-	ExitHoldTimer += 1.f / 60.f;
+	// Must match the timer rate: the hold progress advances by exactly one tick interval per tick.
+	ExitHoldTimer += GetExitHoldTickInterval();
 
 	if (ExitHoldTimer >= DevSettings->ExitBoardHoldDuration)
 	{
@@ -239,7 +255,7 @@ void UML_BoardTransitionComponent::StartGroundHoverDetection()
 		GroundHoverTimerHandle,
 		this,
 		&UML_BoardTransitionComponent::TickGroundHover,
-		1.f / 30.f, // Same rate as the hover preview — enough for cursor detection
+		GetCursorTickInterval(), // Same rate as the hover preview — enough for cursor detection
 		true
 	);
 }
@@ -336,7 +352,7 @@ void UML_BoardTransitionComponent::StartTurnTowardTile(AML_Tile* Target)
 			TurnTowardTileTimerHandle,
 			this,
 			&UML_BoardTransitionComponent::UpdateTurnTowardPendingTile,
-			1.f / 60.f,
+			GetTurnTickInterval(),
 			true
 		);
 	}
@@ -373,7 +389,8 @@ void UML_BoardTransitionComponent::UpdateTurnTowardPendingTile()
 		return;
 	}
 
-	const bool bStillTurning = RotateCharacterTowardTile(PendingPlantTargetTile, 1.f / 60.f, RotateSpeed);
+	// DeltaTime must match the timer rate so the RInterpTo rotation speed stays framerate-independent.
+	const bool bStillTurning = RotateCharacterTowardTile(PendingPlantTargetTile, GetTurnTickInterval(), RotateSpeed);
 
 	if (!bStillTurning)
 	{

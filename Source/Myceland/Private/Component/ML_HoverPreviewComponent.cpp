@@ -2,6 +2,7 @@
 
 #include "Component/ML_HoverPreviewComponent.h"
 
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Engine/Engine.h"
 #include "Player/ML_PlayerController.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -58,7 +59,7 @@ void UML_HoverPreviewComponent::StartHoverPreviewTimer()
 			HoverPreviewTimerHandle,
 			this,
 			&UML_HoverPreviewComponent::UpdateHoverPreview,
-			1.f / 30.f, // 30Hz is enough for hover preview
+			UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->GetCursorDetectionTickInterval(),
 			true
 		);
 	}

@@ -126,6 +126,11 @@ private:
 
 	bool RotateCharacterTowardTile(const AML_Tile* Target, float DeltaTime, float TurnSpeed) const;
 
+	// Timer intervals from the dev settings (safe fallbacks before Initialize).
+	float GetCursorTickInterval() const;
+	float GetExitHoldTickInterval() const;
+	float GetTurnTickInterval() const;
+
 public:
 
 	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, const UML_MycelandDeveloperSettings* Settings, float InRotateSpeed);
