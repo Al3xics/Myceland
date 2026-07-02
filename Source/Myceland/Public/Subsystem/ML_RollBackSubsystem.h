@@ -8,6 +8,7 @@
 #include "ML_RollBackSubsystem.generated.h"
 
 class UML_MycelandDeveloperSettings;
+class UML_BiomeTileSet;
 class AML_PlayerController;
 class AML_PlayerCharacter;
 class AML_BoardSpawner;
@@ -113,13 +114,31 @@ private:
 
 	UPROPERTY(Transient)
 	bool bUndoTimeDilationApplied = false;
-	
+
+	// Time dilation currently applied for the active undo/reset operation.
+	UPROPERTY(Transient)
+	float AppliedTimeDilation = 1.0f;
+
+	// Minimum real (non-dilated) seconds enforced between two undo/reset waves.
+	UPROPERTY(Transient)
+	float MinRealSecondsPerWave = 0.033f;
+
+	// Cached once per turn (set alongside ActiveUndoRecord) to avoid recomputing
+	// per wave group inside ApplyUndoWaveGroup.
+	TSet<FIntPoint> CachedSpawnedCollectibleAxials;
+	const UML_BiomeTileSet* CachedActiveUndoTileSet = nullptr;
+
+	// Max real time spent per tick draining a wave group. Time-based rather than
+	// item-count-based because per-item cost varies a lot (no-op tile flip vs.
+	// actor destroy+spawn), so a fixed item count doesn't bound frame cost reliably.
+	double MaxSecondsPerWaveTick = 0.008;
+
 	UFUNCTION()
 	void OnBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
 	
 	void RunUndoWave();
 	void ScheduleNextUndoWave(float Delay);
-	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
+	bool ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin, double BudgetSeconds);
 	bool UndoSingleAction_Animated();
 	bool UndoUntilPlant_Animated();
 	void StartNextUndoUntilPlantStep();
