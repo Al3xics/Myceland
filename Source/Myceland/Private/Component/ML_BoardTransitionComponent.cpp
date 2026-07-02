@@ -27,6 +27,14 @@ void UML_BoardTransitionComponent::SwitchToMode(EML_PlayerMovementMode NewMode)
 	const EML_PlayerMovementMode OldMode = CurrentMovementMode;
 	CurrentMovementMode = NewMode;
 
+	// Ground detection only runs while the cursor can leave the board (InsideBoard/ExitingBoard).
+	const bool bBoardMode = NewMode == EML_PlayerMovementMode::InsideBoard ||
+	                        NewMode == EML_PlayerMovementMode::ExitingBoard;
+	if (bBoardMode)
+		StartGroundHoverDetection();
+	else
+		StopGroundHoverDetection();
+
 	// ExitingBoard → InsideBoard: this is a CANCELLED exit — clean up exit state
 	if (OldMode == EML_PlayerMovementMode::ExitingBoard &&
 		NewMode  == EML_PlayerMovementMode::InsideBoard &&
@@ -219,6 +227,68 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 	// Don't clear pending exit state: HandlePathFinished needs PendingExitTargetWorld.
 
 	OwningController->StartMoveAlongPath(AxialPath, GridMap);
+}
+
+// ==================== Ground hover (cursor outside-board detection) ====================
+
+void UML_BoardTransitionComponent::StartGroundHoverDetection()
+{
+	if (!bCursorGroundDetectionEnabled || GroundHoverTimerHandle.IsValid()) return;
+
+	GetWorld()->GetTimerManager().SetTimer(
+		GroundHoverTimerHandle,
+		this,
+		&UML_BoardTransitionComponent::TickGroundHover,
+		1.f / 30.f, // Same rate as the hover preview — enough for cursor detection
+		true
+	);
+}
+
+void UML_BoardTransitionComponent::StopGroundHoverDetection()
+{
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(GroundHoverTimerHandle);
+
+	SetHoveredGroundActor(nullptr);
+}
+
+void UML_BoardTransitionComponent::TickGroundHover()
+{
+	if (!IsValid(OwningController)) return;
+
+	FHitResult Hit;
+	AActor* NewGround = OwningController->GetGroundUnderCursor(Hit) ? Hit.GetActor() : nullptr;
+	SetHoveredGroundActor(NewGround);
+
+	// Exit hold in progress but the cursor left the designated ground (moved back over the board,
+	// onto decor, or off any ground): cancel the exit. TickExitHold sees the cleared flag on its
+	// next tick and performs the state cleanup + mode switch back to InsideBoard.
+	if (bIsHoldingExitInput && !IsValid(HoveredGroundActor))
+	{
+		CancelExitHold();
+		// The mouse release handler only clears the exit glow when the hold is still active on
+		// release, so an auto-cancelled hold must clear it here.
+		OwningController->ClearForcedHoverTile();
+		OwningController->ClearPathHoverPreview();
+	}
+}
+
+void UML_BoardTransitionComponent::SetHoveredGroundActor(AActor* NewGround)
+{
+	if (HoveredGroundActor == NewGround) return;
+
+	HoveredGroundActor = NewGround;
+	OnHoveredGroundChanged.Broadcast(NewGround);
+}
+
+void UML_BoardTransitionComponent::NotifyInputDeviceChanged(EML_InputDevice NewDevice)
+{
+	bCursorGroundDetectionEnabled = (NewDevice == EML_InputDevice::MouseKeyboard);
+
+	if (!bCursorGroundDetectionEnabled) // --> if using gamepad, stop ground hover detection
+		StopGroundHoverDetection();
+	else if (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
+		StartGroundHoverDetection();
 }
 
 // ==================== Board entry / action state ====================

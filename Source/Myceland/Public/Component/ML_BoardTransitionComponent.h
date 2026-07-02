@@ -15,6 +15,7 @@ class UML_MycelandDeveloperSettings;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExitCursorHold, bool, bIsExiting, float, Progress);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBoardActivityStateChanged, bool, bIsMoving);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHoveredGroundChanged, AActor*, GroundActor);
 
 /**
  * Result returned by HandlePathFinished / HandleBoardPresenceChanged so the controller
@@ -78,6 +79,24 @@ private:
 
 	FVector PendingExitTargetWorld = FVector::ZeroVector;
 
+
+
+	// ========== Ground hover (cursor outside-board detection) ==========
+	FTimerHandle GroundHoverTimerHandle;
+
+	// Ground actor currently under the cursor. Only set while InsideBoard/ExitingBoard
+	// with mouse & keyboard; always nullptr otherwise.
+	UPROPERTY(Transient)
+	AActor* HoveredGroundActor = nullptr;
+
+	// False when a gamepad is active: the physical cursor position is meaningless.
+	bool bCursorGroundDetectionEnabled = true;
+
+	void TickGroundHover();
+	void StartGroundHoverDetection();
+	void StopGroundHoverDetection();
+	void SetHoveredGroundActor(AActor* NewGround);
+
 	
 	
 	// ========== Board entry ==========
@@ -124,17 +143,30 @@ public:
 	// The float is normalized between 0-1
 	UPROPERTY(BlueprintAssignable, Category = "Board Transition Component|Delegates")
 	FOnExitCursorHold OnExitCursorHold;
-	
-	
-	
+
+	// Called when the ground actor under the cursor changes while the player is inside a board
+	// (InsideBoard/ExitingBoard, mouse & keyboard only). nullptr = the cursor is no longer over
+	// a designated ground (it is over the board, decor, or nothing). Replaces the old
+	// HoverPreviewComponent::OnCursorOverEmptySpaceChanged.
+	UPROPERTY(BlueprintAssignable, Category = "Board Transition Component|Delegates")
+	FOnHoveredGroundChanged OnHoveredGroundChanged;
+
+
+
 	// ========== Queries ==========
-	
+
 	EML_PlayerMovementMode GetMovementMode() const { return CurrentMovementMode; }
 	EML_PlayerBoardActionState GetBoardActionState() const { return BoardActionState; }
 	bool IsOutsideBoardMovementMode() const;
 	bool IsHoldingExitInput() const { return bIsHoldingExitInput; }
 	bool IsPendingFreeMovementOnArrival() const { return bPendingFreeMovementOnArrival; }
 	bool IsPendingBoardEntry() const { return bPendingBoardEntryOnArrival; }
+
+	/** Ground actor under the cursor, or nullptr. See OnHoveredGroundChanged. */
+	AActor* GetHoveredGroundActor() const { return HoveredGroundActor; }
+
+	/** Stops the cursor-based ground detection while a gamepad is active. */
+	void NotifyInputDeviceChanged(EML_InputDevice NewDevice);
 
 	
 	
