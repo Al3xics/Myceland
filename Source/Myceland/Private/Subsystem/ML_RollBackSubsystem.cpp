@@ -545,10 +545,12 @@ void UML_RollBackSubsystem::ApplyUndoTimeDilation(const TArray<FML_ActionUndoRec
 	if (!GetWorld() || bUndoTimeDilationApplied) return;
 
 	const UML_MycelandDeveloperSettings* Settings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
-	const float MinRollBackSpeed = Settings ? FMath::Max(Settings->UndoSpeed, 0.01f) : 1.0f;
+	const float MinRollBackSpeed = Settings ? FMath::Max(Settings->RollBackMinSpeed, 0.01f) : 0.01f;
+	const float MaxRollBackSpeed = Settings ? FMath::Max(Settings->RollBackMaxSpeed, MinRollBackSpeed) : MinRollBackSpeed;
 	if (!Settings || !Settings->bUseDynamicRollBackSpeed)
 	{
-		UGameplayStatics::SetGlobalTimeDilation(GetWorld(), MinRollBackSpeed);
+		const float FixedSpeed = Settings ? Settings->UndoSpeed : 1.0f;
+		UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Clamp(FixedSpeed, MinRollBackSpeed, MaxRollBackSpeed));
 		bUndoTimeDilationApplied = true;
 		return;
 	}
@@ -559,7 +561,7 @@ void UML_RollBackSubsystem::ApplyUndoTimeDilation(const TArray<FML_ActionUndoRec
 		? EstimatedGameDuration / TargetDuration
 		: Settings->UndoSpeed;
 
-	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Max(UndoTimeDilation, MinRollBackSpeed));
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Clamp(UndoTimeDilation, MinRollBackSpeed, MaxRollBackSpeed));
 	bUndoTimeDilationApplied = true;
 }
 
@@ -568,22 +570,23 @@ void UML_RollBackSubsystem::ApplyResetTimeDilation(const TArray<FML_ActionUndoRe
 	if (!GetWorld() || bUndoTimeDilationApplied) return;
 
 	const UML_MycelandDeveloperSettings* Settings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	const float MinRollBackSpeed = Settings ? FMath::Max(Settings->RollBackMinSpeed, 0.01f) : 0.01f;
+	const float MaxRollBackSpeed = Settings ? FMath::Max(Settings->RollBackMaxSpeed, MinRollBackSpeed) : MinRollBackSpeed;
 	if (!Settings || !Settings->bUseDynamicRollBackSpeed)
 	{
 		const float FixedSpeed = Settings ? Settings->ResetSpeed : 1.0f;
-		UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Max(FixedSpeed, 0.01f));
+		UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Clamp(FixedSpeed, MinRollBackSpeed, MaxRollBackSpeed));
 		bUndoTimeDilationApplied = true;
 		return;
 	}
 
 	const float EstimatedGameDuration = EstimateResetGameDuration(Stack);
 	const float TargetDuration = Settings->ResetTargetDuration;
-	const float MinDynamicSpeed = FMath::Max(Settings->UndoSpeed, 0.01f);
 	const float ResetTimeDilation = (EstimatedGameDuration > KINDA_SMALL_NUMBER && TargetDuration > KINDA_SMALL_NUMBER)
 		? EstimatedGameDuration / TargetDuration
 		: Settings->ResetSpeed;
 
-	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Max(ResetTimeDilation, MinDynamicSpeed));
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), FMath::Clamp(ResetTimeDilation, MinRollBackSpeed, MaxRollBackSpeed));
 	bUndoTimeDilationApplied = true;
 }
 

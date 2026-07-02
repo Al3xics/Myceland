@@ -129,6 +129,12 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Use Dynamic Rollback Speed", Tooltip="When enabled, undo and reset speeds are computed from the current rollback stack to target Reset Target Duration. When disabled, Undo Speed and Reset Speed are used directly."))
 	bool bUseDynamicRollBackSpeed = true;
 
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Rollback Minimum Speed", ClampMin="0.01", Tooltip="Minimum time dilation used by animated undo and reset."))
+	float RollBackMinSpeed = 3.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Rollback Maximum Speed", ClampMin="0.01", Tooltip="Maximum time dilation used by animated undo and reset. Limits movement speed to prevent the player from overshooting tiles or leaving the board."))
+	float RollBackMaxSpeed = 20.0f;
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
 	float ResetTargetDuration = 4.0f;
 	
