@@ -10,6 +10,7 @@
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Player/ML_HexPathfinder.h"
+#include "Player/ML_PlayerController.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
 
 
@@ -23,6 +24,47 @@ void AML_BoardSpawner::Destroyed()
 	ClearTiles();
 	Super::Destroyed();
 }
+
+void AML_BoardSpawner::SetGlowEnabled(bool bEnabled)
+{
+	if (bGlowEnabled == bEnabled) return;
+	bGlowEnabled = bEnabled;
+
+	// Turning OFF: the hover component's per-tick same-tile short-circuit would leave a stale
+	// glow on the currently hovered tile, so clear the active glow immediately.
+	if (!bGlowEnabled)
+		if (AML_PlayerController* PC = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()))
+			PC->ClearActiveGlow();
+}
+
+void AML_BoardSpawner::SetBoardTransitionEnabled(bool bEnabled)
+{
+	if (bBoardTransitionEnabled == bEnabled) return;
+	bBoardTransitionEnabled = bEnabled;
+
+	// Turning OFF while the player is inside this board: eject them back to free movement.
+	if (!bBoardTransitionEnabled)
+		if (AML_PlayerController* PC = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()))
+			PC->NotifyBoardTransitionDisabled(this);
+}
+
+#if WITH_EDITOR
+void AML_BoardSpawner::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
+
+	// Only meaningful during PIE, where a live player controller exists to react to the toggle.
+	AML_PlayerController* PC = GetWorld() ? Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()) : nullptr;
+	if (!PC) return;
+
+	if (PropName == GET_MEMBER_NAME_CHECKED(AML_BoardSpawner, bGlowEnabled) && !bGlowEnabled)
+		PC->ClearActiveGlow();
+	else if (PropName == GET_MEMBER_NAME_CHECKED(AML_BoardSpawner, bBoardTransitionEnabled) && !bBoardTransitionEnabled)
+		PC->NotifyBoardTransitionDisabled(this);
+}
+#endif
 
 void AML_BoardSpawner::BeginPlay()
 {
@@ -38,7 +80,9 @@ void AML_BoardSpawner::BeginPlay()
 
 void AML_BoardSpawner::UpdateCurrentGridEditor()
 {
-	UpdateCurrentGrid(true);
+	// Never spawn new tiles — the designer may have intentionally deleted some.
+	// Use "Clear & Rebuild Grid" to regenerate the full procedural shape.
+	UpdateCurrentGrid(false);
 }
 
 void AML_BoardSpawner::RebuildGrid()

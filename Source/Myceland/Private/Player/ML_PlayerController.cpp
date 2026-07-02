@@ -392,11 +392,9 @@ void AML_PlayerController::ExtendMoveAlongPath(const TArray<FIntPoint>& FullMerg
 
 bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 {
-	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
-		return false;
-    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
-	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
-	return ObjectType == ECC_GameTraceChannel1;
+	// Tracing on the Cursor channel (ECC_GameTraceChannel1) already guarantees that only intentional
+	// surfaces (tile GroundBase + walkable ground) respond Block, so any blocking hit is a valid target.
+	return Hit.bBlockingHit && Hit.Component.IsValid();
 }
 
 // ==================== Camera Queries ====================
@@ -445,7 +443,12 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 	const bool bShouldBeInBoard = IsValid(NewTile);
 	const bool bCurrentlyOutsideBoard = TransitionComponent->IsOutsideBoardMovementMode();
 
-	if (bShouldBeInBoard && bCurrentlyOutsideBoard)
+	// Per-board transition switch: if this board's transition is disabled, never auto-enter it —
+	// stay in free movement even while physically standing on its tiles.
+	const AML_BoardSpawner* NewBoard = NewTile ? NewTile->GetBoardSpawnerFromTile() : nullptr;
+	const bool bBoardTransitionOn = !IsValid(NewBoard) || NewBoard->IsBoardTransitionEnabled();
+
+	if (bShouldBeInBoard && bCurrentlyOutsideBoard && bBoardTransitionOn)
 	{
 		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
@@ -512,7 +515,13 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		UpdateCursorVisibility(InputDeviceManager->GetCurrentDevice() == EML_InputDevice::MouseKeyboard);
 
 		MycelandCharacter->UpdateCurrentTile();
-		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
+		// Start inside the board only if the player stands on one AND that board's transition is enabled;
+		// otherwise stay in free movement even while standing on board tiles.
+		const AML_BoardSpawner* StartBoard = MycelandCharacter->CurrentTileOn
+			? MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()
+			: nullptr;
+		const bool bStartInBoard = IsValid(StartBoard) && StartBoard->IsBoardTransitionEnabled();
+		const EML_PlayerMovementMode InitialMode = bStartInBoard
 			? EML_PlayerMovementMode::InsideBoard
 			: EML_PlayerMovementMode::FreeMovement;
 		TransitionComponent->SwitchToMode(InitialMode);
@@ -901,9 +910,32 @@ void AML_PlayerController::ClearForcedHoverTile()
 	if (HoverPreviewComponent) HoverPreviewComponent->ClearForcedHoverTile();
 }
 
-void AML_PlayerController::ClearHoverPreview()
+void AML_PlayerController::ClearPathHoverPreview()
 {
-	if (HoverPreviewComponent) HoverPreviewComponent->ClearHoverPreview();
+	if (HoverPreviewComponent) HoverPreviewComponent->ClearPathHoverPreview();
+}
+
+void AML_PlayerController::ClearActiveGlow()
+{
+	if (HoverPreviewComponent) HoverPreviewComponent->ClearActiveGlow();
+}
+
+void AML_PlayerController::NotifyBoardTransitionDisabled(const AML_BoardSpawner* Board)
+{
+	if (!TransitionComponent || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
+		return;
+
+	// Only act if the player is currently on THIS board and in a board movement mode.
+	if (MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile() != Board)
+		return;
+	if (TransitionComponent->IsOutsideBoardMovementMode())
+		return;
+
+	// Stop any in-progress tile-by-tile movement, then eject to free movement.
+	CurrentPathWorld.Reset();
+	CurrentPathIndex = 0;
+	SetIsMoving(false);
+	TransitionComponent->ForceFreeMovement();
 }
 
 // ==================== Tile Query ====================
@@ -911,12 +943,16 @@ void AML_PlayerController::ClearHoverPreview()
 AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 {
 	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	// Trace on the dedicated Cursor channel (ECC_GameTraceChannel1) in SIMPLE collision.
+	// Only the tile GroundBase and the walkable ground respond Block to this channel; decorative
+	// meshes ignore it by default. bTraceComplex=false so tiles are picked via their simple collision
+	// (per-poly collision is often absent, e.g. water, which would otherwise let the trace fall through
+	// to the landscape and wrongly read as "no tile").
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit))
 		return nullptr;
 
-	if (!IsClickableGround(Hit))
-		return nullptr;
-
+	// ExtractTileFromHit returns null when the hit is the open ground (not a tile) — that correctly
+	// reads as "cursor outside the board".
 	return ExtractTileFromHit(Hit);
 }
 

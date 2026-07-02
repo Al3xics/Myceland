@@ -3,6 +3,9 @@
 
 #include "Tiles/ML_Tile.h"
 
+#include "NavModifierComponent.h"
+#include "NavAreas/NavArea_Null.h"
+#include "NavAreas/NavArea_Default.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_TileBase.h"
 #include "Tiles/TileBase/ML_TileDirt.h"
@@ -23,14 +26,13 @@ AML_Tile::AML_Tile()
 	TileChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("TileChildActor"));
 	TileChildActor->SetupAttachment(RootComponent);
 
+	// Purely visual highlight — no collision. Cursor detection AND physical collision are both on
+	// GroundBase (a ground-level hexagon, in the child actor).
 	HighlightTileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TileMesh"));
 	HighlightTileMesh->SetupAttachment(RootComponent);
-	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	HighlightTileMesh->SetCollisionObjectType(ECC_WorldStatic);
-	HighlightTileMesh->SetCollisionResponseToAllChannels(ECR_Block);
-	HighlightTileMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	HighlightTileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HighlightTileMesh->SetGenerateOverlapEvents(false);
-	
+
 	HexagonCollision = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HexagonCollision"));
 	HexagonCollision->SetupAttachment(RootComponent);
 	HexagonCollision->SetRelativeScale3D(FVector(0.9f, 0.9f, 0.9f));
@@ -40,6 +42,17 @@ AML_Tile::AML_Tile()
 	HexagonCollision->SetGenerateOverlapEvents(false);
 	HexagonCollision->SetHiddenInGame(true);
 	HexagonCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// HexagonCollision only blocks the pawn physically. Keep it out of navigation so the
+	// NavModifier below always carves from its (tall) FailsafeExtent instead of this thin,
+	// ground-level hexagon, which would sit below the elevated navmesh and carve nothing.
+	HexagonCollision->SetCanEverAffectNavigation(false);
+
+	// No owner primitive feeds navigation (see above), so the modifier uses FailsafeExtent:
+	// a box centred on the tile actor. Starts as a no-op (Default) since tiles begin unblocked;
+	// SetBlocked() flips it to NavArea_Null to carve the hole.
+	NavBlocker = CreateDefaultSubobject<UNavModifierComponent>(TEXT("NavBlocker"));
+	NavBlocker->FailsafeExtent = NavBlockerExtent;
+	NavBlocker->AreaClass = UNavArea_Default::StaticClass();
 }
 
 void AML_Tile::NotifyTileChangedNative()
@@ -71,13 +84,25 @@ void AML_Tile::SetBlocked(bool bNewBlocked)
 {
 	bBlocked = bNewBlocked;
 
-	if (!HexagonCollision) return;
+	if (HexagonCollision)
+	{
+		HexagonCollision->SetCollisionEnabled(
+			bBlocked
+			? ECollisionEnabled::QueryOnly
+			: ECollisionEnabled::NoCollision
+		);
+	}
 
-	HexagonCollision->SetCollisionEnabled(
-		bBlocked
-		? ECollisionEnabled::QueryOnly
-		: ECollisionEnabled::NoCollision
-	);
+	if (NavBlocker)
+	{
+		// Pick up any editor-tuned extent, then carve a hole when blocked / no-op when not.
+		NavBlocker->FailsafeExtent = NavBlockerExtent;
+		NavBlocker->SetAreaClass(
+			bBlocked
+			? UNavArea_Null::StaticClass()
+			: UNavArea_Default::StaticClass()
+		);
+	}
 }
 
 #if WITH_EDITOR
@@ -103,6 +128,11 @@ void AML_Tile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEven
 	if (bTypeChanged || bClassChanged)
 	{
 		UpdateClassInEditor(CurrentType);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AML_Tile, NavBlockerExtent))
+	{
+		// Reapply the carve box (and refresh navigation) with the new extent.
+		SetBlocked(bBlocked);
 	}
 }
 

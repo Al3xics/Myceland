@@ -114,7 +114,7 @@ public:
 	// ==================== Win ====================
 
 	UPROPERTY(EditAnywhere,Category = "Myceland WinLose")
-	float WinDelay = 2.0f;
+	float WinDelay = 0.5f;
 	
 	
 	// ==================== Helper ====================
