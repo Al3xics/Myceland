@@ -114,6 +114,23 @@ void AML_BoardSpawner::BeginPlay()
 	if (UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
 	{
 		WinLose->OnWinPathSettled.AddDynamic(this, &AML_BoardSpawner::HandlePuzzleWon);
+
+		// Reveal the already-connected goals on load. Deferred one tick so the tile
+		// Blueprints that draw the links have finished BeginPlay and bound to
+		// OnConnectedGoalPathTile — a synchronous broadcast here would fire before they
+		// bind. bImmediate=true then broadcasts all at once instead of staggering through
+		// the shared queue/timer, which the player spawning (OnBoardChanged →
+		// ResetConnectedGoalPathState) would otherwise wipe mid-reveal — cutting off
+		// boards with many goals whose queues haven't drained yet.
+		TWeakObjectPtr<AML_BoardSpawner> WeakThis(this);
+		TWeakObjectPtr<UML_WinLoseSubsystem> WeakWinLose(WinLose);
+		GetWorld()->GetTimerManager().SetTimerForNextTick([WeakThis, WeakWinLose]()
+		{
+			AML_BoardSpawner* Board = WeakThis.Get();
+			UML_WinLoseSubsystem* WinLoseSys = WeakWinLose.Get();
+			if (Board && WinLoseSys)
+				WinLoseSys->TriggerConnectedGoalAnimationForBoard(Board, /*bImmediate=*/true);
+		});
 	}
 }
 
