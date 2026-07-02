@@ -45,6 +45,28 @@ public:
 
 
 
+	// ==================== Tick Rates ====================
+
+	// Every cursor detection timer shares this rate: tile hover preview (glow + path preview)
+	// and ground hover detection (board exit).
+	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the cursor detection timers (tile hover preview + ground hover). 30 Hz is enough for cursor feedback."))
+	float CursorDetectionTickRate = 30.f;
+
+	// Rate of the exit hold progression timer (the hold-to-leave-the-board gauge).
+	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the exit hold progression timer (hold-to-leave-the-board gauge)."))
+	float ExitHoldTickRate = 60.f;
+
+	// Rate of the turn-toward-tile rotation timer (character turning to face the plant target).
+	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the turn-toward-tile rotation timer (character turning to face the plant target)."))
+	float TurnTowardTileTickRate = 60.f;
+
+	// Timer-ready intervals (seconds). Clamped so a bad config value can never yield a zero/negative rate.
+	float GetCursorDetectionTickInterval() const { return 1.f / FMath::Max(CursorDetectionTickRate, 1.f); }
+	float GetExitHoldTickInterval() const { return 1.f / FMath::Max(ExitHoldTickRate, 1.f); }
+	float GetTurnTowardTileTickInterval() const { return 1.f / FMath::Max(TurnTowardTileTickRate, 1.f); }
+
+
+
 	// ==================== UI ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
