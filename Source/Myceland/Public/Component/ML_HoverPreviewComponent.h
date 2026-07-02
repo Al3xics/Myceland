@@ -13,7 +13,6 @@ class AML_PlayerCharacter;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHoveredTileChanged, AML_Tile*, HoveredTile, bool, bIsReachable);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCursorOverEmptySpaceChanged, bool, bIsOverEmptySpace);
 
 UCLASS(ClassGroup=(Myceland), meta=(BlueprintSpawnableComponent))
 class MYCELAND_API UML_HoverPreviewComponent : public UActorComponent
@@ -58,8 +57,6 @@ private:
 
 	// False when a gamepad is active: cursor position must not influence tile hover.
 	bool bCursorHoverEnabled = true;
-	
-	bool bWasCursorOverEmptySpace = false;
 
 	void UpdateHoverPreview();
 	void TickPathHoverPreview();
@@ -67,15 +64,11 @@ private:
 	void ClearCursorHoverPreview();
 	void SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable);
 	TArray<AML_Tile*> BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const;
-	void UpdateCursorOverEmptySpace(); // Specific to mouse & keyboard as there is no cursor with gamepad
 
 public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Hover Preview Component|Hover")
 	FOnHoveredTileChanged OnHoveredTileChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Hover Preview Component|Hover")
-	FOnCursorOverEmptySpaceChanged OnCursorOverEmptySpaceChanged;
 
 	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character);
 	void NotifyMovementModeChanged(EML_PlayerMovementMode NewMode);

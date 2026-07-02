@@ -397,6 +397,20 @@ bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 	return Hit.bBlockingHit && Hit.Component.IsValid();
 }
 
+bool AML_PlayerController::GetGroundUnderCursor(FHitResult& OutHit) const
+{
+	// Trace on the dedicated Ground channel (ECC_GameTraceChannel2). Only designated ground
+	// surfaces respond Block on it; decor ignores it by default (channel default = Ignore).
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel2), false, OutHit))
+		return false;
+	if (!OutHit.bBlockingHit || !IsValid(OutHit.GetActor()))
+		return false;
+
+	// Tile GroundBase blocks ALL channels (see ML_TileBase), so board tiles also stop this trace —
+	// a tile hit correctly reads as "cursor over the board", not over ground.
+	return ExtractTileFromHit(OutHit) == nullptr;
+}
+
 // ==================== Camera Queries ====================
 
 AML_CameraRail* AML_PlayerController::FindClosestCameraRailFromPlayer(const FVector& WorldLocation)
@@ -791,6 +805,9 @@ void AML_PlayerController::HandleInputDeviceChanged(EML_InputDevice NewDevice)
 
 	if (HoverPreviewComponent)
 		HoverPreviewComponent->NotifyInputDeviceChanged(NewDevice);
+
+	if (TransitionComponent)
+		TransitionComponent->NotifyInputDeviceChanged(NewDevice);
 
 	// Force Slate to re-evaluate the cursor type immediately.
 	// Without this, the OS cursor only updates on the next mouse-move event (Standalone artifact).

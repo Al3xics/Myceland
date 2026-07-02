@@ -20,12 +20,35 @@ void UML_BoardTransitionComponent::Initialize(AML_PlayerController* Controller, 
 	RotateSpeed      = InRotateSpeed;
 }
 
+float UML_BoardTransitionComponent::GetCursorTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetCursorDetectionTickInterval() : 1.f / 30.f;
+}
+
+float UML_BoardTransitionComponent::GetExitHoldTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetExitHoldTickInterval() : 1.f / 60.f;
+}
+
+float UML_BoardTransitionComponent::GetTurnTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetTurnTowardTileTickInterval() : 1.f / 60.f;
+}
+
 // ==================== Mode management ====================
 
 void UML_BoardTransitionComponent::SwitchToMode(EML_PlayerMovementMode NewMode)
 {
 	const EML_PlayerMovementMode OldMode = CurrentMovementMode;
 	CurrentMovementMode = NewMode;
+
+	// Ground detection only runs while the cursor can leave the board (InsideBoard/ExitingBoard).
+	const bool bBoardMode = NewMode == EML_PlayerMovementMode::InsideBoard ||
+	                        NewMode == EML_PlayerMovementMode::ExitingBoard;
+	if (bBoardMode)
+		StartGroundHoverDetection();
+	else
+		StopGroundHoverDetection();
 
 	// ExitingBoard → InsideBoard: this is a CANCELLED exit — clean up exit state
 	if (OldMode == EML_PlayerMovementMode::ExitingBoard &&
@@ -103,7 +126,7 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, con
 		ExitHoldTimerHandle,
 		this,
 		&UML_BoardTransitionComponent::TickExitHold,
-		1.f / 60.f,
+		GetExitHoldTickInterval(),
 		true
 	);
 }
@@ -158,7 +181,8 @@ void UML_BoardTransitionComponent::TickExitHold()
 	}
 
 	bWasExitingLastFrame = true;
-	ExitHoldTimer += 1.f / 60.f;
+	// Must match the timer rate: the hold progress advances by exactly one tick interval per tick.
+	ExitHoldTimer += GetExitHoldTickInterval();
 
 	if (ExitHoldTimer >= DevSettings->ExitBoardHoldDuration)
 	{
@@ -221,6 +245,68 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 	OwningController->StartMoveAlongPath(AxialPath, GridMap);
 }
 
+// ==================== Ground hover (cursor outside-board detection) ====================
+
+void UML_BoardTransitionComponent::StartGroundHoverDetection()
+{
+	if (!bCursorGroundDetectionEnabled || GroundHoverTimerHandle.IsValid()) return;
+
+	GetWorld()->GetTimerManager().SetTimer(
+		GroundHoverTimerHandle,
+		this,
+		&UML_BoardTransitionComponent::TickGroundHover,
+		GetCursorTickInterval(), // Same rate as the hover preview — enough for cursor detection
+		true
+	);
+}
+
+void UML_BoardTransitionComponent::StopGroundHoverDetection()
+{
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(GroundHoverTimerHandle);
+
+	SetHoveredGroundActor(nullptr);
+}
+
+void UML_BoardTransitionComponent::TickGroundHover()
+{
+	if (!IsValid(OwningController)) return;
+
+	FHitResult Hit;
+	AActor* NewGround = OwningController->GetGroundUnderCursor(Hit) ? Hit.GetActor() : nullptr;
+	SetHoveredGroundActor(NewGround);
+
+	// Exit hold in progress but the cursor left the designated ground (moved back over the board,
+	// onto decor, or off any ground): cancel the exit. TickExitHold sees the cleared flag on its
+	// next tick and performs the state cleanup + mode switch back to InsideBoard.
+	if (bIsHoldingExitInput && !IsValid(HoveredGroundActor))
+	{
+		CancelExitHold();
+		// The mouse release handler only clears the exit glow when the hold is still active on
+		// release, so an auto-cancelled hold must clear it here.
+		OwningController->ClearForcedHoverTile();
+		OwningController->ClearPathHoverPreview();
+	}
+}
+
+void UML_BoardTransitionComponent::SetHoveredGroundActor(AActor* NewGround)
+{
+	if (HoveredGroundActor == NewGround) return;
+
+	HoveredGroundActor = NewGround;
+	OnHoveredGroundChanged.Broadcast(NewGround);
+}
+
+void UML_BoardTransitionComponent::NotifyInputDeviceChanged(EML_InputDevice NewDevice)
+{
+	bCursorGroundDetectionEnabled = (NewDevice == EML_InputDevice::MouseKeyboard);
+
+	if (!bCursorGroundDetectionEnabled) // --> if using gamepad, stop ground hover detection
+		StopGroundHoverDetection();
+	else if (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
+		StartGroundHoverDetection();
+}
+
 // ==================== Board entry / action state ====================
 
 void UML_BoardTransitionComponent::SetBoardActionState(EML_PlayerBoardActionState State, AML_Tile* PlantTarget)
@@ -266,7 +352,7 @@ void UML_BoardTransitionComponent::StartTurnTowardTile(AML_Tile* Target)
 			TurnTowardTileTimerHandle,
 			this,
 			&UML_BoardTransitionComponent::UpdateTurnTowardPendingTile,
-			1.f / 60.f,
+			GetTurnTickInterval(),
 			true
 		);
 	}
@@ -303,7 +389,8 @@ void UML_BoardTransitionComponent::UpdateTurnTowardPendingTile()
 		return;
 	}
 
-	const bool bStillTurning = RotateCharacterTowardTile(PendingPlantTargetTile, 1.f / 60.f, RotateSpeed);
+	// DeltaTime must match the timer rate so the RInterpTo rotation speed stays framerate-independent.
+	const bool bStillTurning = RotateCharacterTowardTile(PendingPlantTargetTile, GetTurnTickInterval(), RotateSpeed);
 
 	if (!bStillTurning)
 	{

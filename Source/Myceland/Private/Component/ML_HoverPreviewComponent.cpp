@@ -2,6 +2,7 @@
 
 #include "Component/ML_HoverPreviewComponent.h"
 
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Engine/Engine.h"
 #include "Player/ML_PlayerController.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -58,7 +59,7 @@ void UML_HoverPreviewComponent::StartHoverPreviewTimer()
 			HoverPreviewTimerHandle,
 			this,
 			&UML_HoverPreviewComponent::UpdateHoverPreview,
-			1.f / 30.f, // 30Hz is enough for hover preview
+			UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->GetCursorDetectionTickInterval(),
 			true
 		);
 	}
@@ -116,8 +117,6 @@ void UML_HoverPreviewComponent::UpdateShowPreviews(const bool Value)
 
 void UML_HoverPreviewComponent::UpdateHoverPreview()
 {
-	UpdateCursorOverEmptySpace();
-	
 	// Do not show preview if `bShowPreviews` is false
 	if (!bShowPreviews) return;
 
@@ -327,21 +326,4 @@ TArray<AML_Tile*> UML_HoverPreviewComponent::BuildPreviewPathFromTile(const AML_
 	}
 
 	return Result;
-}
-
-void UML_HoverPreviewComponent::UpdateCursorOverEmptySpace()
-{
-	if (!IsValid(OwningController)) return;
-	
-	// ExitingBoard counts as a board mode too: while the player holds the exit, the cursor is still
-	// over empty space and the exit cursor must stay visible. RequestExitHold switches the mode to
-	// ExitingBoard the instant the hold begins, so checking only InsideBoard would wrongly flip to false.
-	const bool bInBoardMode = CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard;
-	const bool bOverEmptySpace = bInBoardMode && bCursorHoverEnabled && !IsValid(OwningController->GetTileUnderCursor()); // Player in a board mode AND is using mouse AND tile under cursor is not valid
-	
-	if (bOverEmptySpace != bWasCursorOverEmptySpace)
-	{
-		bWasCursorOverEmptySpace = bOverEmptySpace;
-		OnCursorOverEmptySpaceChanged.Broadcast(bOverEmptySpace);
-	}
 }
