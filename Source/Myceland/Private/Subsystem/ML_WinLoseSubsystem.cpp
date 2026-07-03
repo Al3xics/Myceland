@@ -434,6 +434,23 @@ void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawne
 	}
 }
 
+void UML_WinLoseSubsystem::ResetConnectedGoalAnimationForBoard(AML_BoardSpawner* Board)
+{
+	if (!IsValid(Board)) return;
+
+	// Only this board's tiles are cleared — PersistentAnimatedTiles is a flat set shared
+	// across boards (incl. the hub), so scope by iterating the board's own grid.
+	TArray<AML_Tile*> Disconnected;
+	for (AML_Tile* Tile : Board->GetGridTiles())
+	{
+		if (IsValid(Tile) && PersistentAnimatedTiles.Remove(Tile) > 0)
+			Disconnected.Add(Tile);
+	}
+
+	if (Disconnected.Num() > 0)
+		OnDisconnectedGoalPathTile.Broadcast(Disconnected);
+}
+
 void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 {
 	while (QueueReadIndex < PendingConnectedGoalPathQueue.Num()

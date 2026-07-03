@@ -399,6 +399,12 @@ void AML_HubBoardSpawner::RestoreToInitialState()
 
 	RehydrateAlreadySolvedPuzzles();
 	PersistHubGrid(/*bMarkSolved=*/false);
+
+	// Super cleared ALL of the hub's goal-link visuals; RehydrateAlreadySolvedPuzzles has
+	// just repainted the grid for whichever linked puzzles are still solved. Re-reveal so
+	// those remaining connections light back up (bImmediate — the grid is already settled).
+	if (AppliedEntryIndices.Num() > 0 && IsValid(WinLoseSubsystem))
+		WinLoseSubsystem->TriggerConnectedGoalAnimationForBoard(this, /*bImmediate=*/true);
 }
 
 // Captures the current type and class of each hub tile in the entry so they can be restored if the associated puzzle is reset.

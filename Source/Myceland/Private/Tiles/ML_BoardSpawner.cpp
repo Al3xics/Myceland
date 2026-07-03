@@ -792,6 +792,11 @@ void AML_BoardSpawner::RestoreToInitialState()
 			NavPath->Despawn();
 	}
 
+	// Erase the revealed goal-link visuals — the board is blank again, so the connections
+	// shown on load (via TriggerConnectedGoalAnimationForBoard) must be cleared too.
+	if (UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
+		WinLose->ResetConnectedGoalAnimationForBoard(this);
+
 	RefreshTileCaches();
 }
 

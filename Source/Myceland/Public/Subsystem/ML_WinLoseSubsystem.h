@@ -86,6 +86,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board, bool bImmediate = false);
 
+	/**
+	 * Clears the persistent connected-goal visuals for Board's tiles: broadcasts them as
+	 * disconnected (so the Blueprints erase the drawn links) and removes them from
+	 * PersistentAnimatedTiles so they can light up again if re-connected later.
+	 *
+	 * The counterpart to TriggerConnectedGoalAnimationForBoard — call this when a board is
+	 * reset to its initial state (RestoreToInitialState / ReplayPuzzle) so the revealed
+	 * links don't linger over the now-blank board.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void ResetConnectedGoalAnimationForBoard(AML_BoardSpawner* Board);
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void ResetConnectedGoalPathState();
 
