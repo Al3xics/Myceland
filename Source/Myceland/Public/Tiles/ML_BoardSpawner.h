@@ -65,7 +65,20 @@ private:
 
 	mutable TMap<FIntPoint, AML_Tile*> GridMapCache;
 	mutable bool bGridMapCacheBuilt = false;
-	
+
+	// ========== Board switches (per-instance, runtime-toggleable) ==========
+	// Kept private so all runtime changes go through the setters (SetGlowEnabled clears any
+	// active glow on OFF). EditAnywhere/BlueprintReadOnly still expose them via reflection.
+
+	// When false, this board's tiles never glow (cursor hover + path preview).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Myceland Board Switches", meta=(AllowPrivateAccess="true"))
+	bool bGlowEnabled = true;
+
+	// When false, the player never enters this board's tile-by-tile mode: clicking it stays in
+	// free movement, and there is no exit-hold. The board movement system is fully disabled for it.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Myceland Board Switches", meta=(AllowPrivateAccess="true"))
+	bool bBoardTransitionEnabled = true;
+
 	// Generators
 	void UpdateCurrentGrid(bool bAllowSpawn = true);
 	void SpawnHexagonRadius();
@@ -81,6 +94,12 @@ private:
 protected:
 	virtual void Destroyed() override;
 	virtual void BeginPlay() override;
+
+#if WITH_EDITOR
+	// Editing bGlowEnabled/bBoardTransitionEnabled in the Details panel writes the field directly,
+	// bypassing the setters. Re-run their side-effects here so editor toggles behave like the setters.
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 public:
 	AML_BoardSpawner();
@@ -191,8 +210,25 @@ public:
 	TArray<AActor*> GetAssociatedNatureZones() const { return AssociatedNatureZones; } 
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
-	TArray<AActor*> GetAssociatedWaterPaths() const { return AssociatedWaterPaths; } 
-	
+	TArray<AActor*> GetAssociatedWaterPaths() const { return AssociatedWaterPaths; }
+
+	// ==================== Myceland Board Switches ====================
+	// Per-board ON/OFF switches (backing fields are private — see above).
+
+	UFUNCTION(BlueprintPure, Category="Myceland Board Switches")
+	bool IsGlowEnabled() const { return bGlowEnabled; }
+
+	UFUNCTION(BlueprintPure, Category="Myceland Board Switches")
+	bool IsBoardTransitionEnabled() const { return bBoardTransitionEnabled; }
+
+	/** Enables/disables this board's glow. Clears any active glow immediately when turning OFF. */
+	UFUNCTION(BlueprintCallable, Category="Myceland Board Switches")
+	void SetGlowEnabled(bool bEnabled);
+
+	/** Enables/disables this board's entry/exit (tile-by-tile) system. Ejects the player to free movement when turning OFF while they are inside. */
+	UFUNCTION(BlueprintCallable, Category="Myceland Board Switches")
+	void SetBoardTransitionEnabled(bool bEnabled);
+
 	// ==================== Myceland Hex Procedural Grid ====================
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Puzzle Generator")

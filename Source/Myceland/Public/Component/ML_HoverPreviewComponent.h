@@ -13,7 +13,6 @@ class AML_PlayerCharacter;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHoveredTileChanged, AML_Tile*, HoveredTile, bool, bIsReachable);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCursorOverEmptySpaceChanged, bool, bIsOverEmptySpace);
 
 UCLASS(ClassGroup=(Myceland), meta=(BlueprintSpawnableComponent))
 class MYCELAND_API UML_HoverPreviewComponent : public UActorComponent
@@ -36,7 +35,7 @@ private:
 	bool bLastCursorTileIsPlayerTile = false;
 
 	UPROPERTY(Transient)
-	AML_Tile* LastHoveredTile = nullptr;
+	AML_Tile* LastPathHoveredTile = nullptr;
 
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> CurrentPreviewPath;
@@ -58,32 +57,31 @@ private:
 
 	// False when a gamepad is active: cursor position must not influence tile hover.
 	bool bCursorHoverEnabled = true;
-	
-	bool bWasCursorOverEmptySpace = false;
 
 	void UpdateHoverPreview();
-	void TickHoverPreview();
+	void TickPathHoverPreview();
 	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();
 	void SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable);
 	TArray<AML_Tile*> BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const;
-	void UpdateCursorOverEmptySpace(); // Specific to mouse & keyboard as there is no cursor with gamepad
 
 public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Hover Preview Component|Hover")
 	FOnHoveredTileChanged OnHoveredTileChanged;
 
-	UPROPERTY(BlueprintAssignable, Category = "Hover Preview Component|Hover")
-	FOnCursorOverEmptySpaceChanged OnCursorOverEmptySpaceChanged;
-
 	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character);
 	void NotifyMovementModeChanged(EML_PlayerMovementMode NewMode);
 	void NotifyPlayerTileChanged();
 
-	void ClearHoverPreview();
+	void ClearPathHoverPreview();
 	void StartHoverPreviewTimer();
 	void StopHoverPreviewTimer();
+
+	// Clears the currently active glow (cursor + path) immediately.
+	// Used when a board's glow is toggled OFF while it is being hovered: the per-tick
+	// same-tile short-circuit would otherwise leave a stale glow on the hovered tile.
+	void ClearActiveGlow();
 	
 	void SetForcedHoverTile(AML_Tile* Tile);
 	void ClearForcedHoverTile();

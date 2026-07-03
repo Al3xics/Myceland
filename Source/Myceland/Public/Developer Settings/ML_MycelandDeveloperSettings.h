@@ -45,6 +45,28 @@ public:
 
 
 
+	// ==================== Tick Rates ====================
+
+	// Every cursor detection timer shares this rate: tile hover preview (glow + path preview)
+	// and ground hover detection (board exit).
+	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the cursor detection timers (tile hover preview + ground hover). 30 Hz is enough for cursor feedback."))
+	float CursorDetectionTickRate = 30.f;
+
+	// Rate of the exit hold progression timer (the hold-to-leave-the-board gauge).
+	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the exit hold progression timer (hold-to-leave-the-board gauge)."))
+	float ExitHoldTickRate = 60.f;
+
+	// Rate of the turn-toward-tile rotation timer (character turning to face the plant target).
+	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the turn-toward-tile rotation timer (character turning to face the plant target)."))
+	float TurnTowardTileTickRate = 60.f;
+
+	// Timer-ready intervals (seconds). Clamped so a bad config value can never yield a zero/negative rate.
+	float GetCursorDetectionTickInterval() const { return 1.f / FMath::Max(CursorDetectionTickRate, 1.f); }
+	float GetExitHoldTickInterval() const { return 1.f / FMath::Max(ExitHoldTickRate, 1.f); }
+	float GetTurnTowardTileTickInterval() const { return 1.f / FMath::Max(TurnTowardTileTickRate, 1.f); }
+
+
+
 	// ==================== UI ====================
 	
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
@@ -106,6 +128,12 @@ public:
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Use Dynamic Rollback Speed", Tooltip="When enabled, undo and reset speeds are computed from the current rollback stack to target Reset Target Duration. When disabled, Undo Speed and Reset Speed are used directly."))
 	bool bUseDynamicRollBackSpeed = true;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Rollback Minimum Speed", ClampMin="0.01", Tooltip="Minimum time dilation used by animated undo and reset."))
+	float RollBackMinSpeed = 3.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Rollback Maximum Speed", ClampMin="0.01", Tooltip="Maximum time dilation used by animated undo and reset. Limits movement speed to prevent the player from overshooting tiles or leaving the board."))
+	float RollBackMaxSpeed = 20.0f;
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
 	float ResetTargetDuration = 4.0f;

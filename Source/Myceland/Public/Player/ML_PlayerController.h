@@ -175,6 +175,14 @@ public:
 
 	bool IsClickableGround(const FHitResult& Hit) const;
 
+	/**
+	 * Traces on the dedicated Ground channel (ECC_GameTraceChannel2). Returns true only when the
+	 * cursor is over a designated ground surface (landscape / exit plane set to Block that channel) —
+	 * never the board (tiles read as "over the board") nor decor (ignores the channel by default).
+	 * Used exclusively for the board exit detection while InsideBoard/ExitingBoard.
+	 */
+	bool GetGroundUnderCursor(FHitResult& OutHit) const;
+
 	// ==================== Character Access ====================
 
 	AML_PlayerCharacter* GetMycelandCharacter() const { return MycelandCharacter; }
@@ -279,5 +287,14 @@ public:
 	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
 	void SetForcedHoverTile(AML_Tile* Tile);
 	void ClearForcedHoverTile();
-	void ClearHoverPreview();
+	void ClearPathHoverPreview();
+
+	/** Clears the currently active glow (cursor + path). Called by AML_BoardSpawner when glow is toggled OFF. */
+	void ClearActiveGlow();
+
+	/**
+	 * Called by AML_BoardSpawner when its transition is toggled OFF. If the player is currently inside
+	 * that board, stops any board movement and ejects them back to free movement.
+	 */
+	void NotifyBoardTransitionDisabled(const AML_BoardSpawner* Board);
 };
