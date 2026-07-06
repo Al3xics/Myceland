@@ -28,8 +28,6 @@ class MYCELAND_API AML_BoardSpawner : public AActor
 private:
 	// ==================== Myceland Runtime ====================
 	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
-	int32 EnergyForPuzzle = 1;
 	
 	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
 	UML_BiomeTileSet* BiomeTileSet;
@@ -102,6 +100,8 @@ public:
 	AML_BoardSpawner();
 	FIntPoint WorldToAxial(const FVector& WorldLocation) const;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Myceland Runtime")
+	int32 EnergyForPuzzle = 1;
 	
 	// ==================== Myceland Hex Grid ====================
 	

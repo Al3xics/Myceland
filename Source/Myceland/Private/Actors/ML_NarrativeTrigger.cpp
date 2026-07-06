@@ -67,7 +67,7 @@ void AML_NarrativeTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overlapped
 
     // Check if already played
     if (bPlayOnce && bHasBeenPlayed) return;
-
+    if (!canPlay) return;
     // Check if we have a valid sequence
     if (!NarrativeSequence)
     {
@@ -83,6 +83,18 @@ void AML_NarrativeTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overlapped
         SubSys->PlaySequence(NarrativeSequence, this);
     }
 }
+
+void AML_NarrativeTrigger::PlaySequence()
+{
+    // Play the sequence
+    if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
+    {
+        bHasBeenPlayed = true;
+        OnSequenceStarted(NarrativeSequence);
+        SubSys->PlaySequence(NarrativeSequence, this);
+    }
+}
+
 
 void AML_NarrativeTrigger::HandleSequenceStart(UML_NarrativeSequence* Sequence)
 {

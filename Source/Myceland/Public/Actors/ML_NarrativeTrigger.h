@@ -56,7 +56,8 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UCameraComponent* CinematicCamera;
 
-    
+    UFUNCTION(BlueprintCallable, Category = "Narrative")
+    void PlaySequence();
     
     // ==================== DATA ====================
     
@@ -72,7 +73,8 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Narrative")
     bool bHasBeenPlayed = false;
 
-    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative")
+    bool canPlay = true;
     
     // ==================== API ====================
     
