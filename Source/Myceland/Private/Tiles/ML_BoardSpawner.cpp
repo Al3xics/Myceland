@@ -298,28 +298,26 @@ void AML_BoardSpawner::DestroyStaleTiles() const
 	}
 }
 
-TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile)
+// Blueprint-only
+TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile) const
 {
-	if (!CenterTile) return TArray<AML_Tile*>();
+	FML_TileNeighbors Neighbors;
+	GetNeighbors(CenterTile, Neighbors);
+	return TArray<AML_Tile*>(Neighbors);
+}
+
+void AML_BoardSpawner::GetNeighbors(const AML_Tile* CenterTile, FML_TileNeighbors& OutNeighbors) const
+{
+	OutNeighbors.Reset();
+	if (!CenterTile) return;
 
 	const FIntPoint CenterAxial = CenterTile->GetAxialCoord();
-	TArray<AML_Tile*> Neighbors;
-	Neighbors.Reserve(6);
 
 	for (const FIntPoint& Dir : Directions)
 	{
-		const FIntPoint NeighborKey = CenterAxial + Dir;
-		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(NeighborKey))
-		{
-			Neighbors.Add(Found->Get());
-		}
-		else
-		{
-			Neighbors.Add(nullptr);
-		}
+		const TObjectPtr<AML_Tile>* Found = GridMap.Find(CenterAxial + Dir);
+		OutNeighbors.Add(Found ? Found->Get() : nullptr);
 	}
-
-	return Neighbors;
 }
 
 TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const

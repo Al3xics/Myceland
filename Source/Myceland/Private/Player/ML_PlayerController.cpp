@@ -209,7 +209,8 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return RejectPlantWithFeedback();
 
-	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
+	FML_TileNeighbors CurrentNeighbors;
+	Board->GetNeighbors(MycelandCharacter->CurrentTileOn, CurrentNeighbors);
 	if (!MoveRecordingComponent->IsMoveInProgress() && CurrentNeighbors.Contains(TargetTile))
 	{
 		TransitionComponent->StartTurnTowardTile(TargetTile);
@@ -224,7 +225,8 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return RejectPlantWithFeedback();
 
 	AML_Tile* StopTile = GridMap[StopAxial];
-	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
+	FML_TileNeighbors StopNeighbors;
+	Board->GetNeighbors(StopTile, StopNeighbors);
 	if (!StopNeighbors.Contains(TargetTile)) return RejectPlantWithFeedback();
 
 	TArray<FIntPoint> MovePath = FullPath;

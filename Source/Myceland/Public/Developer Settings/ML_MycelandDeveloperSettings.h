@@ -117,6 +117,9 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
 
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the wave propagation may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
+	float WavePropagationFrameBudgetMs = 2.0f;
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	float UndoSpeed = 3.0f;
 

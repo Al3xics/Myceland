@@ -3,6 +3,7 @@
 
 #include "Waves/ChildWaves/ML_WaveParasite.h"
 
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
@@ -10,8 +11,8 @@
 
 void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-	GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, TEXT("Parasite Wave"));
-	
+	TRACE_CPUPROFILER_EVENT_SCOPE(ML_WaveParasite_ComputeWave);
+
 	if (!OriginTile) return;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
@@ -39,6 +40,7 @@ void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>&
 		return;
 
 	// Chain propagation
+	FML_TileNeighbors Neighbors;
 	while (!Queue.IsEmpty())
 	{
 		TPair<AML_Tile*, int32> Current;
@@ -47,7 +49,7 @@ void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>&
 		AML_Tile* CurrentTile = Current.Key;
 		int32 Distance = Current.Value;
 
-		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(CurrentTile);
+		Board->GetNeighbors(CurrentTile, Neighbors);
 		for (AML_Tile* Neighbor : Neighbors)
 		{
 			if (!Neighbor || Visited.Contains(Neighbor))

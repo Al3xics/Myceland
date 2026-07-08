@@ -45,6 +45,7 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 		Queue.Enqueue({ Tree, 0 });
 	}
 
+	FML_TileNeighbors Neighbors;
 	while (!Queue.IsEmpty())
 	{
 		TPair<AML_Tile*, int32> Current;
@@ -52,7 +53,8 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 
 		const int32 NextDistance = Current.Value + 1;
 
-		for (AML_Tile* Neighbor : Board->GetNeighbors(Current.Key))
+		Board->GetNeighbors(Current.Key, Neighbors);
+		for (AML_Tile* Neighbor : Neighbors)
 		{
 			if (!IsValid(Neighbor) || Visited.Contains(Neighbor)) continue;
 			Visited.Add(Neighbor);
@@ -69,7 +71,7 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 		}
 	}
 
-	WinWaveEntries.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+	WinWaveEntries.StableSort([](const FML_WaveChange& A, const FML_WaveChange& B)
 	{
 		return A.DistanceFromOrigin < B.DistanceFromOrigin;
 	});
