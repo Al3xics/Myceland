@@ -1,6 +1,7 @@
 // Copyright Myceland Team, All Rights Reserved.
 
 #include "Tiles/ML_HubBoardSpawner.h"
+#include "Actors/ML_WaterNavPath.h"
 #include "Components/ChildActorComponent.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Save System/ML_SaveSubsystem.h"
@@ -49,6 +50,35 @@ void AML_HubBoardSpawner::BeginPlay()
 
 	BindDelegates();
 	RehydrateAlreadySolvedPuzzles();
+
+	// The base BeginPlay's solved-restore — which respawns AssociatedWaterPaths on load — is
+	// skipped for the hub (ShouldAutoRestoreSolvedGrid()==false). Replay the hub's own water-
+	// bridge activation here the same way as the regular board: gated on the hub being marked
+	// solved in the save (i.e. fully revitalized), deferred one tick so each WaterNavPath has
+	// finished its own BeginPlay before we reveal it.
+	if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
+	{
+		if (PuzzleID.IsValid() && SaveSys->IsPuzzleSolved(PuzzleID.GetTagName()))
+		{
+			TArray<AActor*> PathsToSpawn = GetAssociatedWaterPaths();
+			GetWorld()->GetTimerManager().SetTimerForNextTick([PathsToSpawn]()
+			{
+				for (AActor* PathActor : PathsToSpawn)
+				{
+					if (AML_WaterNavPath* NavPath = Cast<AML_WaterNavPath>(PathActor))
+						NavPath->Spawn();
+				}
+			});
+
+			// Hide/disable the hub's associated obstacle on load, the same way the base board
+			// does in its solved-restore branch (which the hub skips).
+			if (AActor* Obstacle = GetAssociatedObstacle())
+			{
+				Obstacle->SetActorHiddenInGame(true);
+				Obstacle->SetActorEnableCollision(false);
+			}
+		}
+	}
 
 	// On load, reveal the connected goals for the puzzles that were already solved.
 	// Deferred one tick so the tile Blueprints that draw the links have finished BeginPlay.
