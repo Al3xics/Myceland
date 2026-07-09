@@ -3,7 +3,6 @@
 
 #include "Waves/ChildWaves/ML_WaveParasite.h"
 
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
@@ -11,8 +10,6 @@
 
 void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ML_WaveParasite_ComputeWave);
-
 	if (!OriginTile) return;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();

@@ -3,7 +3,6 @@
 
 #include "Tiles/ML_Tile.h"
 
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "NavModifierComponent.h"
 #include "NavAreas/NavArea_Null.h"
 #include "NavAreas/NavArea_Default.h"
@@ -161,8 +160,6 @@ void AML_Tile::UpdateClassInEditor(const EML_TileType NewTileType)
 
 void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubclassOf<AML_TileBase> NewClass)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(AML_Tile_UpdateClassAtRuntime);
-
 	if (!NewClass) return;
 
 	const EML_TileType OldType = CurrentType;
@@ -172,30 +169,21 @@ void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubcl
 
 	bConsumedGrass = (OldType == EML_TileType::Grass && NewTileType == EML_TileType::Parasite);
 
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(AML_Tile_SetChildActorClass);
-		TileChildActor->SetChildActorClass(NewClass);
-	}
+	TileChildActor->SetChildActorClass(NewClass);
 
 	// Only touch collision/navigation when the blocking state actually changes:
 	// SetBlocked dirties the navmesh, which is expensive to do per tile per wave.
 	if (UML_TileTypeTraits::IsBlocking(NewTileType) != bBlocked)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(AML_Tile_SetBlocked);
 		SetBlocked(!bBlocked);
 	}
 
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(AML_Tile_OnTileTypeChanged);
-		OnTileTypeChanged(OldType, NewTileType);
-	}
+	OnTileTypeChanged(OldType, NewTileType);
 	NotifyTileChangedNative();
 }
 
 void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const TSubclassOf<AML_TileBase> NewClass)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(AML_Tile_UpdateClassAtRuntime_Silent);
-
 	if (!NewClass) return;
 
 	const EML_TileType OldType = CurrentType;

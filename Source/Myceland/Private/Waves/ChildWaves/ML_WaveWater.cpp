@@ -3,7 +3,6 @@
 
 #include "Waves/ChildWaves/ML_WaveWater.h"
 
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
@@ -11,8 +10,6 @@
 
 void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ML_WaveWater_ComputeWave);
-
 	if (!OriginTile) return;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();

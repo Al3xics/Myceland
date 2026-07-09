@@ -3,7 +3,6 @@
 
 #include "Waves/ChildWaves/ML_WaveGrass.h"
 
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_CoreData.h"
@@ -43,8 +42,6 @@ void UML_WaveGrass::ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTi
 
 void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-    TRACE_CPUPROFILER_EVENT_SCOPE(ML_WaveGrass_ComputeWave);
-
     if (!OriginTile) return;
 
     AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();

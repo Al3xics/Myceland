@@ -3,7 +3,6 @@
 
 #include "Waves/ChildWaves/ML_WaveCollectible.h"
 
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Core/ML_CoreData.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Data Asset/ML_BiomeTileSet.h"
@@ -14,8 +13,6 @@
 
 void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const TArray<AML_Tile*>& ParasitesThatAteGrass, TArray<FML_WaveChange>& OutChanges)
 {
-    TRACE_CPUPROFILER_EVENT_SCOPE(ML_WaveCollectible_ComputeWave);
-
     if (!OriginTile || ParasitesThatAteGrass.Num() == 0) return;
 
     AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();

@@ -4,7 +4,6 @@
 
 #include "Algo/Reverse.h"
 #include "HAL/PlatformTime.h"
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Audio/ML_FMODEvents.h"
 #include "Collectible/ML_Collectible.h"
 #include "Components/PrimitiveComponent.h"
@@ -273,8 +272,6 @@ void UML_RollBackSubsystem::RunUndoWave()
 
 void UML_RollBackSubsystem::ContinueUndoGroupSlice()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ML_RollBack_UndoGroupSlice);
-
 	const bool bGroupFullyDrained = ApplyUndoWaveGroup(CurrentUndoGroupPriority, CurrentUndoGroupDistance, MakeUndoSliceDeadline());
 
 	// Budget exhausted: resume this group next frame (Tick).

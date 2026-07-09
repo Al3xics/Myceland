@@ -2,7 +2,6 @@
 
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Audio/ML_FMODEvents.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
@@ -175,8 +174,6 @@ void UML_WavePropagationSubsystem::RunWave()
 
 void UML_WavePropagationSubsystem::ProcessRingSlice(const double Deadline)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ML_WavePropagation_ProcessRingSlice);
-
 	while (PendingChangesIndex < PendingChanges.Num()
 		&& PendingChanges[PendingChangesIndex].DistanceFromOrigin == CurrentRingDistance)
 	{
@@ -205,8 +202,6 @@ void UML_WavePropagationSubsystem::ProcessRingSlice(const double Deadline)
 
 void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ML_WavePropagation_ApplyChange);
-
 	// Tile update
 	if (Change.Tile)
 	{
@@ -424,19 +419,15 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 	CurrentParasiteReactionCount = 0;
 	CurrentWaterReactionCount = 0;
 
+	// Collectible wave uses a dedicated entry point
+	if (UML_WaveCollectible* CollectibleWave = Cast<UML_WaveCollectible>(WaveLogic))
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(ML_WavePropagation_ComputeWave);
-
-		// Collectible wave uses a dedicated entry point
-		if (UML_WaveCollectible* CollectibleWave = Cast<UML_WaveCollectible>(WaveLogic))
-		{
-			CollectibleWave->ComputeWaveForCollectibles(CurrentOriginTile, ParasitesThatAteGrass, PendingChanges);
-			ParasitesThatAteGrass.Empty();
-		}
-		else
-		{
-			WaveLogic->ComputeWave(CurrentOriginTile, PendingChanges);
-		}
+		CollectibleWave->ComputeWaveForCollectibles(CurrentOriginTile, ParasitesThatAteGrass, PendingChanges);
+		ParasitesThatAteGrass.Empty();
+	}
+	else
+	{
+		WaveLogic->ComputeWave(CurrentOriginTile, PendingChanges);
 	}
 
 	if (PendingChanges.Num() == 0)
@@ -489,8 +480,6 @@ void UML_WavePropagationSubsystem::AbortPropagationRuntime()
 
 void UML_WavePropagationSubsystem::BuildTouchQueue(AML_Tile* OriginTile)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ML_WavePropagation_BuildTouchQueue);
-
 	if (GetWorld())
 		GetWorld()->GetTimerManager().ClearTimer(TouchTimerHandle);
 
@@ -547,8 +536,6 @@ void UML_WavePropagationSubsystem::FireNextTouchRing()
 
 void UML_WavePropagationSubsystem::ProcessTouchSlice(const double Deadline)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ML_WavePropagation_ProcessTouchSlice);
-
 	while (TouchIndex < PendingTouched.Num()
 		&& PendingTouched[TouchIndex].DistanceFromOrigin == CurrentTouchDistance)
 	{
