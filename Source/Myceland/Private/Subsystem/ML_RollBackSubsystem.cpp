@@ -4,6 +4,7 @@
 
 #include "Algo/Reverse.h"
 #include "HAL/PlatformTime.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Audio/ML_FMODEvents.h"
 #include "Collectible/ML_Collectible.h"
 #include "Components/PrimitiveComponent.h"
@@ -17,6 +18,30 @@
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_BoardSpawner.h"
 #include "Tiles/ML_Tile.h"
+
+void UML_RollBackSubsystem::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (bUndoGroupInProgress)
+		ContinueUndoGroupSlice();
+}
+
+bool UML_RollBackSubsystem::IsTickable() const
+{
+	return bUndoGroupInProgress;
+}
+
+TStatId UML_RollBackSubsystem::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UML_RollBackSubsystem, STATGROUP_Tickables);
+}
+
+double UML_RollBackSubsystem::MakeUndoSliceDeadline() const
+{
+	const float BudgetMs = DevSettings ? DevSettings->RollbackFrameBudgetMs : 8.f;
+	return FPlatformTime::Seconds() + static_cast<double>(BudgetMs) / 1000.0;
+}
 
 void UML_RollBackSubsystem::EnsureInitialized()
 {
@@ -187,167 +212,177 @@ void UML_RollBackSubsystem::OnBoardChanged(const AML_Tile* OldTile, const AML_Ti
 	}
 }
 
+void UML_RollBackSubsystem::PeekNextUndoGroup(int32& OutPriority, int32& OutDistance) const
+{
+	OutPriority = 0;
+	OutDistance = 0;
+
+	const bool bHasTile = PendingUndoTileIndex < PendingUndoTileDeltas.Num();
+	const bool bHasSpawn = PendingUndoSpawnIndex < PendingUndoSpawnDeltas.Num();
+
+	if (bHasTile && !bHasSpawn)
+	{
+		OutPriority = PendingUndoTileDeltas[PendingUndoTileIndex].PriorityIndex;
+		OutDistance = PendingUndoTileDeltas[PendingUndoTileIndex].DistanceFromOrigin;
+		return;
+	}
+	if (!bHasTile && bHasSpawn)
+	{
+		OutPriority = PendingUndoSpawnDeltas[PendingUndoSpawnIndex].PriorityIndex;
+		OutDistance = PendingUndoSpawnDeltas[PendingUndoSpawnIndex].DistanceFromOrigin;
+		return;
+	}
+	if (!bHasTile && !bHasSpawn)
+		return;
+
+	const FML_TileUndoDelta& TD = PendingUndoTileDeltas[PendingUndoTileIndex];
+	const FML_SpawnUndoDelta& SD = PendingUndoSpawnDeltas[PendingUndoSpawnIndex];
+
+	// Undo replays in reverse: the group with the highest (Priority, Distance) goes first.
+	const bool bTileWins = (TD.PriorityIndex != SD.PriorityIndex)
+		? TD.PriorityIndex > SD.PriorityIndex
+		: TD.DistanceFromOrigin >= SD.DistanceFromOrigin;
+
+	if (bTileWins)
+	{
+		OutPriority = TD.PriorityIndex;
+		OutDistance = TD.DistanceFromOrigin;
+	}
+	else
+	{
+		OutPriority = SD.PriorityIndex;
+		OutDistance = SD.DistanceFromOrigin;
+	}
+}
+
 void UML_RollBackSubsystem::RunUndoWave()
 {
-	if (PendingUndoTileDeltas.Num() == 0 && PendingUndoSpawnDeltas.Num() == 0)
+	if (PendingUndoTileIndex >= PendingUndoTileDeltas.Num()
+		&& PendingUndoSpawnIndex >= PendingUndoSpawnDeltas.Num())
 	{
 		FinishUndoAnimation();
 		return;
 	}
 
-	auto PeekKey = [](int32& OutPri, int32& OutDist,
-		const bool bHasTile, const FML_TileUndoDelta& TD,
-		const bool bHasSpawn, const FML_SpawnUndoDelta& SD)
-	{
-		if (bHasTile && !bHasSpawn) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; return; }
-		if (!bHasTile && bHasSpawn) { OutPri = SD.PriorityIndex; OutDist = SD.DistanceFromOrigin; return; }
+	// Start the next undo wave group. Like the forward wave propagation, the group is
+	// applied under a per-frame CPU budget: whatever doesn't fit continues in Tick.
+	PeekNextUndoGroup(CurrentUndoGroupPriority, CurrentUndoGroupDistance);
+	bUndoGroupInProgress = true;
+	ContinueUndoGroupSlice();
+}
 
-		if (TD.PriorityIndex != SD.PriorityIndex)
-		{
-			if (TD.PriorityIndex > SD.PriorityIndex) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; }
-			else { OutPri = SD.PriorityIndex; OutDist = SD.DistanceFromOrigin; }
-			return;
-		}
+void UML_RollBackSubsystem::ContinueUndoGroupSlice()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ML_RollBack_UndoGroupSlice);
 
-		if (TD.DistanceFromOrigin >= SD.DistanceFromOrigin) { OutPri = TD.PriorityIndex; OutDist = TD.DistanceFromOrigin; }
-		else { OutPri = SD.PriorityIndex; OutDist = SD.DistanceFromOrigin; }
-	};
+	const bool bGroupFullyDrained = ApplyUndoWaveGroup(CurrentUndoGroupPriority, CurrentUndoGroupDistance, MakeUndoSliceDeadline());
 
-	int32 GroupPri = 0;
-	int32 GroupDist = 0;
-
-	const bool bHasTile = PendingUndoTileDeltas.Num() > 0;
-	const bool bHasSpawn = PendingUndoSpawnDeltas.Num() > 0;
-
-	PeekKey(
-		GroupPri, GroupDist,
-		bHasTile, bHasTile ? PendingUndoTileDeltas[0] : FML_TileUndoDelta{},
-		bHasSpawn, bHasSpawn ? PendingUndoSpawnDeltas[0] : FML_SpawnUndoDelta{}
-	);
-
-	const bool bGroupFullyDrained = ApplyUndoWaveGroup(GroupPri, GroupDist, MaxSecondsPerWaveTick);
-
-	if (PendingUndoTileDeltas.Num() == 0 && PendingUndoSpawnDeltas.Num() == 0)
-	{
-		FinishUndoAnimation();
-		return;
-	}
-
+	// Budget exhausted: resume this group next frame (Tick).
 	if (!bGroupFullyDrained)
+		return;
+
+	bUndoGroupInProgress = false;
+
+	if (PendingUndoTileIndex >= PendingUndoTileDeltas.Num()
+		&& PendingUndoSpawnIndex >= PendingUndoSpawnDeltas.Num())
 	{
-		// Same wave, still draining: continue ASAP, no InterWaveDelay/IntraWaveDelay.
-		ScheduleNextUndoWave(0.0f);
+		FinishUndoAnimation();
 		return;
 	}
 
 	int32 NextPri = 0;
 	int32 NextDist = 0;
+	PeekNextUndoGroup(NextPri, NextDist);
 
-	const bool bHasTile2 = PendingUndoTileDeltas.Num() > 0;
-	const bool bHasSpawn2 = PendingUndoSpawnDeltas.Num() > 0;
-
-	PeekKey(
-		NextPri, NextDist,
-		bHasTile2, bHasTile2 ? PendingUndoTileDeltas[0] : FML_TileUndoDelta{},
-		bHasSpawn2, bHasSpawn2 ? PendingUndoSpawnDeltas[0] : FML_SpawnUndoDelta{}
-	);
-
-	const float Delay = (NextPri != GroupPri) ? DevSettings->InterWaveDelay : DevSettings->IntraWaveDelay;
+	const float Delay = (NextPri != CurrentUndoGroupPriority) ? DevSettings->InterWaveDelay : DevSettings->IntraWaveDelay;
 	ScheduleNextUndoWave(Delay);
 }
 
-bool UML_RollBackSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin, double BudgetSeconds)
+bool UML_RollBackSubsystem::ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin, double Deadline)
 {
-	const double StartTime = FPlatformTime::Seconds();
 	int32 ItemsProcessed = 0;
 
-	// Always process at least one item per tick regardless of budget, so a single
+	// Always process at least one item per slice regardless of budget, so a single
 	// very expensive item (or clock jitter) can't stall the wave indefinitely.
-	auto BudgetExceeded = [StartTime, BudgetSeconds, &ItemsProcessed]()
+	auto BudgetExceeded = [Deadline, &ItemsProcessed]()
 	{
-		return ItemsProcessed > 0 && (FPlatformTime::Seconds() - StartTime) >= BudgetSeconds;
+		return ItemsProcessed > 0 && FPlatformTime::Seconds() >= Deadline;
 	};
 
-	for (int32 i = 0; i < PendingUndoSpawnDeltas.Num() && !BudgetExceeded(); )
+	// Deltas are sorted by (Priority, Distance), so the current group's items are
+	// contiguous at each read cursor: consume in place, no removal.
+	while (PendingUndoSpawnIndex < PendingUndoSpawnDeltas.Num() && !BudgetExceeded())
 	{
-		const FML_SpawnUndoDelta& SpawnDelta = PendingUndoSpawnDeltas[i];
-		if (SpawnDelta.PriorityIndex == PriorityIndex && SpawnDelta.DistanceFromOrigin == DistanceFromOrigin)
-		{
-			if (AActor* SpawnedActor = SpawnDelta.SpawnedActor.Get())
-			{
-				if (IsValid(SpawnedActor))
-				{
-					SpawnedActor->Destroy();
-				}
-			}
+		const FML_SpawnUndoDelta& SpawnDelta = PendingUndoSpawnDeltas[PendingUndoSpawnIndex];
+		if (SpawnDelta.PriorityIndex != PriorityIndex || SpawnDelta.DistanceFromOrigin != DistanceFromOrigin)
+			break;
 
-			PendingUndoSpawnDeltas.RemoveAt(i);
-			++ItemsProcessed;
-			continue;
+		if (AActor* SpawnedActor = SpawnDelta.SpawnedActor.Get())
+		{
+			if (IsValid(SpawnedActor))
+			{
+				SpawnedActor->Destroy();
+			}
 		}
 
-		++i;
+		++PendingUndoSpawnIndex;
+		++ItemsProcessed;
 	}
 
 	bUndoInProgress = true;
 
-	for (int32 i = 0; i < PendingUndoTileDeltas.Num() && !BudgetExceeded(); )
+	while (PendingUndoTileIndex < PendingUndoTileDeltas.Num() && !BudgetExceeded())
 	{
-		const FML_TileUndoDelta& TileDelta = PendingUndoTileDeltas[i];
-		if (TileDelta.PriorityIndex == PriorityIndex && TileDelta.DistanceFromOrigin == DistanceFromOrigin)
+		const FML_TileUndoDelta& TileDelta = PendingUndoTileDeltas[PendingUndoTileIndex];
+		if (TileDelta.PriorityIndex != PriorityIndex || TileDelta.DistanceFromOrigin != DistanceFromOrigin)
+			break;
+
+		AML_Tile* Tile = TileDelta.Tile.Get();
+		if (IsValid(Tile) && CachedActiveUndoTileSet)
 		{
-			AML_Tile* Tile = TileDelta.Tile.Get();
-			if (IsValid(Tile) && CachedActiveUndoTileSet)
+			const EML_TileType PreviousType = Tile->GetCurrentType();
+			const EML_TileType NewType = TileDelta.OldType;
+
+			Tile->UpdateClassAtRuntime_Silent(NewType, CachedActiveUndoTileSet->GetClassFromTileType(NewType));
+
+			if (PreviousType != NewType)
 			{
-				const EML_TileType PreviousType = Tile->GetCurrentType();
-				const EML_TileType NewType = TileDelta.OldType;
-
-				Tile->UpdateClassAtRuntime_Silent(NewType, CachedActiveUndoTileSet->GetClassFromTileType(NewType));
-
-				if (PreviousType != NewType)
-				{
-					Tile->OnTileTypeChanged(PreviousType, NewType);
-				}
-
-				const bool bShouldHaveCollectible = TileDelta.bOldHasCollectible && !CachedSpawnedCollectibleAxials.Contains(Tile->GetAxialCoord());
-				const bool bHasCollectibleNow = Tile->HasCollectible();
-
-				if (!bShouldHaveCollectible && bHasCollectibleNow)
-				{
-					DestroyCollectibleActorOnTile(Tile);
-					Tile->SetHasCollectible(false);
-				}
-				else
-				{
-					Tile->SetHasCollectible(bShouldHaveCollectible);
-					if (bShouldHaveCollectible)
-					{
-						RestoreCollectibleActorOnTile(Tile);
-					}
-				}
-
-				Tile->bConsumedGrass = TileDelta.bOldConsumedGrass;
+				Tile->OnTileTypeChanged(PreviousType, NewType);
 			}
 
-			PendingUndoTileDeltas.RemoveAt(i);
-			++ItemsProcessed;
-			continue;
+			const bool bShouldHaveCollectible = TileDelta.bOldHasCollectible && !CachedSpawnedCollectibleAxials.Contains(Tile->GetAxialCoord());
+			const bool bHasCollectibleNow = Tile->HasCollectible();
+
+			if (!bShouldHaveCollectible && bHasCollectibleNow)
+			{
+				DestroyCollectibleActorOnTile(Tile);
+				Tile->SetHasCollectible(false);
+			}
+			else
+			{
+				Tile->SetHasCollectible(bShouldHaveCollectible);
+				if (bShouldHaveCollectible)
+				{
+					RestoreCollectibleActorOnTile(Tile);
+				}
+			}
+
+			Tile->bConsumedGrass = TileDelta.bOldConsumedGrass;
 		}
 
-		++i;
+		++PendingUndoTileIndex;
+		++ItemsProcessed;
 	}
 
 	bUndoInProgress = false;
 
-	// Deltas are kept sorted/contiguous by (Priority, Distance), so if the group
-	// isn't drained yet, its remaining items are still at the front of each array.
-	const bool bSpawnGroupRemaining = PendingUndoSpawnDeltas.Num() > 0
-		&& PendingUndoSpawnDeltas[0].PriorityIndex == PriorityIndex
-		&& PendingUndoSpawnDeltas[0].DistanceFromOrigin == DistanceFromOrigin;
+	const bool bSpawnGroupRemaining = PendingUndoSpawnIndex < PendingUndoSpawnDeltas.Num()
+		&& PendingUndoSpawnDeltas[PendingUndoSpawnIndex].PriorityIndex == PriorityIndex
+		&& PendingUndoSpawnDeltas[PendingUndoSpawnIndex].DistanceFromOrigin == DistanceFromOrigin;
 
-	const bool bTileGroupRemaining = PendingUndoTileDeltas.Num() > 0
-		&& PendingUndoTileDeltas[0].PriorityIndex == PriorityIndex
-		&& PendingUndoTileDeltas[0].DistanceFromOrigin == DistanceFromOrigin;
+	const bool bTileGroupRemaining = PendingUndoTileIndex < PendingUndoTileDeltas.Num()
+		&& PendingUndoTileDeltas[PendingUndoTileIndex].PriorityIndex == PriorityIndex
+		&& PendingUndoTileDeltas[PendingUndoTileIndex].DistanceFromOrigin == DistanceFromOrigin;
 
 	return !bSpawnGroupRemaining && !bTileGroupRemaining;
 }
@@ -372,9 +407,12 @@ void UML_RollBackSubsystem::FinishUndoAnimation()
 {
 	bIsUndoAnimating = false;
 	bUndoInProgress = false;
+	bUndoGroupInProgress = false;
 
 	PendingUndoTileDeltas.Reset();
 	PendingUndoSpawnDeltas.Reset();
+	PendingUndoTileIndex = 0;
+	PendingUndoSpawnIndex = 0;
 	ActiveUndoRecord = FML_TurnUndoRecord{};
 	CachedSpawnedCollectibleAxials.Reset();
 	CachedActiveUndoTileSet = nullptr;
@@ -1036,6 +1074,8 @@ bool UML_RollBackSubsystem::UndoSingleAction_Animated()
 
 		PendingUndoTileDeltas = ActiveUndoRecord.TileDeltas;
 		PendingUndoSpawnDeltas = ActiveUndoRecord.SpawnDeltas;
+		PendingUndoTileIndex = 0;
+		PendingUndoSpawnIndex = 0;
 
 		PendingUndoTileDeltas.Sort([](const FML_TileUndoDelta& A, const FML_TileUndoDelta& B)
 		{
@@ -1117,6 +1157,7 @@ void UML_RollBackSubsystem::ResetRuntimeState()
 	bUndoUntilPlantReachedPlant = false;
 	bIsUndoAnimating = false;
 	bUndoInProgress = false;
+	bUndoGroupInProgress = false;
 
 	if (GetWorld())
 	{
@@ -1125,6 +1166,8 @@ void UML_RollBackSubsystem::ResetRuntimeState()
 
 	PendingUndoTileDeltas.Reset();
 	PendingUndoSpawnDeltas.Reset();
+	PendingUndoTileIndex = 0;
+	PendingUndoSpawnIndex = 0;
 	ActiveUndoRecord = FML_TurnUndoRecord{};
 	CachedSpawnedCollectibleAxials.Reset();
 	CachedActiveUndoTileSet = nullptr;

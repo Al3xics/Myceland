@@ -117,9 +117,6 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the wave propagation may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
-	float WavePropagationFrameBudgetMs = 2.0f;
-
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	float UndoSpeed = 3.0f;
 
@@ -140,7 +137,22 @@ public:
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
 	float ResetTargetDuration = 4.0f;
-	
+
+
+	// ==================== Frame Budgets ====================
+	// Per-frame CPU budgets (milliseconds) for the subsystems that time-slice their
+	// work across frames. When the work of one step exceeds the budget, the
+	// remainder continues on the following frames.
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the wave propagation may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
+	float WavePropagationFrameBudgetMs = 2.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the animated undo/reset may spend reverting tiles and destroying spawned actors in a single frame. When an undo wave group is bigger than the budget, the remainder continues on the following frames."))
+	float RollbackFrameBudgetMs = 8.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the win/lose subsystem may spend on its time-sliced work in a single frame. Reserved for the upcoming WinLose time-slicing pass."))
+	float WinLoseFrameBudgetMs = 2.0f;
+
 
 	// ==================== Win ====================
 
