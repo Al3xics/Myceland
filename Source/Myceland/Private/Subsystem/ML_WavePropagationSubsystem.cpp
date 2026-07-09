@@ -79,7 +79,11 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
 	WinLoseSubsystem->CheckWinLose();
-	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
+
+	// If the whole action changed nothing on the board, goal connectivity can't
+	// have changed either: skip the (BFS-heavy) goal-path recompute.
+	if (bAnyChangeThisAction)
+		WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 
 	if (TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
 	{
@@ -131,6 +135,7 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 	CurrentOriginTile = HitTile;
 	CurrentWaveIndex = 0;
 	bCycleHasChanges = false;
+	bAnyChangeThisAction = false;
 	CurrentNatureReactionCount = 0;
 	CurrentParasiteReactionCount = 0;
 	CurrentWaterReactionCount = 0;
@@ -289,7 +294,11 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 			WinLoseSubsystem->CheckPlayerKilled(Change.Tile);
 		}
 
-		if (OldType != Change.TargetType) bCycleHasChanges = true;
+		if (OldType != Change.TargetType)
+		{
+			bCycleHasChanges = true;
+			bAnyChangeThisAction = true;
+		}
 	}
 	// Collectible spawn
 	else if (Change.CollectibleClass)
@@ -326,6 +335,7 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 			}
 
 			bCycleHasChanges = true;
+			bAnyChangeThisAction = true;
 		}
 	}
 }
@@ -470,6 +480,7 @@ void UML_WavePropagationSubsystem::AbortPropagationRuntime()
 	CurrentOriginTile = nullptr;
 	CurrentWaveIndex = 0;
 	bCycleHasChanges = false;
+	bAnyChangeThisAction = false;
 	CurrentNatureReactionCount = 0;
 	CurrentParasiteReactionCount = 0;
 	CurrentWaterReactionCount = 0;

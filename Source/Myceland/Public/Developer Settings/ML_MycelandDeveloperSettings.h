@@ -150,8 +150,8 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the animated undo/reset may spend reverting tiles and destroying spawned actors in a single frame. When an undo wave group is bigger than the budget, the remainder continues on the following frames."))
 	float RollbackFrameBudgetMs = 8.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the win/lose subsystem may spend on its time-sliced work in a single frame. Reserved for the upcoming WinLose time-slicing pass."))
-	float WinLoseFrameBudgetMs = 2.0f;
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the win propagation wave may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
+	float WinFrameBudgetMs = 2.0f;
 
 
 	// ==================== Win ====================

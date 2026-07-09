@@ -105,6 +105,11 @@ private:
 
 	bool bIsResolvingTiles = false;
 	bool bCycleHasChanges = false;
+
+	// True if anything changed on the board since BeginTileResolved. Unlike
+	// bCycleHasChanges (reset every cycle), it covers the whole action: used to
+	// skip the goal-path recompute in EndTileResolved when nothing changed.
+	bool bAnyChangeThisAction = false;
 	int32 CurrentWaveIndex = 0;
 	int32 CurrentNatureReactionCount = 0;
 	int32 CurrentParasiteReactionCount = 0;
