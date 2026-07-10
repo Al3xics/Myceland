@@ -392,39 +392,6 @@ AML_Tile* AML_BoardSpawner::FindClosestWalkableBorderTile(const FVector& WorldLo
 	return ClosestBorderTile;
 }
 
-AML_Tile* AML_BoardSpawner::FindClosestWaterPathTile(const AML_Tile* Tile)
-{
-	if (WaterPaths.Num() == 0) return nullptr;
-	
-	AML_Tile* ClosestPathTile = nullptr;
-	float ClosestDistance = FLT_MAX;
-    
-	for (const auto& [EntryTile, ExitTile] : WaterPaths)
-	{
-		if (IsValid(EntryTile))
-		{
-			float Distance = FVector::Dist(Tile->GetActorLocation(), EntryTile->GetActorLocation());
-			if (Distance < ClosestDistance)
-			{
-				ClosestDistance = Distance;
-				ClosestPathTile = EntryTile;
-			}
-		}
-        
-		if (IsValid(ExitTile))
-		{
-			float Distance = FVector::Dist(Tile->GetActorLocation(), ExitTile->GetActorLocation());
-			if (Distance < ClosestDistance)
-			{
-				ClosestDistance = Distance;
-				ClosestPathTile = ExitTile;
-			}
-		}
-	}
-	
-	return ClosestPathTile;
-}
-
 AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocation) const
 {
 	float MinDistSq = FLT_MAX;

@@ -150,6 +150,9 @@ public:
 
 	UPROPERTY(EditAnywhere,Category = "Myceland WinLose")
 	float WinDelay = 0.5f;
+
+	UPROPERTY(EditAnywhere,Category = "Myceland WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
+	float WinTileDelay = 0.1f;
 	
 	
 	// ==================== Helper ====================

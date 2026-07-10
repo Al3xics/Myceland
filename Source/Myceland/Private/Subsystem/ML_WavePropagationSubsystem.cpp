@@ -77,12 +77,24 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
-	WinLoseSubsystem->CheckWinLose();
+	// A wave can resolve on a board the player is not standing on (e.g. hub tile
+	// changes after a win). Win/lose and goal-path logic only concern the player's
+	// board, so skip both when the wave demonstrably ran elsewhere. If either board
+	// is unknown (first wave before CheckWinLose resolved it), keep the old behavior.
+	AML_BoardSpawner* WaveBoard = IsValid(CurrentOriginTile) ? CurrentOriginTile->GetBoardSpawnerFromTile() : nullptr;
+	const bool bWaveOnOtherBoard = IsValid(WaveBoard)
+		&& IsValid(WinLoseSubsystem->CurrentBoardSpawner)
+		&& WaveBoard != WinLoseSubsystem->CurrentBoardSpawner;
 
-	// If the whole action changed nothing on the board, goal connectivity can't
-	// have changed either: skip the (BFS-heavy) goal-path recompute.
-	if (bAnyChangeThisAction)
-		WinLoseSubsystem->TriggerFindConnectedGoalCheck();
+	if (!bWaveOnOtherBoard)
+	{
+		WinLoseSubsystem->CheckWinLose();
+
+		// If the whole action changed nothing on the board, goal connectivity can't
+		// have changed either: skip the (BFS-heavy) goal-path recompute.
+		if (bAnyChangeThisAction)
+			WinLoseSubsystem->TriggerFindConnectedGoalCheck();
+	}
 
 	if (bPlayAvatarSurpriseVocalThisAction && TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
 	{
