@@ -4,10 +4,42 @@
 #include "User Settings/ML_GameUserSettings.h"
 
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
-#include "Kismet/GameplayStatics.h"
+#include "FMODStudioModule.h"
+#include "FMOD/fmod_studio.hpp"
 
 TArray<FIntPoint> UML_GameUserSettings::ValidResolutions;
 TArray<float> UML_GameUserSettings::ValidFrameLimits;
+
+namespace
+{
+	void SetFMODVCAVolume(const FString& VCAPath, const float Volume01)
+	{
+		if (VCAPath.IsEmpty() || !IFMODStudioModule::IsAvailable())
+			return;
+
+		FMOD::Studio::System* StudioSystem = IFMODStudioModule::Get().GetStudioSystem(EFMODSystemContext::Runtime);
+		if (!StudioSystem)
+			return;
+
+		FMOD::Studio::VCA* VCA = nullptr;
+		const FMOD_RESULT FindResult = StudioSystem->getVCA(TCHAR_TO_UTF8(*VCAPath), &VCA);
+		if (FindResult != FMOD_OK || !VCA)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("FMOD VCA not found: %s. Check FMOD VCA names, build banks, then refresh FMOD assets."), *VCAPath);
+			return;
+		}
+
+		const float ClampedVolume = FMath::Clamp(Volume01, 0.0f, 1.0f);
+		const FMOD_RESULT VolumeResult = VCA->setVolume(ClampedVolume);
+		if (VolumeResult != FMOD_OK)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Failed to set FMOD VCA volume: %s"), *VCAPath);
+			return;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("FMOD VCA volume applied - %s: %.2f"), *VCAPath, ClampedVolume);
+	}
+}
 
 UWorld* UML_GameUserSettings::GetWorld() const
 {
@@ -157,7 +189,6 @@ void UML_GameUserSettings::InitValues()
 	MasterVolume = 100.0f;
 	MusicVolume = 100.0f;
 	SFXVolume = 100.0f;
-	UIVolume = 100.0f;
 	VoiceVolume = 100.0f;
 	
 	// Controls
@@ -190,6 +221,30 @@ float UML_GameUserSettings::Denormalize(float Normalized, float Min, float Max)
 {
 	if (Max <= Min) return Min;
 	return Min + Normalized * (Max - Min);
+}
+
+void UML_GameUserSettings::SetMasterVolume(const float Volume)
+{
+	MasterVolume = FMath::Clamp(Volume, 0.0f, 100.0f);
+	ApplyAudioSettings();
+}
+
+void UML_GameUserSettings::SetMusicVolume(const float Volume)
+{
+	MusicVolume = FMath::Clamp(Volume, 0.0f, 100.0f);
+	ApplyAudioSettings();
+}
+
+void UML_GameUserSettings::SetSFXVolume(const float Volume)
+{
+	SFXVolume = FMath::Clamp(Volume, 0.0f, 100.0f);
+	ApplyAudioSettings();
+}
+
+void UML_GameUserSettings::SetVoiceVolume(const float Volume)
+{
+	VoiceVolume = FMath::Clamp(Volume, 0.0f, 100.0f);
+	ApplyAudioSettings();
 }
 
 
@@ -285,40 +340,12 @@ void UML_GameUserSettings::ApplyAudioSettings()
 	if (!ensureMsgf(DevSettings, TEXT("Failed to get MycelandDeveloperSettings for audio")))
 		return;
 
-	const UWorld* World = GetWorld();
-	if (!World) return;
-
-	// Load Sound Classes and Mix from Developer Settings
-	USoundClass* MasterClass = DevSettings->MasterSoundClass.LoadSynchronous();
-	USoundClass* MusicClass = DevSettings->MusicSoundClass.LoadSynchronous();
-	USoundClass* SFXClass = DevSettings->SFXSoundClass.LoadSynchronous();
-	USoundClass* UIClass = DevSettings->UISoundClass.LoadSynchronous();
-	USoundClass* VoiceClass = DevSettings->VoiceSoundClass.LoadSynchronous();
-	USoundMix* GameMix = DevSettings->GameSoundMix.LoadSynchronous();
+	SetFMODVCAVolume(DevSettings->MasterFMODVCAPath, Normalize(MasterVolume, 0.0f, 100.0f));
+	SetFMODVCAVolume(DevSettings->MusicFMODVCAPath, Normalize(MusicVolume, 0.0f, 100.0f));
+	SetFMODVCAVolume(DevSettings->SFXFMODVCAPath, Normalize(SFXVolume, 0.0f, 100.0f));
+	SetFMODVCAVolume(DevSettings->VoiceFMODVCAPath, Normalize(VoiceVolume, 0.0f, 100.0f));
 	
-	if (!GameMix)
-		return;
-
-	// Apply volumes to Sound Mix
-	if (MasterClass)
-		UGameplayStatics::SetSoundMixClassOverride(World, GameMix, MasterClass, Normalize(MasterVolume, 0.0f, 100.0f));
-	
-	if (MusicClass)
-		UGameplayStatics::SetSoundMixClassOverride(World, GameMix, MusicClass, Normalize(MusicVolume, 0.0f, 100.0f));
-	
-	if (SFXClass)
-		UGameplayStatics::SetSoundMixClassOverride(World, GameMix, SFXClass, Normalize(SFXVolume, 0.0f, 100.0f));
-	
-	if (UIClass)
-		UGameplayStatics::SetSoundMixClassOverride(World, GameMix, UIClass, Normalize(UIVolume, 0.0f, 100.0f));
-	
-	if (VoiceClass)
-		UGameplayStatics::SetSoundMixClassOverride(World, GameMix, VoiceClass, Normalize(VoiceVolume, 0.0f, 100.0f));
-
-	// Push the Sound Mix
-	UGameplayStatics::PushSoundMixModifier(World, GameMix);
-	
-	UE_LOG(LogTemp, Log, TEXT("Audio settings applied - Master: %.2f, Music: %.2f, SFX: %.2f, UI: %.2f, Voice: %.2f"), MasterVolume, MusicVolume, SFXVolume, UIVolume, VoiceVolume);
+	UE_LOG(LogTemp, Log, TEXT("Audio settings applied - Master: %.2f, Music: %.2f, SFX: %.2f, Voice: %.2f"), MasterVolume, MusicVolume, SFXVolume, VoiceVolume);
 }
 
 void UML_GameUserSettings::ApplyGameplaySettings()
