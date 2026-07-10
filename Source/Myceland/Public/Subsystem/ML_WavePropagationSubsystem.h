@@ -32,6 +32,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
 	void BeginTileResolved(AML_Tile* HitTile);
+	void BeginTileResolvedWithoutAvatarSurprise(AML_Tile* HitTile);
 
 	void RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin);
 
@@ -115,6 +116,7 @@ private:
 	int32 CurrentParasiteReactionCount = 0;
 	int32 CurrentWaterReactionCount = 0;
 	int32 TotalReactionTileCount = 0;
+	bool bPlayAvatarSurpriseVocalThisAction = true;
 
 	// Read cursor into PendingChanges (consumed in place, no removal).
 	int32 PendingChangesIndex = 0;
@@ -136,6 +138,7 @@ private:
 	void ScheduleNextPriority();
 	void ProcessNextWave();
 	void EndTileResolved();
+	void BeginTileResolvedInternal(AML_Tile* HitTile, bool bPlayAvatarSurpriseVocal);
 
 	// =========================================================================
 	// Touch wave — pure visual feedback, no gameplay effect.

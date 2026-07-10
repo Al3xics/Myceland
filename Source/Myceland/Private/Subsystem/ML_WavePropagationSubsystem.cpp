@@ -84,7 +84,7 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	if (bAnyChangeThisAction)
 		WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 
-	if (TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
+	if (bPlayAvatarSurpriseVocalThisAction && TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
 	{
 		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 		{
@@ -106,6 +106,7 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 		}
 	}
 	TotalReactionTileCount = 0;
+	bPlayAvatarSurpriseVocalThisAction = true;
 
 	bIsResolvingTiles = false;
 
@@ -121,6 +122,16 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 }
 
 void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
+{
+	BeginTileResolvedInternal(HitTile, true);
+}
+
+void UML_WavePropagationSubsystem::BeginTileResolvedWithoutAvatarSurprise(AML_Tile* HitTile)
+{
+	BeginTileResolvedInternal(HitTile, false);
+}
+
+void UML_WavePropagationSubsystem::BeginTileResolvedInternal(AML_Tile* HitTile, bool bPlayAvatarSurpriseVocal)
 {
 	if (!HitTile || bIsResolvingTiles) return;
 	if (!PlayerController || !RollBackSubsystem) EnsureInitialized();
@@ -139,6 +150,7 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 	CurrentParasiteReactionCount = 0;
 	CurrentWaterReactionCount = 0;
 	TotalReactionTileCount = 0;
+	bPlayAvatarSurpriseVocalThisAction = bPlayAvatarSurpriseVocal;
 
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
