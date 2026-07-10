@@ -518,38 +518,52 @@ void UML_WinLoseSubsystem::FireWinSequence()
 	if (!IsValid(CurrentBoardSpawner))
 		return;
 
-	// First pass: player position → exit tile (converts Water → WaterPath along the way).
+	// First pass: Entry → Exit (converts Water → WaterPath along the way).
 	for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
 	{
 		ClearWinPath(
 			CurrentBoardSpawner,
-			GetPlayerCurrentTile(),
+			WaterPath.EntryTile,
 			WaterPath.ExitTile,
-			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
+			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
 		);
 	}
 
-	// Defer the Entry→Exit pass by one tick so UpdateClassAtRuntime changes
-	// from the first pass are fully applied before the second BFS runs.
+	// Defer the player pass by one tick so UpdateClassAtRuntime changes
+	// from the first pass are fully applied before the second BFS runs. With
+	// WaterPath allowed, this BFS rides the Entry→Exit trunk for free instead
+	// of carving a duplicate lily trail through open water.
 	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
 	{
-		if (IsValid(CurrentBoardSpawner))
+		if (!IsValid(CurrentBoardSpawner))
+			return;
+
+		AML_Tile* PlayerTile = GetPlayerCurrentTile();
+		if (!IsValid(PlayerTile))
+			return;
+
+		for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
 		{
-			for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
+			// Entry/Exit can be authored in either order — target whichever
+			// endpoint is closest to the player; the trunk connects both.
+			const AML_Tile* Target = WaterPath.ExitTile;
+			if (IsValid(WaterPath.EntryTile)
+				&& (!IsValid(WaterPath.ExitTile)
+					|| FVector::DistSquared(PlayerTile->GetActorLocation(), WaterPath.EntryTile->GetActorLocation())
+						< FVector::DistSquared(PlayerTile->GetActorLocation(), WaterPath.ExitTile->GetActorLocation())))
 			{
-				ClearWinPath(
-					CurrentBoardSpawner,
-					WaterPath.EntryTile,
-					WaterPath.ExitTile,
-					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
-				);
+				Target = WaterPath.EntryTile;
 			}
 
-			// Both ClearWinPath passes have now run and every path tile's CurrentType
-			// is settled. Notify listeners that need the final board (e.g. the save
-			// snapshot) — this runs one tick after OnWin so it sees pass-2 changes.
-			OnWinPathSettled.Broadcast();
+			ClearWinPath(
+				CurrentBoardSpawner,
+				PlayerTile,
+				Target,
+				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
+			);
 		}
+
+		OnWinPathSettled.Broadcast();
 	});
 }
 
@@ -688,9 +702,18 @@ void UML_WinLoseSubsystem::ClearWinPath(
 			|| AllowedSet.Contains(Tile->GetCurrentType());
 	};
 
+	// Water costs 1, everything else 0: among all valid routes, this converts
+	// the fewest Water tiles into lilies (a plain BFS minimizes tile count and
+	// can cross open water even when an equal-length route stays dry).
+	auto GetCost = [](AML_Tile* Tile) -> int32
+	{
+		return UML_TileTypeTraits::IsWaterType(Tile->GetCurrentType()) ? 1 : 0;
+	};
+
 	TSet<FIntPoint> Visited;
 	TMap<FIntPoint, FIntPoint> Parent;
-	RunBFS(Grid, Start, CanTraverse, Visited, Parent);
+	TMap<FIntPoint, int32> Dist;
+	RunZeroOneBFS(Grid, Start, CanTraverse, GetCost, Visited, Parent, Dist);
 
 	if (Start != Goal && !Visited.Contains(Goal))
 	{
