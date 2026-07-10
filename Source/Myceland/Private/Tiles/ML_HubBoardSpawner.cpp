@@ -77,6 +77,12 @@ void AML_HubBoardSpawner::BeginPlay()
 				Obstacle->SetActorHiddenInGame(true);
 				Obstacle->SetActorEnableCollision(false);
 			}
+
+			// Same as the base board's solved-restore: a fully-revitalized hub turns off its
+			// entry/exit (tile-by-tile) system and its hover-preview glow, so it doesn't load
+			// back as enterable or glow under the cursor.
+			SetBoardTransitionEnabled(false);
+			SetGlowEnabled(false);
 		}
 	}
 
