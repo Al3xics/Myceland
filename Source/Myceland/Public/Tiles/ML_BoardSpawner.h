@@ -189,9 +189,6 @@ public:
 	AML_Tile* FindClosestWalkableBorderTile(const FVector& WorldLocation) const;
 
 	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
-	AML_Tile* FindClosestWaterPathTile(const AML_Tile* Tile);
-
-	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
 	AML_CameraRail* GetClosestCameraRail(const FVector& WorldLocation) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
