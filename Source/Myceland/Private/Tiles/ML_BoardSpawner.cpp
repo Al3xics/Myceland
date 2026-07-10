@@ -122,6 +122,16 @@ void AML_BoardSpawner::BeginPlay()
 			}
 		}
 		bIsPuzzleSolved = true;
+
+		// A won puzzle has its entry/exit (tile-by-tile) system turned off so the player can't
+		// re-enter and replay it. That disable happened at win time but isn't part of the saved
+		// grid, so replay it here on load — otherwise a completed board loads back as enterable.
+		SetBoardTransitionEnabled(false);
+
+		// Likewise turn off the hover preview (cursor/path glow), which IsGlowEnabled() gates, so
+		// a completed board doesn't glow under the cursor on load.
+		SetGlowEnabled(false);
+
 		if (IsValid(AssociatedObstacle))
 		{
 			AssociatedObstacle->SetActorHiddenInGame(true);
