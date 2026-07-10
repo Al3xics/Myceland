@@ -23,6 +23,10 @@ class AML_TileParasite;
 class AML_TileGrass;
 class AML_Tile;
 
+// Fixed-capacity neighbor list (6 hex directions) stored inline on the stack:
+// filling it never allocates heap memory, unlike a regular TArray.
+using FML_TileNeighbors = TArray<AML_Tile*, TInlineAllocator<6>>;
+
 UCLASS()
 class MYCELAND_API AML_BoardSpawner : public AActor
 {
@@ -90,6 +94,13 @@ private:
 	FIntPoint OffsetToAxial(int32 Col, int32 Row) const;
 	
 	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
+
+	// Blueprint-only version (UHT can't expose the inline-allocator array above, so this
+	// one copies into a regular TArray). Private on purpose: Blueprint ignores C++ access
+	// specifiers so BP graphs can still call it, while C++ code is forced to use the
+	// allocation-free overload above.
+	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
+	TArray<AML_Tile*> GetNeighbors(AML_Tile* CenterTile) const;
 
 protected:
 	virtual void Destroyed() override;
@@ -165,8 +176,9 @@ public:
 	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Destroy Stale Tiles"))
 	void DestroyStaleTiles() const;
 	
-	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
-	TArray<AML_Tile*> GetNeighbors(AML_Tile* CenterTile);
+	// Fills the caller-provided inline buffer (no heap allocation, reusable across calls).
+	// Always outputs 6 entries, nullptr where no neighbor exists.
+	void GetNeighbors(const AML_Tile* CenterTile, FML_TileNeighbors& OutNeighbors) const;
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
 	TMap<FIntPoint, AML_Tile*> GetGridMap() const;

@@ -209,7 +209,8 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 
 	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return RejectPlantWithFeedback();
 
-	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
+	FML_TileNeighbors CurrentNeighbors;
+	Board->GetNeighbors(MycelandCharacter->CurrentTileOn, CurrentNeighbors);
 	if (!MoveRecordingComponent->IsMoveInProgress() && CurrentNeighbors.Contains(TargetTile))
 	{
 		TransitionComponent->StartTurnTowardTile(TargetTile);
@@ -224,7 +225,8 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return RejectPlantWithFeedback();
 
 	AML_Tile* StopTile = GridMap[StopAxial];
-	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
+	FML_TileNeighbors StopNeighbors;
+	Board->GetNeighbors(StopTile, StopNeighbors);
 	if (!StopNeighbors.Contains(TargetTile)) return RejectPlantWithFeedback();
 
 	TArray<FIntPoint> MovePath = FullPath;
@@ -664,7 +666,11 @@ void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendT
 	if (AML_CameraRail* NewRail = Cast<AML_CameraRail>(NewViewTarget))
 		NewRail->SetActorTickEnabled(true);
 
-	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc);
+	// bLockOutgoing: if a blend is interrupted (e.g. re-entering a board mid-blend towards the
+	// rail), start the new blend from the camera's current interpolated position instead of
+	// re-evaluating the outgoing view target — otherwise blending back to the outgoing target
+	// makes source == destination and the camera snaps instantly.
+	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc, 0.f, true);
 }
 
 // ==================== Movement Control ====================

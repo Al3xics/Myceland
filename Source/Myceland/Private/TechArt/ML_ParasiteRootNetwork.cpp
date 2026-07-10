@@ -193,7 +193,8 @@ TArray<AML_Tile*> AML_ParasiteRootNetwork::GetParasiteNeighbors(AML_Tile* Tile) 
 	AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return Result;
 
-	const TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Tile);
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(Tile, Neighbors);
 	for (AML_Tile* Neighbor : Neighbors)
 	{
 		if (IsParasiteTile(Neighbor))

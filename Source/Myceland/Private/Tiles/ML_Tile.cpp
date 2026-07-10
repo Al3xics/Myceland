@@ -161,17 +161,22 @@ void AML_Tile::UpdateClassInEditor(const EML_TileType NewTileType)
 void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubclassOf<AML_TileBase> NewClass)
 {
 	if (!NewClass) return;
-	
+
 	const EML_TileType OldType = CurrentType;
 	if (OldType == NewTileType) return;
-	
+
 	CurrentType = NewTileType;
-	
+
 	bConsumedGrass = (OldType == EML_TileType::Grass && NewTileType == EML_TileType::Parasite);
-	
+
 	TileChildActor->SetChildActorClass(NewClass);
-	DestroyStaleChildActors();
-	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
+
+	// Only touch collision/navigation when the blocking state actually changes:
+	// SetBlocked dirties the navmesh, which is expensive to do per tile per wave.
+	if (UML_TileTypeTraits::IsBlocking(NewTileType) != bBlocked)
+	{
+		SetBlocked(!bBlocked);
+	}
 
 	OnTileTypeChanged(OldType, NewTileType);
 	NotifyTileChangedNative();
@@ -190,8 +195,9 @@ void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const
 	CurrentType = NewTileType;
 
 	TileChildActor->SetChildActorClass(NewClass);
-	DestroyStaleChildActors();
-	SetBlocked(UML_TileTypeTraits::IsBlocking(NewTileType));
+
+	if (UML_TileTypeTraits::IsBlocking(NewTileType) != bBlocked)
+		SetBlocked(!bBlocked);
 
 	// NO OnTileTypeChanged(OldType, NewTileType) in silent mode
 }

@@ -18,11 +18,16 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRollbackUndoAnimating, bool, IsUn
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRollbackResetAnimating, bool, IsResetAnimating);
 
 UCLASS()
-class MYCELAND_API UML_RollBackSubsystem : public UWorldSubsystem
+class MYCELAND_API UML_RollBackSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	// Ticks only while an undo wave group is being time-sliced across frames (see IsTickable).
+	virtual void Tick(float DeltaTime) override;
+	virtual bool IsTickable() const override;
+	virtual TStatId GetStatId() const override;
+
 	void EnsureInitialized();
 
 	void BeginTurnRecord(AML_Tile* OriginTile);
@@ -101,6 +106,18 @@ private:
 	UPROPERTY(Transient)
 	TArray<FML_SpawnUndoDelta> PendingUndoSpawnDeltas;
 
+	// Read cursors into the pending delta arrays (consumed in place, no removal).
+	int32 PendingUndoTileIndex = 0;
+	int32 PendingUndoSpawnIndex = 0;
+
+	// Time-slicing state: the current undo wave group — all deltas sharing the same
+	// (PriorityIndex, DistanceFromOrigin) — is applied under a per-frame CPU budget
+	// (DevSettings->RollbackFrameBudgetMs). If the group doesn't fit in one frame,
+	// the remainder continues in Tick on the following frames.
+	bool bUndoGroupInProgress = false;
+	int32 CurrentUndoGroupPriority = 0;
+	int32 CurrentUndoGroupDistance = 0;
+
 	FTimerHandle UndoWaveTimerHandle;
 
 	UPROPERTY(Transient)
@@ -128,17 +145,15 @@ private:
 	TSet<FIntPoint> CachedSpawnedCollectibleAxials;
 	const UML_BiomeTileSet* CachedActiveUndoTileSet = nullptr;
 
-	// Max real time spent per tick draining a wave group. Time-based rather than
-	// item-count-based because per-item cost varies a lot (no-op tile flip vs.
-	// actor destroy+spawn), so a fixed item count doesn't bound frame cost reliably.
-	double MaxSecondsPerWaveTick = 0.008;
-
 	UFUNCTION()
 	void OnBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
-	
+
 	void RunUndoWave();
+	void ContinueUndoGroupSlice();
+	void PeekNextUndoGroup(int32& OutPriority, int32& OutDistance) const;
+	double MakeUndoSliceDeadline() const;
 	void ScheduleNextUndoWave(float Delay);
-	bool ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin, double BudgetSeconds);
+	bool ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin, double Deadline);
 	bool UndoSingleAction_Animated();
 	bool UndoUntilPlant_Animated();
 	void StartNextUndoUntilPlantStep();

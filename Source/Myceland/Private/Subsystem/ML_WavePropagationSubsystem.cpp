@@ -16,6 +16,36 @@
 #include "Waves/ML_PropagationWaves.h"
 #include "Waves/ChildWaves/ML_WaveCollectible.h"
 
+void UML_WavePropagationSubsystem::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Shared budget for both slicers: one deadline per frame.
+	const double Deadline = MakeSliceDeadline();
+
+	if (bTouchRingInProgress)
+		ProcessTouchSlice(Deadline);
+
+	if (bRingInProgress)
+		ProcessRingSlice(Deadline);
+}
+
+bool UML_WavePropagationSubsystem::IsTickable() const
+{
+	return bRingInProgress || bTouchRingInProgress;
+}
+
+TStatId UML_WavePropagationSubsystem::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UML_WavePropagationSubsystem, STATGROUP_Tickables);
+}
+
+double UML_WavePropagationSubsystem::MakeSliceDeadline() const
+{
+	const float BudgetMs = DevSettings ? DevSettings->WavePropagationFrameBudgetMs : 2.f;
+	return FPlatformTime::Seconds() + static_cast<double>(BudgetMs) / 1000.0;
+}
+
 void UML_WavePropagationSubsystem::EnsureInitialized()
 {
 	if (!GetWorld()) return;
@@ -48,7 +78,11 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 void UML_WavePropagationSubsystem::EndTileResolved()
 {
 	WinLoseSubsystem->CheckWinLose();
-	WinLoseSubsystem->TriggerFindConnectedGoalCheck();
+
+	// If the whole action changed nothing on the board, goal connectivity can't
+	// have changed either: skip the (BFS-heavy) goal-path recompute.
+	if (bAnyChangeThisAction)
+		WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 
 	if (TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
 	{
@@ -100,6 +134,7 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 	CurrentOriginTile = HitTile;
 	CurrentWaveIndex = 0;
 	bCycleHasChanges = false;
+	bAnyChangeThisAction = false;
 	CurrentNatureReactionCount = 0;
 	CurrentParasiteReactionCount = 0;
 	CurrentWaterReactionCount = 0;
@@ -107,6 +142,9 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
+	PendingChangesIndex = 0;
+	bRingInProgress = false;
+	bTouchRingInProgress = false;
 
 	if (RollBackSubsystem)
 		RollBackSubsystem->BeginTurnRecord(HitTile);
@@ -121,156 +159,186 @@ void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)
 
 void UML_WavePropagationSubsystem::RunWave()
 {
-	if (PendingChanges.Num() == 0)
+	if (PendingChangesIndex >= PendingChanges.Num())
 	{
 		EndTileResolved();
 		return;
 	}
 
-	const int32 CurrentDistance = PendingChanges[0].DistanceFromOrigin;
+	// Start the next "distance group" (wave step). The changes are applied under a
+	// per-frame CPU budget: whatever doesn't fit continues in Tick on the next frames.
+	CurrentRingDistance = PendingChanges[PendingChangesIndex].DistanceFromOrigin;
+	bRingInProgress = true;
+	ProcessRingSlice(MakeSliceDeadline());
+}
 
-	// Build the current "distance group" (wave step)
-	TArray<FML_WaveChange> CurrentWave;
-	int32 Index = 0;
-	while (Index < PendingChanges.Num() && PendingChanges[Index].DistanceFromOrigin == CurrentDistance)
+void UML_WavePropagationSubsystem::ProcessRingSlice(const double Deadline)
+{
+	while (PendingChangesIndex < PendingChanges.Num()
+		&& PendingChanges[PendingChangesIndex].DistanceFromOrigin == CurrentRingDistance)
 	{
-		CurrentWave.Add(PendingChanges[Index]);
-		Index++;
-	}
-	PendingChanges.RemoveAt(0, CurrentWave.Num());
+		ApplyChange(PendingChanges[PendingChangesIndex]);
+		PendingChangesIndex++;
 
-	for (const FML_WaveChange& Change : CurrentWave)
-	{
-		// Tile update
-		if (Change.Tile)
+		// A change can abort the whole propagation (e.g. player death): stop cleanly.
+		if (!bIsResolvingTiles)
 		{
-			const EML_TileType OldType = Change.Tile->GetCurrentType();
-			AML_Tile* Tile = Change.Tile;
-			if (!IsValid(Tile)) continue;
+			bRingInProgress = false;
+			return;
+		}
+
+		const bool bRingHasMore =
+			PendingChangesIndex < PendingChanges.Num()
+			&& PendingChanges[PendingChangesIndex].DistanceFromOrigin == CurrentRingDistance;
+
+		// Budget exhausted: resume this ring next frame (Tick).
+		if (bRingHasMore && FPlatformTime::Seconds() >= Deadline)
+			return;
+	}
+
+	bRingInProgress = false;
+	FinishRing();
+}
+
+void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
+{
+	// Tile update
+	if (Change.Tile)
+	{
+		AML_Tile* Tile = Change.Tile;
+		if (!IsValid(Tile)) return;
+		const EML_TileType OldType = Tile->GetCurrentType();
+
+		if (RollBackSubsystem)
+			RollBackSubsystem->RecordTileForUndo(Tile, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);
+
+		const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
+		if (!TileSet) return;
+
+		if (!RollBackSubsystem || !RollBackSubsystem->IsUndoInProgress())
+			Tile->UpdateClassAtRuntime(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
+		else
+			Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
+
+		const bool bIsUndo = RollBackSubsystem && RollBackSubsystem->IsUndoInProgress();
+		const bool bTileChanged = OldType != Change.TargetType;
+		if (bTileChanged && !bIsUndo)
+		{
+			if (Change.TargetType == EML_TileType::Grass && Change.DistanceFromOrigin > 0)
+			{
+				++CurrentNatureReactionCount;
+				++TotalReactionTileCount;
+			}
+			else if (Change.TargetType == EML_TileType::Parasite)
+			{
+				++CurrentParasiteReactionCount;
+				++TotalReactionTileCount;
+			}
+			else if (Change.TargetType == EML_TileType::Water)
+			{
+				++CurrentWaterReactionCount;
+				++TotalReactionTileCount;
+			}
+
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+			{
+				const FTransform SoundTransform(FRotator::ZeroRotator, Tile->GetActorLocation());
+
+				if (OldType == EML_TileType::Grass && Change.TargetType == EML_TileType::Parasite)
+				{
+					SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteSpread, SoundTransform);
+
+					if (Tile == WinLoseSubsystem->GetPlayerCurrentTile())
+					{
+						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteEngulf, SoundTransform);
+						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::AvatarEngulfedVocal, SoundTransform);
+					}
+				}
+
+				if (OldType == EML_TileType::Parasite && Change.TargetType == EML_TileType::Water)
+				{
+					SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteDieWater, SoundTransform);
+					SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileEarthDig, SoundTransform);
+					SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileWaterFill, SoundTransform);
+				}
+			}
+		}
+
+		// Destroy collectible if the tile changed to something other than dirt or grass
+		// (because on dirt or grass it can stay)
+		if (!UML_TileTypeTraits::CanSpawnCollectible(Change.TargetType))
+		{
+			if (Tile->HasCollectible())
+			{
+				if (AML_Collectible* Collectible = Tile->CollectibleActor.Get())
+					if (IsValid(Collectible)) Collectible->DestroyCollectible();
+
+				Tile->SetHasCollectible(false);
+			}
+		}
+
+		// Parasite bookkeeping
+		if (UML_TileTypeTraits::IsParasiteType(Tile->GetCurrentType()) && Tile->bConsumedGrass)
+		{
+			ParasitesThatAteGrass.Add(Tile);
+			Tile->bConsumedGrass = false;
+		}
+
+		if (Change.Tile == WinLoseSubsystem->GetPlayerCurrentTile())
+		{
+			WinLoseSubsystem->CheckPlayerKilled(Change.Tile);
+		}
+
+		if (OldType != Change.TargetType)
+		{
+			bCycleHasChanges = true;
+			bAnyChangeThisAction = true;
+		}
+	}
+	// Collectible spawn
+	else if (Change.CollectibleClass)
+	{
+		// Collectible wave - Deferred Spawn
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		// Create the actor WITHOUT the spawn (deferred)
+		AML_Collectible* Collectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(
+			Change.CollectibleClass,
+			FTransform(FRotator::ZeroRotator, Change.SpawnLocation),
+			nullptr,
+			nullptr,
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn
+		);
+
+		if (Collectible)
+		{
+			// Configure BEFORE the spawn
+			Collectible->SetOwningTile(Change.Neighbor);
+			Collectible->SetSourceParasite(Change.SourceParasite);
+			Change.Neighbor->CollectibleActor = Collectible;
+
+			// Finish spawning
+			Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
 
 			if (RollBackSubsystem)
-				RollBackSubsystem->RecordTileForUndo(Tile, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);
+				RollBackSubsystem->RecordSpawnedActor(Collectible, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);
 
-			const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
-			if (!TileSet) return;
-
-			if (!RollBackSubsystem || !RollBackSubsystem->IsUndoInProgress())
-				Tile->UpdateClassAtRuntime(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
-			else
-				Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
-
-			const bool bIsUndo = RollBackSubsystem && RollBackSubsystem->IsUndoInProgress();
-			const bool bTileChanged = OldType != Change.TargetType;
-			if (bTileChanged && !bIsUndo)
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 			{
-				if (Change.TargetType == EML_TileType::Grass && Change.DistanceFromOrigin > 0)
-				{
-					++CurrentNatureReactionCount;
-					++TotalReactionTileCount;
-				}
-				else if (Change.TargetType == EML_TileType::Parasite)
-				{
-					++CurrentParasiteReactionCount;
-					++TotalReactionTileCount;
-				}
-				else if (Change.TargetType == EML_TileType::Water)
-				{
-					++CurrentWaterReactionCount;
-					++TotalReactionTileCount;
-				}
-
-				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
-				{
-					const FTransform SoundTransform(FRotator::ZeroRotator, Tile->GetActorLocation());
-
-					if (OldType == EML_TileType::Grass && Change.TargetType == EML_TileType::Parasite)
-					{
-						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteSpread, SoundTransform);
-
-						if (Tile == WinLoseSubsystem->GetPlayerCurrentTile())
-						{
-							SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteEngulf, SoundTransform);
-							SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::AvatarEngulfedVocal, SoundTransform);
-						}
-					}
-
-					if (OldType == EML_TileType::Parasite && Change.TargetType == EML_TileType::Water)
-					{
-						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileParasiteDieWater, SoundTransform);
-						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileEarthDig, SoundTransform);
-						SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileWaterFill, SoundTransform);
-					}
-				}
+				SoundSubsystem->StartSound2DByPath(MLFMODEvents::EnergySpawn);
 			}
 
-			// Destroy collectible if the tile changed to something other than dirt or grass
-			// (because on dirt or grass it can stay)
-			if (!UML_TileTypeTraits::CanSpawnCollectible(Change.TargetType))
-			{
-				if (Tile->HasCollectible())
-				{
-					if (AML_Collectible* Collectible = Tile->CollectibleActor.Get())
-						if (IsValid(Collectible)) Collectible->DestroyCollectible();
-					
-					Tile->SetHasCollectible(false);
-				}
-			}
-
-			// Parasite bookkeeping
-			if (UML_TileTypeTraits::IsParasiteType(Tile->GetCurrentType()) && Tile->bConsumedGrass)
-			{
-				ParasitesThatAteGrass.Add(Tile);
-				Tile->bConsumedGrass = false;
-			}
-
-			if (Change.Tile == WinLoseSubsystem->GetPlayerCurrentTile())
-			{
-				WinLoseSubsystem->CheckPlayerKilled(Change.Tile);
-			}
-
-			if (OldType != Change.TargetType) bCycleHasChanges = true;
-		}
-		// Collectible spawn
-		else if (Change.CollectibleClass)
-		{
-			// Collectible wave - Deferred Spawn
-			FActorSpawnParameters Params;
-			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-			// Create the actor WITHOUT the spawn (deferred)
-			AML_Collectible* Collectible = GetWorld()->SpawnActorDeferred<AML_Collectible>(
-				Change.CollectibleClass,
-				FTransform(FRotator::ZeroRotator, Change.SpawnLocation),
-				nullptr,
-				nullptr,
-				ESpawnActorCollisionHandlingMethod::AlwaysSpawn
-			);
-
-			if (Collectible)
-			{
-				// Configure BEFORE the spawn
-				Collectible->SetOwningTile(Change.Neighbor);
-				Collectible->SetSourceParasite(Change.SourceParasite);
-				Change.Neighbor->CollectibleActor = Collectible;
-
-				// Finish spawning
-				Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
-
-				if (RollBackSubsystem)
-					RollBackSubsystem->RecordSpawnedActor(Collectible, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);
-
-				if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
-				{
-					SoundSubsystem->StartSound2DByPath(MLFMODEvents::EnergySpawn);
-				}
-
-				bCycleHasChanges = true;
-			}
+			bCycleHasChanges = true;
+			bAnyChangeThisAction = true;
 		}
 	}
+}
 
+void UML_WavePropagationSubsystem::FinishRing()
+{
 	// Schedule next distance step (intra-wave) or next priority (inter-wave)
-	if (PendingChanges.Num() > 0)
+	if (PendingChangesIndex < PendingChanges.Num())
 	{
 		GetWorld()->GetTimerManager().SetTimer(IntraWaveTimerHandle, this, &UML_WavePropagationSubsystem::RunWave, DevSettings->IntraWaveDelay, false);
 	}
@@ -346,6 +414,7 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 	CurrentWaveIndex++;
 
 	PendingChanges.Empty();
+	PendingChangesIndex = 0;
 	CurrentNatureReactionCount = 0;
 	CurrentParasiteReactionCount = 0;
 	CurrentWaterReactionCount = 0;
@@ -378,7 +447,9 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 		}
 	}
 
-	PendingChanges.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+	// StableSort keeps the order produced by the wave computation for tiles at the same
+	// distance, so replay order (and the undo record) stays deterministic.
+	PendingChanges.StableSort([](const FML_WaveChange& A, const FML_WaveChange& B)
 	{
 		return A.DistanceFromOrigin < B.DistanceFromOrigin;
 	});
@@ -392,11 +463,15 @@ void UML_WavePropagationSubsystem::AbortPropagationRuntime()
 	CancelAllWaveTimers();
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
+	PendingChangesIndex = 0;
+	bRingInProgress = false;
 	PendingTouched.Empty();
 	TouchIndex = 0;
+	bTouchRingInProgress = false;
 	CurrentOriginTile = nullptr;
 	CurrentWaveIndex = 0;
 	bCycleHasChanges = false;
+	bAnyChangeThisAction = false;
 	CurrentNatureReactionCount = 0;
 	CurrentParasiteReactionCount = 0;
 	CurrentWaterReactionCount = 0;
@@ -410,12 +485,14 @@ void UML_WavePropagationSubsystem::BuildTouchQueue(AML_Tile* OriginTile)
 
 	PendingTouched.Empty();
 	TouchIndex = 0;
+	bTouchRingInProgress = false;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
 	if (!Board) return;
 
 	TSet<AML_Tile*> Visited;
 	TQueue<TPair<AML_Tile*, int32>> Queue;
+	FML_TileNeighbors Neighbors;
 
 	PendingTouched.Add(FML_WaveChange(OriginTile, OriginTile->GetCurrentType(), 0));
 	Visited.Add(OriginTile);
@@ -426,7 +503,8 @@ void UML_WavePropagationSubsystem::BuildTouchQueue(AML_Tile* OriginTile)
 		TPair<AML_Tile*, int32> Current;
 		Queue.Dequeue(Current);
 
-		for (AML_Tile* Neighbor : Board->GetNeighbors(Current.Key))
+		Board->GetNeighbors(Current.Key, Neighbors);
+		for (AML_Tile* Neighbor : Neighbors)
 		{
 			if (!IsValid(Neighbor) || Visited.Contains(Neighbor)) continue;
 			Visited.Add(Neighbor);
@@ -437,8 +515,9 @@ void UML_WavePropagationSubsystem::BuildTouchQueue(AML_Tile* OriginTile)
 	}
 
 	// Already sorted by construction (BFS produces non-decreasing distances),
-	// but sort explicitly to guarantee ordering.
-	PendingTouched.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+	// but sort explicitly to guarantee ordering. StableSort keeps the BFS order
+	// inside each ring.
+	PendingTouched.StableSort([](const FML_WaveChange& A, const FML_WaveChange& B)
 	{
 		return A.DistanceFromOrigin < B.DistanceFromOrigin;
 	});
@@ -448,13 +527,32 @@ void UML_WavePropagationSubsystem::FireNextTouchRing()
 {
 	if (TouchIndex >= PendingTouched.Num() || !GetWorld() || !DevSettings) return;
 
-	const int32 CurrentDist = PendingTouched[TouchIndex].DistanceFromOrigin;
-	while (TouchIndex < PendingTouched.Num() && PendingTouched[TouchIndex].DistanceFromOrigin == CurrentDist)
+	// Start the next touch ring; like the forward wave, it is applied under a per-frame
+	// budget and continues in Tick when the ring is too big for one frame.
+	CurrentTouchDistance = PendingTouched[TouchIndex].DistanceFromOrigin;
+	bTouchRingInProgress = true;
+	ProcessTouchSlice(MakeSliceDeadline());
+}
+
+void UML_WavePropagationSubsystem::ProcessTouchSlice(const double Deadline)
+{
+	while (TouchIndex < PendingTouched.Num()
+		&& PendingTouched[TouchIndex].DistanceFromOrigin == CurrentTouchDistance)
 	{
 		if (IsValid(PendingTouched[TouchIndex].Tile))
 			PendingTouched[TouchIndex].Tile->OnWaveTouched();
 		TouchIndex++;
+
+		const bool bRingHasMore =
+			TouchIndex < PendingTouched.Num()
+			&& PendingTouched[TouchIndex].DistanceFromOrigin == CurrentTouchDistance;
+
+		// Budget exhausted: resume this ring next frame (Tick).
+		if (bRingHasMore && FPlatformTime::Seconds() >= Deadline)
+			return;
 	}
+
+	bTouchRingInProgress = false;
 
 	if (TouchIndex < PendingTouched.Num())
 	{

@@ -23,6 +23,30 @@ void UML_WinPropagationSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	}
 }
 
+void UML_WinPropagationSubsystem::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (bWinRingInProgress)
+		ProcessWinRingSlice(MakeWinSliceDeadline());
+}
+
+bool UML_WinPropagationSubsystem::IsTickable() const
+{
+	return bWinRingInProgress;
+}
+
+TStatId UML_WinPropagationSubsystem::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UML_WinPropagationSubsystem, STATGROUP_Tickables);
+}
+
+double UML_WinPropagationSubsystem::MakeWinSliceDeadline() const
+{
+	const float BudgetMs = DevSettings ? DevSettings->WinFrameBudgetMs : 2.f;
+	return FPlatformTime::Seconds() + static_cast<double>(BudgetMs) / 1000.0;
+}
+
 void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 {
 	if (!WinLoseSubsystem || !WinLoseSubsystem->CurrentBoardSpawner) return;
@@ -32,6 +56,8 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 	if (TreeTiles.Num() == 0) return;
 
 	WinWaveEntries.Empty();
+	WinWaveIndex = 0;
+	bWinRingInProgress = false;
 
 	// Multi-source BFS from all tree tiles simultaneously.
 	// Distance = hexagonal distance from the nearest tree.
@@ -45,6 +71,7 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 		Queue.Enqueue({ Tree, 0 });
 	}
 
+	FML_TileNeighbors Neighbors;
 	while (!Queue.IsEmpty())
 	{
 		TPair<AML_Tile*, int32> Current;
@@ -52,7 +79,8 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 
 		const int32 NextDistance = Current.Value + 1;
 
-		for (AML_Tile* Neighbor : Board->GetNeighbors(Current.Key))
+		Board->GetNeighbors(Current.Key, Neighbors);
+		for (AML_Tile* Neighbor : Neighbors)
 		{
 			if (!IsValid(Neighbor) || Visited.Contains(Neighbor)) continue;
 			Visited.Add(Neighbor);
@@ -69,7 +97,7 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 		}
 	}
 
-	WinWaveEntries.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+	WinWaveEntries.StableSort([](const FML_WaveChange& A, const FML_WaveChange& B)
 	{
 		return A.DistanceFromOrigin < B.DistanceFromOrigin;
 	});
@@ -79,22 +107,28 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 
 void UML_WinPropagationSubsystem::RunWinWave()
 {
-	if (WinWaveEntries.Num() == 0 || !GetWorld() || !DevSettings) return;
+	if (WinWaveIndex >= WinWaveEntries.Num() || !GetWorld() || !DevSettings) return;
 
-	const int32 CurrentDistance = WinWaveEntries[0].DistanceFromOrigin;
+	// Start the next ring. Like the forward wave propagation, the ring is applied
+	// under a per-frame CPU budget: whatever doesn't fit continues in Tick.
+	CurrentWinRingDistance = WinWaveEntries[WinWaveIndex].DistanceFromOrigin;
+	bWinRingInProgress = true;
+	ProcessWinRingSlice(MakeWinSliceDeadline());
+}
 
-	int32 Count = 0;
-	while (Count < WinWaveEntries.Num() && WinWaveEntries[Count].DistanceFromOrigin == CurrentDistance)
+void UML_WinPropagationSubsystem::ProcessWinRingSlice(const double Deadline)
+{
+	while (WinWaveIndex < WinWaveEntries.Num()
+		&& WinWaveEntries[WinWaveIndex].DistanceFromOrigin == CurrentWinRingDistance)
 	{
-		const FML_WaveChange& Entry = WinWaveEntries[Count];
-		AML_Tile* Tile = Entry.Tile;
+		AML_Tile* Tile = WinWaveEntries[WinWaveIndex].Tile;
 
 		if (IsValid(Tile))
 		{
 			Tile->OnWaveTouched();
 
 			// Use the tile's live type, not the BFS snapshot — ClearWinPath may have
-			// already converted Water → Grass before this timer fires.
+			// already converted Water → Grass before this ring runs.
 			const EML_TileType LiveType = Tile->GetCurrentType();
 			if (UML_TileTypeTraits::IsWinPropagationConvertible(LiveType))
 			{
@@ -106,12 +140,20 @@ void UML_WinPropagationSubsystem::RunWinWave()
 			}
 		}
 
-		Count++;
+		WinWaveIndex++;
+
+		const bool bRingHasMore =
+			WinWaveIndex < WinWaveEntries.Num()
+			&& WinWaveEntries[WinWaveIndex].DistanceFromOrigin == CurrentWinRingDistance;
+
+		// Budget exhausted: resume this ring next frame (Tick).
+		if (bRingHasMore && FPlatformTime::Seconds() >= Deadline)
+			return;
 	}
 
-	WinWaveEntries.RemoveAt(0, Count);
+	bWinRingInProgress = false;
 
-	if (WinWaveEntries.Num() > 0)
+	if (WinWaveIndex < WinWaveEntries.Num())
 	{
 		GetWorld()->GetTimerManager().SetTimer(
 			WinWaveTimerHandle,
@@ -120,5 +162,10 @@ void UML_WinPropagationSubsystem::RunWinWave()
 			DevSettings->IntraWaveDelay,
 			false
 		);
+	}
+	else
+	{
+		WinWaveEntries.Empty();
+		WinWaveIndex = 0;
 	}
 }

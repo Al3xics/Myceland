@@ -18,11 +18,16 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUndoAnimating, bool, IsUndoAnimat
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnResetAnimating, bool, IsResetAnimating);
 
 UCLASS()
-class MYCELAND_API UML_WavePropagationSubsystem : public UWorldSubsystem
+class MYCELAND_API UML_WavePropagationSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	// Ticks only while a ring is being time-sliced across frames (see IsTickable).
+	virtual void Tick(float DeltaTime) override;
+	virtual bool IsTickable() const override;
+	virtual TStatId GetStatId() const override;
+
 	void EnsureInitialized();
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
@@ -100,23 +105,47 @@ private:
 
 	bool bIsResolvingTiles = false;
 	bool bCycleHasChanges = false;
+
+	// True if anything changed on the board since BeginTileResolved. Unlike
+	// bCycleHasChanges (reset every cycle), it covers the whole action: used to
+	// skip the goal-path recompute in EndTileResolved when nothing changed.
+	bool bAnyChangeThisAction = false;
 	int32 CurrentWaveIndex = 0;
 	int32 CurrentNatureReactionCount = 0;
 	int32 CurrentParasiteReactionCount = 0;
 	int32 CurrentWaterReactionCount = 0;
 	int32 TotalReactionTileCount = 0;
 
+	// Read cursor into PendingChanges (consumed in place, no removal).
+	int32 PendingChangesIndex = 0;
+
+	// Time-slicing state: a ring (all changes at the same DistanceFromOrigin) is applied
+	// under a per-frame CPU budget (DevSettings->WavePropagationFrameBudgetMs). If the ring
+	// doesn't fit in one frame, the remainder continues in Tick on the following frames.
+	bool bRingInProgress = false;
+	int32 CurrentRingDistance = 0;
+
 	FTimerHandle IntraWaveTimerHandle;
 	FTimerHandle InterWaveTimerHandle;
 
 	void RunWave();
+	void ApplyChange(const FML_WaveChange& Change);
+	void ProcessRingSlice(double Deadline);
+	void FinishRing();
+	double MakeSliceDeadline() const;
 	void ScheduleNextPriority();
 	void ProcessNextWave();
 	void EndTileResolved();
 
 	// =========================================================================
-	// Touch wave: fires OnWaveTouched on every board tile, ring by ring,
-	// independently of PendingChanges (which only contains tiles that change).
+	// Touch wave — pure visual feedback, no gameplay effect.
+	//
+	// PendingChanges only contains the tiles whose TYPE changes, so if only 3
+	// tiles react, only 3 tiles would animate. The touch wave is what makes the
+	// whole board feel the wave passing: BuildTouchQueue BFS-walks the entire
+	// board from the clicked tile (sorted by distance), then FireNextTouchRing
+	// calls OnWaveTouched() — a BP feedback event on AML_Tile (e.g. the tile
+	// "hop") — on every tile, ring by ring, even those that don't change.
 	// =========================================================================
 
 	UPROPERTY(Transient)
@@ -125,8 +154,13 @@ private:
 	int32 TouchIndex = 0;
 	FTimerHandle TouchTimerHandle;
 
+	// Same time-slicing as the forward wave, for the touch rings.
+	bool bTouchRingInProgress = false;
+	int32 CurrentTouchDistance = 0;
+
 	void BuildTouchQueue(AML_Tile* OriginTile);
 	void FireNextTouchRing();
+	void ProcessTouchSlice(double Deadline);
 
 	// =========================================================================
 	// Deterministic ordering for recorded deltas during forward gameplay.
