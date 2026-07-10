@@ -666,7 +666,11 @@ void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendT
 	if (AML_CameraRail* NewRail = Cast<AML_CameraRail>(NewViewTarget))
 		NewRail->SetActorTickEnabled(true);
 
-	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc);
+	// bLockOutgoing: if a blend is interrupted (e.g. re-entering a board mid-blend towards the
+	// rail), start the new blend from the camera's current interpolated position instead of
+	// re-evaluating the outgoing view target — otherwise blending back to the outgoing target
+	// makes source == destination and the camera snaps instantly.
+	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc, 0.f, true);
 }
 
 // ==================== Movement Control ====================
