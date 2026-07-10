@@ -7,8 +7,6 @@
 #include "Core/ML_CoreData.h"
 #include "Engine/DeveloperSettings.h"
 #include "InputMappingContext.h"
-#include "Sound/SoundClass.h"
-#include "Sound/SoundMix.h"
 #include "ML_MycelandDeveloperSettings.generated.h"
 
 class AML_Collectible;
@@ -85,24 +83,18 @@ public:
 	
 	
 	// ==================== Audio ====================
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> MasterSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> MusicSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> SFXSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> UISoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> VoiceSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Mix")
-	TSoftObjectPtr<USoundMix> GameSoundMix;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString MasterFMODVCAPath = TEXT("vca:/Master");
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString MusicFMODVCAPath = TEXT("vca:/Music");
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString SFXFMODVCAPath = TEXT("vca:/SFX");
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString VoiceFMODVCAPath = TEXT("vca:/Voice");
 	
 	
 	
@@ -158,6 +150,9 @@ public:
 
 	UPROPERTY(EditAnywhere,Category = "Myceland WinLose")
 	float WinDelay = 0.5f;
+
+	UPROPERTY(EditAnywhere,Category = "Myceland WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
+	float WinTileDelay = 0.1f;
 	
 	
 	// ==================== Helper ====================

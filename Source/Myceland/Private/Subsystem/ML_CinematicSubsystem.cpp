@@ -2,6 +2,7 @@
 
 #include "GameFramework/PlayerController.h"
 #include "LevelSequence.h"
+#include "Player/ML_PlayerController.h"
 #include "LevelSequenceActor.h"
 #include "LevelSequencePlayer.h"
 #include "MovieSceneSequencePlayer.h"
@@ -174,6 +175,10 @@ void UML_CinematicSubsystem::DisablePlayerInput(APlayerController* PlayerControl
 	}
 
 	PlayerController->DisableInput(PlayerController);
+
+	// Hide the cursor and stop the hover/path previews while the cinematic plays.
+	if (AML_PlayerController* MLController = Cast<AML_PlayerController>(PlayerController))
+		MLController->NotifyCinematicModeChanged(true);
 }
 
 void UML_CinematicSubsystem::RestorePlayerInput()
@@ -184,6 +189,9 @@ void UML_CinematicSubsystem::RestorePlayerInput()
 	}
 
 	CachedPlayerController->EnableInput(CachedPlayerController);
+
+	if (AML_PlayerController* MLController = Cast<AML_PlayerController>(CachedPlayerController))
+		MLController->NotifyCinematicModeChanged(false);
 }
 
 void UML_CinematicSubsystem::ClearCinematicReferences()
