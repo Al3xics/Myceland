@@ -333,6 +333,14 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 
 void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 {
+	// Once the puzzle is solved the win path is final. Only the winning turn itself
+	// (bPendingClearWinPath still set) may recompute; anything later — e.g. hub tile
+	// changes running a wave while the player still stands on the solved board — must
+	// not, because FireWinSequence converts corridor Water tiles to WaterPath (not a
+	// win-path type), so a recompute would reroute the path and replay the link glow.
+	if (IsValid(CurrentBoardSpawner) && CurrentBoardSpawner->bIsPuzzleSolved && !bPendingClearWinPath)
+		return;
+
 	FindConnectedGoalGroups(
 		CurrentBoardSpawner,
 		EML_TileType::Tree,
@@ -347,8 +355,11 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 		{
 			if (IsValid(Tile))
 			{
-				CurrentConnectedPathTiles.Add(Tile);
-				if (!PreviousConnectedPathTiles.Contains(Tile))
+				// Later MST links reuse earlier corridors, so the same tile can appear
+				// in several groups: dedup against this call's set, not just the queue.
+				bool bAlreadyInSet = false;
+				CurrentConnectedPathTiles.Add(Tile, &bAlreadyInSet);
+				if (!bAlreadyInSet && !PreviousConnectedPathTiles.Contains(Tile))
 					PendingConnectedGoalPathQueue.Add(Tile);
 			}
 		}
@@ -381,7 +392,7 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
 	{
 		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
-			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, 0.1f, true);
+			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, DevSettings->WinTileDelay, true);
 	}
 }
 
@@ -415,7 +426,7 @@ void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawne
 		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
 	{
 		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
-			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, 0.1f, true);
+			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, DevSettings->WinTileDelay, true);
 	}
 }
 
