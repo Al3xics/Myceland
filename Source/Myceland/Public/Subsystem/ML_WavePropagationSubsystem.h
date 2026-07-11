@@ -6,6 +6,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "ML_WavePropagationSubsystem.generated.h"
 
+class UML_CinematicSubsystem;
 struct FML_WaveChange;
 
 class UML_MycelandDeveloperSettings;
@@ -81,6 +82,9 @@ private:
 
 	UPROPERTY()
 	UML_WinLoseSubsystem* WinLoseSubsystem = nullptr;
+
+	UPROPERTY()
+	const UML_CinematicSubsystem* CinematicSubsystem = nullptr;
 
 	UPROPERTY()
 	AML_PlayerController* PlayerController = nullptr;

@@ -79,6 +79,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_Tile* GetPlayerCurrentTile() const;
 
+	/**
+	 * True from the moment CheckWinLose detects a win until FireWinSequence has
+	 * broadcast OnWin (covers the link animation and the WinDelay window).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Myceland WinLose")
+	bool IsWinSequenceActive() const { return bPendingClearWinPath; }
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	AML_BoardSpawner* FindBoardSpawner() const;
 
@@ -115,7 +122,7 @@ private:
 
 	/**
 	 * Broadcasts OnWin, clears the pending flag, and runs both ClearWinPath
-	 * passes (player→exit now, entry→exit deferred one tick).
+	 * passes (entry→exit now, player→closest entry/exit deferred one tick).
 	 * Called from BroadcastNextConnectedGoalPathTile when the queue drains,
 	 * and as a fallback from CheckWinLose when no new tiles need to be animated.
 	 */

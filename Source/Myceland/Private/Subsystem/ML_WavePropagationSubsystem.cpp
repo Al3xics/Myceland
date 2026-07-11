@@ -7,6 +7,7 @@
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_PlayerController.h"
 #include "Collectible/ML_Collectible.h"
+#include "Subsystem/ML_CinematicSubsystem.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
@@ -54,8 +55,9 @@ void UML_WavePropagationSubsystem::EnsureInitialized()
 	PlayerController = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController());
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	RollBackSubsystem = GetWorld()->GetSubsystem<UML_RollBackSubsystem>();
+	CinematicSubsystem = GetWorld()->GetSubsystem<UML_CinematicSubsystem>();
 	
-	ensure(PlayerController && WinLoseSubsystem && RollBackSubsystem);
+	ensure(WinLoseSubsystem && PlayerController && DevSettings && RollBackSubsystem && CinematicSubsystem);
 
 	if (RollBackSubsystem && !bRollbackDelegatesBound)
 	{
@@ -82,13 +84,12 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	// board, so skip both when the wave demonstrably ran elsewhere. If either board
 	// is unknown (first wave before CheckWinLose resolved it), keep the old behavior.
 	AML_BoardSpawner* WaveBoard = IsValid(CurrentOriginTile) ? CurrentOriginTile->GetBoardSpawnerFromTile() : nullptr;
-	const bool bWaveOnOtherBoard = IsValid(WaveBoard)
-		&& IsValid(WinLoseSubsystem->CurrentBoardSpawner)
-		&& WaveBoard != WinLoseSubsystem->CurrentBoardSpawner;
+	const bool bWaveOnOtherBoard = IsValid(WaveBoard) && IsValid(WinLoseSubsystem->CurrentBoardSpawner) && WaveBoard != WinLoseSubsystem->CurrentBoardSpawner;
 
+	FML_GameResult Result;
 	if (!bWaveOnOtherBoard)
 	{
-		WinLoseSubsystem->CheckWinLose();
+		Result = WinLoseSubsystem->CheckWinLose();
 
 		// If the whole action changed nothing on the board, goal connectivity can't
 		// have changed either: skip the (BFS-heavy) goal-path recompute.
@@ -129,7 +130,14 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	{
 		if (PlayerController->TransitionComponent)
 			PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
-		PlayerController->EnableInput(PlayerController);
+
+		// The win flow owns the input lock from the moment the win is detected until
+		// the win cinematic (or the Win BP event when no cinematic plays) releases it.
+		// A wave resolving on another board (e.g. hub changes after a win) must not
+		// re-enable inputs in the middle of that sequence.
+		const bool bWinOwnsInputLock = Result.Result == EML_WinLose::Win || WinLoseSubsystem->IsWinSequenceActive() || (CinematicSubsystem && CinematicSubsystem->IsCinematicPlaying());
+		if (!bWinOwnsInputLock)
+			PlayerController->EnableInput(PlayerController);
 	}
 }
 
