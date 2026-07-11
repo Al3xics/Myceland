@@ -66,6 +66,17 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Save")
 	FName GetLastSolvedPuzzleID() const;
 
+	// ==================== Progression ====================
+
+	// Returns the persisted progression state (W1L0 when there is no save object).
+	UFUNCTION(BlueprintPure, Category="Myceland Save")
+	EML_ProgressionState GetProgressionState() const;
+
+	// Stores the progression state and saves to disk. Called by UML_GameInstance whenever
+	// its ProgressionState changes.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save")
+	void SetProgressionState(EML_ProgressionState NewState);
+
 	// ==================== Narrative Triggers ====================
 
 	// Records that a narrative trigger has played (keyed by its level-placed name) and saves.

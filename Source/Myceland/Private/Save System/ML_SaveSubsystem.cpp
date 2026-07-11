@@ -181,6 +181,20 @@ FName UML_SaveSubsystem::GetLastSolvedPuzzleID() const
 	return SaveObject ? SaveObject->LastSolvedPuzzleID : NAME_None;
 }
 
+// ==================== Progression ====================
+
+EML_ProgressionState UML_SaveSubsystem::GetProgressionState() const
+{
+	return SaveObject ? SaveObject->ProgressionState : EML_ProgressionState::W1L0;
+}
+
+void UML_SaveSubsystem::SetProgressionState(EML_ProgressionState NewState)
+{
+	if (!SaveObject) return;
+	SaveObject->ProgressionState = NewState;
+	SaveToDisk();
+}
+
 // ==================== Narrative Triggers ====================
 
 void UML_SaveSubsystem::SetNarrativeTriggerPlayed(FName TriggerID)

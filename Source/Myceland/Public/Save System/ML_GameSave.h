@@ -17,6 +17,11 @@ public:
 	UPROPERTY(SaveGame)
 	FML_GameSaveData Settings;
 
+	// Player's overall progression (mirrored on UML_GameInstance). Written whenever the
+	// GameInstance's ProgressionState changes; read back into it on load.
+	UPROPERTY(SaveGame)
+	EML_ProgressionState ProgressionState = EML_ProgressionState::W1L0;
+
 	// One record per puzzle, keyed by the PuzzleID set on AML_BoardSpawner.
 	UPROPERTY(SaveGame)
 	TMap<FName, FML_PuzzleSaveRecord> PuzzleRecords;
