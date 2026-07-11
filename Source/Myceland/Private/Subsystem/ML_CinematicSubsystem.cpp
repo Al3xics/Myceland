@@ -48,32 +48,32 @@ bool UML_CinematicSubsystem::PlayCinematic(
 	DisablePlayerInput(TargetPlayerController);
 
 	if (IsValid(BlendCamera) && BlendTime > 0.f)
-{
-	TargetPlayerController->SetViewTargetWithBlend(
-		BlendCamera,
-		BlendTime,
-		VTBlend_Cubic
-	);
-
-	if (bWaitForBlendToFinish)
 	{
-		World->GetTimerManager().SetTimer(
-			BlendTimerHandle,
-			this,
-			&UML_CinematicSubsystem::StartPendingCinematic,
+		TargetPlayerController->SetViewTargetWithBlend(
+			BlendCamera,
 			BlendTime,
-			false
+			VTBlend_Cubic
 		);
+
+		if (bWaitForBlendToFinish)
+		{
+			World->GetTimerManager().SetTimer(
+				BlendTimerHandle,
+				this,
+				&UML_CinematicSubsystem::StartPendingCinematic,
+				BlendTime,
+				false
+			);
+		}
+		else
+		{
+			StartPendingCinematic();
+		}
 	}
 	else
 	{
 		StartPendingCinematic();
 	}
-}
-else
-{
-	StartPendingCinematic();
-}
 
 	OnCinematicStarted.Broadcast();
 	return true;
