@@ -5,14 +5,12 @@
 
 #include "Actors/ML_NarrativeTrigger.h"
 #include "Actors/ML_TalkingThing.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Camera/CameraComponent.h"
 #include "Data Asset/ML_NarrativeSequence.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "EnhancedInputSubsystems.h"
 #include "FMODAudioComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Navigation/PathFollowingComponent.h"
 #include "Player/ML_PlayerController.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 
@@ -241,11 +239,9 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 			InputSub->AddMappingContext(CinematicIMC, DevSettings->CinematicInputMappingContext.Priority);
 	}
 
-	UAIBlueprintHelperLibrary::SimpleMoveToLocation(GetPlayerController(), CurrentNarrativeTrigger->TargetArrow->GetComponentLocation());
-
-	// Bind to the movement end to apply rotation
-	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
-		PFC->OnRequestFinished.AddUObject(this, &UML_NarrativeSubsystem::OnCinematicMoveFinished);
+	// Walk the player to the arrow with a steering arc; the trigger calls
+	// NotifyCinematicApproachFinished once arrived and aligned with the arrow.
+	CurrentNarrativeTrigger->StartCinematicApproach();
 
 	// Activate the camera component so CalcCamera finds it (bAutoActivate is false by default)
 	if (CurrentNarrativeTrigger && CurrentNarrativeTrigger->GetCinematicCamera())
@@ -273,22 +269,8 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 	}
 }
 
-void UML_NarrativeSubsystem::OnCinematicMoveFinished(FAIRequestID, const FPathFollowingResult&)
+void UML_NarrativeSubsystem::NotifyCinematicApproachFinished()
 {
-	// Unbind immediatly to not react to the next movements
-	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
-		PFC->OnRequestFinished.RemoveAll(this);
-
-	if (!CurrentNarrativeTrigger) return;
-
-	APawn* Pawn = GetPlayerController()->GetPawn();
-	if (!Pawn) return;
-
-	const FRotator CurrentRot = Pawn->GetActorRotation();
-	const float TargetYaw = CurrentNarrativeTrigger->TargetArrow->GetComponentRotation().Yaw;
-	Pawn->SetActorRotation(FRotator(CurrentRot.Pitch, TargetYaw, CurrentRot.Roll));
-
-	// Mark player movement as finished
 	bPlayerMovementFinished = true;
 	CheckCinematicSetupComplete();
 }
@@ -313,9 +295,9 @@ void UML_NarrativeSubsystem::CheckCinematicSetupComplete()
 
 void UML_NarrativeSubsystem::RestorePlayerControl() const
 {
-	// Unbind if the sequence ends before arriving
-	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
-		PFC->OnRequestFinished.RemoveAll(this);
+	// Interrupt the approach if the sequence ends before the player has arrived
+	if (CurrentNarrativeTrigger)
+		CurrentNarrativeTrigger->StopCinematicApproach();
 
 	// Swap IMCs back: remove cinematic, restore main
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();

@@ -13,8 +13,6 @@ class IML_DialogueSpeaker;
 class AML_PlayerController;
 class AML_TalkingThing;
 class AML_NarrativeTrigger;
-struct FAIRequestID;
-struct FPathFollowingResult;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDialogueLineStart, const FDialogueLine&, Line, ESpeakerTag, Speaker);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDialogueLineEnd, const FDialogueLine&, Line, ESpeakerTag, Speaker);
@@ -57,7 +55,6 @@ private:
 	void CleanupCurrentSequence();
 	void SetupCinematicMode();
 	void RestorePlayerControl() const;
-	void OnCinematicMoveFinished(FAIRequestID RequestID, const FPathFollowingResult& Result);
 	void OnCameraBlendCompleted();
 	void CheckCinematicSetupComplete();
 	
@@ -112,6 +109,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Narrative")
 	void StopSequence();
-	
+
 	IML_DialogueSpeaker* GetSpeaker(ESpeakerTag Tag) const;
+
+	// Called by the narrative trigger when the cinematic approach (walk + alignment) is done
+	void NotifyCinematicApproachFinished();
 };
