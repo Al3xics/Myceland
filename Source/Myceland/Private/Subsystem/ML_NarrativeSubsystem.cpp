@@ -255,7 +255,8 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 		GetPlayerController()->BlendToViewTarget(
 			CurrentNarrativeTrigger,
 			CurrentSequence->CameraBlendTime,
-			VTBlend_Linear
+			CurrentSequence->BlendExp,
+			CurrentSequence->BlendFunc
 		);
 
 		// Start timer for camera blend completion
@@ -332,7 +333,8 @@ void UML_NarrativeSubsystem::RestorePlayerControl() const
 	GetPlayerController()->BlendToViewTarget(
 		PreviousViewTarget,
 		CurrentSequence->CameraBlendTime,
-		VTBlend_Linear
+		CurrentSequence->BlendExp,
+		CurrentSequence->BlendFunc
 	);
 
 	// Deactivate the cinematic camera AFTER THE BLEND so it doesn't interfere with future view targets

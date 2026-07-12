@@ -23,8 +23,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cinematic")
 	bool bIsCinematicMode = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode", ClampMin = "0.1", ClampMax = "5.0"))
-	float CameraBlendTime = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode", ClampMin = "0.1", ClampMax = "10.0"))
+	float CameraBlendTime = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode", ClampMin = "0.0", ClampMax = "10.0"))
+	float BlendExp = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode"))
+	TEnumAsByte<EViewTargetBlendFunction> BlendFunc = VTBlend_EaseInOut;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta = (EditCondition = "bIsCinematicMode", ToolTip = "If true, the sequence will wait for the camera blend to finish before starting with the first line."))
 	bool bWaitForCameraBlendToFinish = true;
