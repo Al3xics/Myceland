@@ -112,15 +112,18 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 		return;
 	}
 
-	// Validate and set speaker talking
+	// Resolve the speaker (tags with no bound actor fall back to the player, see AML_NarrativeTrigger::GetSpeaker)
 	IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag);
-	if (Speaker)
-		Speaker->SetIsTalking(true);
-	else
+	if (!Speaker)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No speaker found for tag %d in line %d of trigger %s"), static_cast<int32>(Line.SpeakerTag), CurrentLineIndex, *CurrentNarrativeTrigger->GetName());
+		UE_LOG(LogTemp, Error, TEXT("No speaker found for tag %d in line %d of trigger %s, skipping line"), static_cast<int32>(Line.SpeakerTag), CurrentLineIndex, *GetNameSafe(CurrentNarrativeTrigger));
+		CurrentLineIndex++;
+		PlayNextLine();
 		return;
 	}
+
+	if (Line.bSpokenOutLoud)
+		Speaker->SetIsTalking(true);
 
 	bCurrentLineStarted = true;
 	OnDialogueLineStart.Broadcast(Line, Line.SpeakerTag);

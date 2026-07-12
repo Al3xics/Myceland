@@ -113,14 +113,14 @@ void AML_NarrativeTrigger::ResetTrigger()
 
 IML_DialogueSpeaker* AML_NarrativeTrigger::GetSpeaker(const ESpeakerTag Tag) const
 {
-    if (Tag == ESpeakerTag::Player)
+    if (Tag != ESpeakerTag::Player)
     {
-        AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
-        return Cast<IML_DialogueSpeaker>(PlayerCharacter);
+        if (AActor* const* Found = Speakers.Find(Tag))
+            if (IML_DialogueSpeaker* Speaker = Cast<IML_DialogueSpeaker>(*Found))
+                return Speaker;
     }
-    
-    if (AActor* const* Found = Speakers.Find(Tag))
-        return Cast<IML_DialogueSpeaker>(*Found);
-    
-    return nullptr;
+
+    // Player tag, or fallback: a tag with no bound actor plays as a voice-over on the player
+    AML_PlayerCharacter* PlayerCharacter = Cast<AML_PlayerCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
+    return Cast<IML_DialogueSpeaker>(PlayerCharacter);
 }

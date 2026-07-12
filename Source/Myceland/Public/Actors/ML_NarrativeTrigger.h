@@ -66,7 +66,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative")
     bool bPlayOnce = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative", meta = (ToolTip="All speakers related to this narrative trigger.\n\n⚠️ DON'T ADD THE PLAYER TAG! It's handled automatically.\n\nOnly add actors that implement IML_DialogueSpeaker interface (e.g., TalkingThing actors)."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative", meta = (ToolTip="All speakers related to this narrative trigger.\n\n⚠️ DON'T ADD THE PLAYER TAG! It's handled automatically.\n\nOnly add actors that implement IML_DialogueSpeaker interface (e.g., TalkingThing actors).\n\nA line whose tag has no actor here is played on the player (voice-over). Use the line's 'Spoken Out Loud' flag to control the talking animation."))
     TMap<ESpeakerTag, AActor*> Speakers;
 
     UPROPERTY(BlueprintReadOnly, Category = "Narrative")
