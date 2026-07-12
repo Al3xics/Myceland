@@ -656,7 +656,7 @@ void AML_PlayerController::OnSkipNarrativeLine()
 
 // ==================== Camera ====================
 
-void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendTime, EViewTargetBlendFunction BlendFunc)
+void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendTime, float BlendExp, EViewTargetBlendFunction BlendFunc)
 {
 	// Deactivate the tick of the old camera rail
 	if (AML_CameraRail* OldRail = Cast<AML_CameraRail>(GetViewTarget()))
@@ -670,7 +670,7 @@ void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendT
 	// rail), start the new blend from the camera's current interpolated position instead of
 	// re-evaluating the outgoing view target — otherwise blending back to the outgoing target
 	// makes source == destination and the camera snaps instantly.
-	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc, 0.f, true);
+	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc, BlendExp, true);
 }
 
 // ==================== Movement Control ====================
