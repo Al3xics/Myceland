@@ -7,10 +7,11 @@
 #include "Player/ML_HexPathfinder.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_BoardSpawner.h"
-#include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "User Settings/ML_GameUserSettings.h"
 
 void UML_GamepadInputHandler::OnActivated()
 {
+	Settings = UML_GameUserSettings::GetMycelandGameUserSettings();
 	ResetStickRepeatState();
 	FocusedTile = nullptr;
 }
@@ -82,9 +83,8 @@ void UML_GamepadInputHandler::HandleInsideBoardStick(FVector2D StickValue, float
 	// IMC dead zone ensures the stick is active when this is called.
 	if (Controller->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	const UML_MycelandDeveloperSettings* Settings = GetDefault<UML_MycelandDeveloperSettings>();
-	const float HoldDelay = Settings ? Settings->GamepadHoldRepeatDelay : 0.4f;
-	const float RepeatInterval = Settings ? FMath::Max(Settings->GamepadHoldRepeatInterval, 0.01f) : 0.15f;
+	const float HoldDelay = Settings ? Settings->GetGamepadHoldRepeatDelay() : 0.4f;
+	const float RepeatInterval = Settings ? FMath::Max(Settings->GetGamepadHoldRepeatInterval(), 0.01f) : 0.15f;
 
 	// First frame after returning from neutral: select immediately, then start the hold timer.
 	// Accumulators are already zeroed by ResetStickRepeatState on the previous neutral release.

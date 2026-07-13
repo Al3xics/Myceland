@@ -79,6 +79,20 @@ void UML_UserWidgetTemplate::GetSettingValue(float& OutFloat, bool& OutBool, int
 		OutType = ESettingValueType::Int32;
 		UE_LOG(LogTemp, Verbose, TEXT("[%s] Loaded int32 property '%s' = %d"), *GetName(), *PropertyName.ToString(), OutInt32);
 	}
+	else if (const FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+	{
+		// enum class properties (e.g. OverallQuality, ColorblindMode), returned as their index
+		OutInt32 = static_cast<int32>(EnumProp->GetUnderlyingProperty()->GetSignedIntPropertyValue(EnumProp->ContainerPtrToValuePtr<void>(Settings)));
+		OutType = ESettingValueType::Int32;
+		UE_LOG(LogTemp, Verbose, TEXT("[%s] Loaded enum property '%s' = %d"), *GetName(), *PropertyName.ToString(), OutInt32);
+	}
+	else if (const FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+	{
+		// TEnumAsByte properties (e.g. WindowMode), returned as their index
+		OutInt32 = ByteProp->GetPropertyValue_InContainer(Settings);
+		OutType = ESettingValueType::Int32;
+		UE_LOG(LogTemp, Verbose, TEXT("[%s] Loaded byte property '%s' = %d"), *GetName(), *PropertyName.ToString(), OutInt32);
+	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[%s] Property '%s' has unsupported type"), *GetName(), *PropertyName.ToString());

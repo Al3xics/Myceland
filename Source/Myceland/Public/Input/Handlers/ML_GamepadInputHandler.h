@@ -6,6 +6,7 @@
 #include "Input/ML_InputHandlerBase.h"
 #include "ML_GamepadInputHandler.generated.h"
 
+class UML_GameUserSettings;
 class AML_Tile;
 class AML_BoardSpawner;
 
@@ -18,8 +19,9 @@ class AML_BoardSpawner;
  * Inside board  : pushing the stick selects the neighbor tile closest to the stick direction.
  *                 Holding the stick keeps advancing the selection cursor to the next tile:
  *                 the first tile is selected immediately, then after GamepadHoldRepeatDelay the
- *                 cursor auto-advances one tile every GamepadHoldRepeatInterval seconds (both in
- *                 the developer settings). Returning to neutral stops the advance.
+ *                 cursor auto-advances one tile every GamepadHoldRepeatInterval seconds (both are
+ *                 user settings; the developer settings hold their default values).
+ *                 Returning to neutral stops the advance.
  *                 Pushing toward the board edge (no walkable neighbor) starts the exit hold.
  *                 Stick returning to neutral (IA_GamepadMove Completed) resets the gate and
  *                 cancels any in-progress exit hold.
@@ -35,6 +37,9 @@ class MYCELAND_API UML_GamepadInputHandler : public UML_InputHandlerBase
 	GENERATED_BODY()
 
 private:
+	UPROPERTY()
+	UML_GameUserSettings* Settings = nullptr;
+	
 	/** True if the stick has returned to the neutral zone since the last directional input. */
 	bool bStickWasNeutral = true;
 

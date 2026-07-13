@@ -130,25 +130,22 @@ bool UML_GameUserSettings::ParseFrameLimitText(const FString& LimitText, float& 
 
 void UML_GameUserSettings::LoadResolution()
 {
-	// Snap to the closest valid resolution
+	EnsureValidListsInitialized();
+
+	// Snap the wrapper to the closest valid resolution for the UI.
+	// Load only pulls state: the snapped value is NOT pushed to the engine here
+	// (ValidateSettings handles out-of-whitelist values at boot / on apply).
 	const FIntPoint NativeResolution = Super::GetScreenResolution();
-	if (AreValidResolutionsInitialized())
-	{
-		if (bool bIsValid = ValidResolutions.Contains(NativeResolution))
-			ResolutionPx = NativeResolution;
-		else
-		{
-			// Snap to closest valid
-			ResolutionPx = GetClosestValidResolution(NativeResolution);
-			Super::SetScreenResolution(ResolutionPx);
-		}
-	}
+	if (AreValidResolutionsInitialized() && !ValidResolutions.Contains(NativeResolution))
+		ResolutionPx = GetClosestValidResolution(NativeResolution);
 	else
 		ResolutionPx = NativeResolution;
 }
 
 void UML_GameUserSettings::LoadFrameLimit()
 {
+	EnsureValidListsInitialized();
+
 	if (!AreValidFrameLimitsInitialized()) return;
 	
 	FrameLimit = ValidFrameLimits.IndexOfByPredicate(
@@ -171,44 +168,33 @@ UML_GameUserSettings::UML_GameUserSettings()
 void UML_GameUserSettings::InitValues()
 {
 	// Graphics (wrappers - defaults)
-	ResolutionValue = 2;
-	ResolutionPx = FIntPoint(1920, 1080);
-	ResolutionScale = 100.0f;
-	WindowMode = 2;
-	bVSync = false;
-	FrameLimit = 1;
-	FrameRLimit = 60.0f;
-	OverallQuality = 1;
-	TextureQuality = 1;
-	ShadowQuality = 1;
-	EffectsQuality = 1;
-	PostProcessingQuality = 1;
-	GlobalIlluminationQuality = 1;
-	
+	ResolutionValue = DefaultResolutionValue;
+	ResolutionPx = DefaultResolutionPx;
+	ResolutionScale = DefaultResolutionScale;
+	WindowMode = DefaultWindowMode;
+	bVSync = DefaultVSync;
+	FrameLimit = DefaultFrameLimit;
+	FrameRLimit = DefaultFrameRateLimit;
+	OverallQuality = DefaultQualityLevel;
+
 	// Audio
-	MasterVolume = 100.0f;
-	MusicVolume = 100.0f;
-	SFXVolume = 100.0f;
-	VoiceVolume = 100.0f;
-	
+	MasterVolume = DefaultMasterVolume;
+	MusicVolume = DefaultMusicVolume;
+	SFXVolume = DefaultSFXVolume;
+	VoiceVolume = DefaultVoiceVolume;
+
 	// Controls
-	MouseSensitivity = 0.5f;
-	GamepadSensitivity = 0.5f;
-	GamepadDeadZone = 0.2f;
-	
-	// Gameplay
-	bShowGrid = true;
-	bTileHighlight = true;
-	HighlightIntensity = 1.0f;
-	bPropagationPreview = true;
-	bUndoConfirmation = false;
-	bResetConfirmation = true;
-	bTutorialHints = true;
-	
+	// Hold repeat defaults live in the DeveloperSettings: the designer tunes them there,
+	// the player overrides them here, and reset picks the designer values back up.
+	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	GamepadDeadZone = DefaultGamepadDeadZone;
+	GamepadHoldRepeatDelay = DevSettings ? DevSettings->GamepadHoldRepeatDelay : DefaultHoldRepeatDelay;
+	GamepadHoldRepeatInterval = DevSettings ? DevSettings->GamepadHoldRepeatInterval : DefaultHoldRepeatInterval;
+
 	// Accessibility
-	bSubtitles = false;
-	SubtitlesSize = 50.0f;
-	ColorblindMode = 0;
+	bSubtitles = DefaultSubtitles;
+	SubtitlesSize = DefaultSubtitlesSize;
+	ColorblindMode = DefaultColorblindMode;
 }
 
 float UML_GameUserSettings::Normalize(float Value, float Min, float Max)
@@ -222,6 +208,9 @@ float UML_GameUserSettings::Denormalize(float Normalized, float Min, float Max)
 	if (Max <= Min) return Min;
 	return Min + Normalized * (Max - Min);
 }
+
+
+// ==================== Audio Settings ====================
 
 void UML_GameUserSettings::SetMasterVolume(const float Volume)
 {
@@ -248,36 +237,131 @@ void UML_GameUserSettings::SetVoiceVolume(const float Volume)
 }
 
 
-// ==================== Graphics Settings (Wrappers) ====================
+// ==================== Controls Settings ====================
 
-void UML_GameUserSettings::SetValidResolutions(const TArray<FText>& Resolutions)
+void UML_GameUserSettings::SetGamepadDeadZone(const float DeadZone)
 {
-	for (const FText& ResText : Resolutions)
-	{
-		FIntPoint ParsedResolution;
-		if (ParseResolutionText(ResText.ToString(), ParsedResolution))
-			ValidResolutions.AddUnique(ParsedResolution);
-	}
+	GamepadDeadZone = DeadZone;
+	ApplyControlsSettings();
 }
+
+void UML_GameUserSettings::SetGamepadHoldRepeatDelay(const float Delay)
+{
+	GamepadHoldRepeatDelay = Delay;
+	ApplyControlsSettings();
+}
+
+void UML_GameUserSettings::SetGamepadHoldRepeatInterval(const float Interval)
+{
+	GamepadHoldRepeatInterval = Interval;
+	ApplyControlsSettings();
+}
+
+
+// ==================== Accessibility Settings ====================
+
+void UML_GameUserSettings::SetSubtitles(const bool bEnable)
+{
+	bSubtitles = bEnable;
+	ApplyAccessibilitySettings();
+}
+
+void UML_GameUserSettings::SetSubtitlesSize(const float Size)
+{
+	SubtitlesSize = Size;
+	ApplyAccessibilitySettings();
+}
+
+void UML_GameUserSettings::SetColorblindMode(const EMLColorblindMode Mode)
+{
+	ColorblindMode = Mode;
+	ApplyAccessibilitySettings();
+}
+
+
+// ==================== Graphics Settings (Wrappers) ====================
 
 bool UML_GameUserSettings::AreValidResolutionsInitialized()
 {
 	return ValidResolutions.Num() > 0;
 }
 
-void UML_GameUserSettings::SetValidFrameLimits(const TArray<FText>& Limits)
-{
-	for (const FText& LimitText : Limits)
-	{
-		float ParsedLimit;
-		if (ParseFrameLimitText(LimitText.ToString(), ParsedLimit))
-			ValidFrameLimits.AddUnique(ParsedLimit);
-	}
-}
-
 bool UML_GameUserSettings::AreValidFrameLimitsInitialized()
 {
 	return ValidFrameLimits.Num() > 0;
+}
+
+void UML_GameUserSettings::EnsureValidListsInitialized()
+{
+	if (AreValidResolutionsInitialized() && AreValidFrameLimitsInitialized())
+		return;
+
+	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	if (!ensureMsgf(DevSettings, TEXT("Failed to get MycelandDeveloperSettings for the graphics whitelists")))
+		return;
+
+	for (const FIntPoint& Resolution : DevSettings->ValidResolutions)
+		ValidResolutions.AddUnique(Resolution);
+
+	for (const float Limit : DevSettings->ValidFrameLimits)
+		ValidFrameLimits.AddUnique(Limit);
+}
+
+TArray<FText> UML_GameUserSettings::GetValidResolutionTexts()
+{
+	EnsureValidListsInitialized();
+
+	TArray<FText> Texts;
+	for (const FIntPoint& Resolution : ValidResolutions)
+		Texts.Add(FText::AsCultureInvariant(FString::Printf(TEXT("%d x %d"), Resolution.X, Resolution.Y)));
+	return Texts;
+}
+
+TArray<FText> UML_GameUserSettings::GetValidFrameLimitTexts()
+{
+	EnsureValidListsInitialized();
+
+	// Culture invariant: these strings are parsed back by SetFrameRateLimitFromText /
+	// SetResolutionFromText, so they must not be localized.
+	TArray<FText> Texts;
+	for (const float Limit : ValidFrameLimits)
+		Texts.Add(FText::AsCultureInvariant(Limit <= 0.f ? FString(TEXT("Unlimited")) : FString::Printf(TEXT("%.0f"), Limit)));
+	return Texts;
+}
+
+float UML_GameUserSettings::GetClosestValidFrameLimit(const float DesiredLimit)
+{
+	if (ValidFrameLimits.Num() == 0)
+		return DesiredLimit;
+
+	// 0 means Unlimited: exact match only. An unlimited request without an
+	// Unlimited entry snaps to the highest limit, not the numerically closest.
+	if (DesiredLimit <= 0.f)
+	{
+		if (ValidFrameLimits.Contains(0.f))
+			return 0.f;
+
+		float Highest = 0.f;
+		for (const float Limit : ValidFrameLimits)
+			Highest = FMath::Max(Highest, Limit);
+		return Highest;
+	}
+
+	float Closest = DesiredLimit;
+	float ClosestDistance = FLT_MAX;
+	for (const float Limit : ValidFrameLimits)
+	{
+		if (Limit <= 0.f)
+			continue;
+
+		const float Distance = FMath::Abs(Limit - DesiredLimit);
+		if (Distance < ClosestDistance)
+		{
+			ClosestDistance = Distance;
+			Closest = Limit;
+		}
+	}
+	return Closest;
 }
 
 void UML_GameUserSettings::SetResolutionFromText(const FString& ResolutionText)
@@ -292,13 +376,10 @@ void UML_GameUserSettings::SetResolutionFromText(const FString& ResolutionText)
 
 void UML_GameUserSettings::SetFrameRateLimitFromText(const FString& FrameRateText)
 {
-	// Parse "60" → 60
-	// Parse "Unlimited" → 0
-	if (FrameRateText.Equals(TEXT("Unlimited"), ESearchCase::IgnoreCase))
-		FrameRLimit = 0;
-	else
-		FrameRLimit = static_cast<float>(FCString::Atoi(*FrameRateText));
-	
+	float ParsedLimit;
+	if (ParseFrameLimitText(FrameRateText, ParsedLimit))
+		FrameRLimit = ParsedLimit;
+
 	LoadFrameLimit();
 }
 
@@ -321,17 +402,15 @@ FString UML_GameUserSettings::GetCurrentFrameRateLimitText() const
 void UML_GameUserSettings::ApplyGraphicsSettings()
 {
 	Super::SetScreenResolution(ResolutionPx);
-	Super::SetResolutionScaleValueEx(ResolutionValue);
-	Super::SetFullscreenMode(static_cast<EWindowMode::Type>(WindowMode));
+	Super::SetFullscreenMode(WindowMode);
 	Super::SetVSyncEnabled(bVSync);
 	Super::SetFrameRateLimit(FrameRLimit);
-	
-	Super::SetOverallScalabilityLevel(OverallQuality);
-	Super::SetTextureQuality(TextureQuality);
-	Super::SetShadowQuality(ShadowQuality);
-	Super::SetVisualEffectQuality(EffectsQuality);
-	Super::SetPostProcessingQuality(PostProcessingQuality);
-	Super::SetGlobalIlluminationQuality(GlobalIlluminationQuality);
+
+	// Overall quality FIRST: SetFromSingleQualityLevel overwrites ResolutionQuality with
+	// the preset's value, so the explicit resolution scale must be applied after it to
+	// keep both settings independent.
+	Super::SetOverallScalabilityLevel(static_cast<int32>(OverallQuality));
+	Super::SetResolutionScaleValueEx(ResolutionScale);
 }
 
 void UML_GameUserSettings::ApplyAudioSettings()
@@ -348,40 +427,154 @@ void UML_GameUserSettings::ApplyAudioSettings()
 	UE_LOG(LogTemp, Log, TEXT("Audio settings applied - Master: %.2f, Music: %.2f, SFX: %.2f, Voice: %.2f"), MasterVolume, MusicVolume, SFXVolume, VoiceVolume);
 }
 
-void UML_GameUserSettings::ApplyGameplaySettings()
+void UML_GameUserSettings::ApplyControlsSettings()
 {
-	// Broadcast events to update gameplay in real-time
-	// You can use a delegate/event system here to notify the game
-	// Example: OnGameplaySettingsChanged.Broadcast();
-	
-	UE_LOG(LogTemp, Log, TEXT("Gameplay settings applied - Grid: %s, Highlight: %s, Intensity: %.2f"),
-		bShowGrid ? TEXT("On") : TEXT("Off"),
-		bTileHighlight ? TEXT("On") : TEXT("Off"),
-		HighlightIntensity);
+	// Controls are pull-based: the input code reads sensitivity, dead zone and hold repeat
+	// through the getters when it needs them. The broadcast lets systems that cache these
+	// values (e.g. an input component configured once) refresh themselves.
+	OnControlsSettingsApplied.Broadcast();
+
+	UE_LOG(LogTemp, Verbose, TEXT("Controls settings applied - DeadZone: %.2f, HoldDelay: %.2f, HoldInterval: %.2f"),
+		GamepadDeadZone, GamepadHoldRepeatDelay, GamepadHoldRepeatInterval);
 }
 
 void UML_GameUserSettings::ApplyAccessibilitySettings()
 {
-	// Apply colorblind mode via post-process or material parameter collection
-	// Example: SetScalarParameter on a MPC to change game colors
-	
-	UE_LOG(LogTemp, Log, TEXT("Accessibility settings applied - Subtitles: %s, Size: %.2f, Colorblind: %d"),
+	// Accessibility is pull-based too: subtitle widgets read bSubtitles/SubtitlesSize when they
+	// display a line. The broadcast lets already-visible widgets and the colorblind post-process
+	// (once it exists) react immediately instead of waiting for the next read.
+	OnAccessibilitySettingsApplied.Broadcast();
+
+	UE_LOG(LogTemp, Log, TEXT("Accessibility settings applied - Subtitles: %s, Size: %.2f, Colorblind: %s"),
 		bSubtitles ? TEXT("On") : TEXT("Off"),
 		SubtitlesSize,
-		ColorblindMode);
+		*UEnum::GetValueAsString(ColorblindMode));
+}
+
+
+// ==================== Per-Setting Apply / Reset ====================
+
+void UML_GameUserSettings::ApplyMycelandSetting(const EMLSettingCategory Setting)
+{
+	switch (Setting)
+	{
+		case EMLSettingCategory::Graphics:
+			// Graphics need the full engine apply: ApplyGraphicsSettings only writes the
+			// pending values into the settings members. Super::ApplySettings (called by our
+			// override) is what actually pushes them to the engine — resolution change and
+			// Scalability::SetQualityLevels for the scalability CVars — and then saves.
+			// Without it, SaveSettings' Scalability::SaveState would persist the UNCHANGED
+			// active CVars and the pending scalability/resolution scale would be lost.
+			ApplySettings(false);
+			return; // ApplySettings already saved
+
+		case EMLSettingCategory::Audio:
+			ApplyAudioSettings();
+			break;
+
+		case EMLSettingCategory::Controls:
+			ApplyControlsSettings();
+			break;
+
+		case EMLSettingCategory::Accessibility:
+			ApplyAccessibilitySettings();
+			break;
+	}
+
+	SaveSettings();
+}
+
+void UML_GameUserSettings::ResetMycelandSettingToDefault(const EMLSettingCategory Setting)
+{
+	switch (Setting)
+	{
+		case EMLSettingCategory::Graphics:
+			ResolutionPx = AreValidResolutionsInitialized() ? GetClosestValidResolution(DefaultResolutionPx) : DefaultResolutionPx;
+			ResolutionValue = ValidResolutions.IndexOfByKey(ResolutionPx);
+			if (ResolutionValue == INDEX_NONE) ResolutionValue = DefaultResolutionValue;
+			ResolutionScale = DefaultResolutionScale;
+			WindowMode = DefaultWindowMode;
+			bVSync = DefaultVSync;
+			FrameRLimit = DefaultFrameRateLimit;
+			FrameLimit = DefaultFrameLimit;
+			LoadFrameLimit(); // Recompute the index from the valid limits when initialized
+			OverallQuality = DefaultQualityLevel;
+			break;
+
+		case EMLSettingCategory::Audio:
+			MasterVolume = DefaultMasterVolume;
+			MusicVolume = DefaultMusicVolume;
+			SFXVolume = DefaultSFXVolume;
+			VoiceVolume = DefaultVoiceVolume;
+			break;
+
+		case EMLSettingCategory::Controls:
+		{
+			// Hold repeat defaults come from the DeveloperSettings (designer tuning)
+			const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+			GamepadDeadZone = DefaultGamepadDeadZone;
+			GamepadHoldRepeatDelay = DevSettings ? DevSettings->GamepadHoldRepeatDelay : DefaultHoldRepeatDelay;
+			GamepadHoldRepeatInterval = DevSettings ? DevSettings->GamepadHoldRepeatInterval : DefaultHoldRepeatInterval;
+			break;
+		}
+
+		case EMLSettingCategory::Accessibility:
+			bSubtitles = DefaultSubtitles;
+			SubtitlesSize = DefaultSubtitlesSize;
+			ColorblindMode = DefaultColorblindMode;
+			break;
+	}
+
+	// Graphics stay pending until the Apply button; everything else takes effect and is saved now
+	if (Setting != EMLSettingCategory::Graphics)
+		ApplyMycelandSetting(Setting);
+
+	OnSettingsLoaded.Broadcast();
 }
 
 
 // ==================== Overrides ====================
+
+void UML_GameUserSettings::ValidateSettings()
+{
+	Super::ValidateSettings();
+
+	EnsureValidListsInitialized();
+
+	// Snap an out-of-whitelist saved resolution (first run, monitor change, hand-edited ini).
+	// At boot the engine runs this before creating the game window, so the window opens
+	// directly at the snapped resolution instead of the invalid saved one.
+	if (AreValidResolutionsInitialized())
+	{
+		const FIntPoint SavedResolution = Super::GetScreenResolution();
+		if (!ValidResolutions.Contains(SavedResolution))
+		{
+			const FIntPoint SnappedResolution = GetClosestValidResolution(SavedResolution);
+			Super::SetScreenResolution(SnappedResolution);
+
+			// Push the change to the system resolution outside the editor (no-op in PIE).
+			if (!GIsEditor)
+				RequestResolutionChange(SnappedResolution.X, SnappedResolution.Y, Super::GetFullscreenMode(), false);
+		}
+	}
+
+	if (AreValidFrameLimitsInitialized())
+	{
+		const float SavedLimit = Super::GetFrameRateLimit();
+		const float SnappedLimit = GetClosestValidFrameLimit(SavedLimit);
+		if (!FMath::IsNearlyEqual(SavedLimit, SnappedLimit))
+			Super::SetFrameRateLimit(SnappedLimit);
+	}
+}
 
 void UML_GameUserSettings::ApplySettings(bool bCheckForCommandLineOverrides)
 {
 	// Apply all custom settings
 	ApplyGraphicsSettings();
 	ApplyAudioSettings();
-	ApplyGameplaySettings();
+	ApplyControlsSettings();
 	ApplyAccessibilitySettings();
-	
+
 	// This will apply resolution and non-resolution settings
 	// THEN it will SaveSettings()
 	Super::ApplySettings(bCheckForCommandLineOverrides);
@@ -393,10 +586,10 @@ void UML_GameUserSettings::SetToDefaults()
 	
 	// Reset custom settings to default values
 	InitValues();
-	
+
 	ApplyGraphicsSettings();
 	ApplyAudioSettings();
-	ApplyGameplaySettings();
+	ApplyControlsSettings();
 	ApplyAccessibilitySettings();
 	
 	SaveSettings();
@@ -412,21 +605,22 @@ void UML_GameUserSettings::LoadSettings(bool bForceReload)
 	LoadResolution();
 	// ResolutionScale = FMath::Clamp(Super::GetResolutionScaleNormalized() * 100.0f, 1.0f, 100.0f);
 	ResolutionScale = ScalabilityQuality.ResolutionQuality;
-	WindowMode = static_cast<int32>(Super::GetFullscreenMode());
+	WindowMode = Super::GetFullscreenMode();
 	bVSync = Super::IsVSyncEnabled();
 	FrameRLimit = Super::GetFrameRateLimit();
 	LoadFrameLimit();
 	
-	OverallQuality = FMath::Clamp(Super::GetOverallScalabilityLevel(), 0, 4);
-	TextureQuality = Super::GetTextureQuality();
-	ShadowQuality = Super::GetShadowQuality();
-	EffectsQuality = Super::GetVisualEffectQuality();
-	PostProcessingQuality = Super::GetPostProcessingQuality();
-	GlobalIlluminationQuality = Super::GetGlobalIlluminationQuality();
+	// GetOverallScalabilityLevel returns -1 (custom) when ResolutionQuality doesn't match
+	// the preset's expected value — which is normal for us since the resolution scale is
+	// independent. In that case derive the level from the scalability groups instead:
+	// our UI only ever sets them all together, so any group is representative.
+	const int32 OverallLevel = Super::GetOverallScalabilityLevel();
+	OverallQuality = static_cast<EMLQualityLevel>(FMath::Clamp(
+		OverallLevel != INDEX_NONE ? OverallLevel : ScalabilityQuality.ViewDistanceQuality, 0, 4));
 	
 	ApplyAudioSettings();
-	ApplyGameplaySettings();
+	ApplyControlsSettings();
 	ApplyAccessibilitySettings();
-	
+
 	OnSettingsLoaded.Broadcast();
 }
