@@ -26,6 +26,9 @@ public:
 	// IMC used during cinematic sequences — should contain only the skip action
 	UPROPERTY(EditAnywhere, config, Category="Input")
 	FML_InputMappingEntry CinematicInputMappingContext;
+	
+	UPROPERTY(EditAnywhere, config, Category="Input")
+	FML_InputMappingEntry TeleportInputMappingContext;
 
 	UPROPERTY(EditAnywhere, config, Category="Input")
 	float ExitBoardHoldDuration = 2.f;
@@ -164,11 +167,27 @@ public:
 	}
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Settings")
-	UInputMappingContext* GetDefaultInputMappingContext(int32& Priority) const
+	UInputMappingContext* GetInputMappingContext(EInputMappingType Type, int32& Priority) const
 	{
-		if (DefaultInputMappingContext.Mapping.IsNull())
-			return nullptr;
+		const FML_InputMappingEntry* Entry;
 
-		return DefaultInputMappingContext.Mapping.LoadSynchronous();
+		switch (Type)
+		{
+			case EInputMappingType::Cinematic:
+				Entry = &CinematicInputMappingContext;
+				break;
+			case EInputMappingType::Teleport:
+				Entry = &TeleportInputMappingContext;
+				break;
+			default:
+				Entry = &DefaultInputMappingContext;
+				break;
+		}
+
+		Priority = Entry->Priority;
+
+		// Resolve the soft reference: returns the asset if already in memory, loads it now
+		// otherwise (IMCs are tiny assets). Returns nullptr if the entry is unset.
+		return Entry->Mapping.LoadSynchronous();
 	}
 };

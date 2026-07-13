@@ -27,6 +27,14 @@ class UML_PropagationWaves;
 class AML_Tile;
 
 UENUM(BlueprintType)
+enum class EInputMappingType : uint8
+{
+	Default,
+	Cinematic,
+	Teleport
+};
+
+UENUM(BlueprintType)
 enum class EML_HexGridLayout : uint8
 {
 	HexagonRadius UMETA(DisplayName="Hexagon (Radius)"),

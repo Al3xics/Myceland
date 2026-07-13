@@ -232,11 +232,12 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
-		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
+		int32 Priority = 0;
+		if (UInputMappingContext* MainIMC = DevSettings->GetInputMappingContext(EInputMappingType::Default, Priority))
 			InputSub->RemoveMappingContext(MainIMC);
 
-		if (UInputMappingContext* CinematicIMC = DevSettings->CinematicInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->AddMappingContext(CinematicIMC, DevSettings->CinematicInputMappingContext.Priority);
+		if (UInputMappingContext* CinematicIMC = DevSettings->GetInputMappingContext(EInputMappingType::Cinematic, Priority))
+			InputSub->AddMappingContext(CinematicIMC, Priority);
 	}
 
 	// Walk the player to the arrow with a steering arc; the trigger calls
@@ -303,11 +304,12 @@ void UML_NarrativeSubsystem::RestorePlayerControl() const
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
-		if (UInputMappingContext* CinematicIMC = DevSettings->CinematicInputMappingContext.Mapping.LoadSynchronous())
+		int32 Priority = 0;
+		if (UInputMappingContext* CinematicIMC = DevSettings->GetInputMappingContext(EInputMappingType::Cinematic, Priority))
 			InputSub->RemoveMappingContext(CinematicIMC);
 
-		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->AddMappingContext(MainIMC, DevSettings->DefaultInputMappingContext.Priority);
+		if (UInputMappingContext* MainIMC = DevSettings->GetInputMappingContext(EInputMappingType::Default, Priority))
+			InputSub->AddMappingContext(MainIMC, Priority);
 	}
 
 	GetPlayerController()->NotifyCinematicModeChanged(false); // false because cinematic ends
