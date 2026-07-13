@@ -490,7 +490,8 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 			return Cmd;
 		}
 
-		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Character->CurrentTileOn);
+		FML_TileNeighbors Neighbors;
+		Board->GetNeighbors(Character->CurrentTileOn, Neighbors);
 		if (Neighbors.Contains(PendingPlantTargetTile) &&
 			UML_TileTypeTraits::CanPlayerPlant(PendingPlantTargetTile->GetCurrentType()) &&
 			OwningController->HasEnergy())

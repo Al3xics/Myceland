@@ -2,6 +2,7 @@
 
 #include "GameFramework/PlayerController.h"
 #include "LevelSequence.h"
+#include "Player/ML_PlayerController.h"
 #include "LevelSequenceActor.h"
 #include "LevelSequencePlayer.h"
 #include "MovieSceneSequencePlayer.h"
@@ -47,32 +48,32 @@ bool UML_CinematicSubsystem::PlayCinematic(
 	DisablePlayerInput(TargetPlayerController);
 
 	if (IsValid(BlendCamera) && BlendTime > 0.f)
-{
-	TargetPlayerController->SetViewTargetWithBlend(
-		BlendCamera,
-		BlendTime,
-		VTBlend_Cubic
-	);
-
-	if (bWaitForBlendToFinish)
 	{
-		World->GetTimerManager().SetTimer(
-			BlendTimerHandle,
-			this,
-			&UML_CinematicSubsystem::StartPendingCinematic,
+		TargetPlayerController->SetViewTargetWithBlend(
+			BlendCamera,
 			BlendTime,
-			false
+			VTBlend_Cubic
 		);
+
+		if (bWaitForBlendToFinish)
+		{
+			World->GetTimerManager().SetTimer(
+				BlendTimerHandle,
+				this,
+				&UML_CinematicSubsystem::StartPendingCinematic,
+				BlendTime,
+				false
+			);
+		}
+		else
+		{
+			StartPendingCinematic();
+		}
 	}
 	else
 	{
 		StartPendingCinematic();
 	}
-}
-else
-{
-	StartPendingCinematic();
-}
 
 	OnCinematicStarted.Broadcast();
 	return true;
@@ -174,6 +175,10 @@ void UML_CinematicSubsystem::DisablePlayerInput(APlayerController* PlayerControl
 	}
 
 	PlayerController->DisableInput(PlayerController);
+
+	// Hide the cursor and stop the hover/path previews while the cinematic plays.
+	if (AML_PlayerController* MLController = Cast<AML_PlayerController>(PlayerController))
+		MLController->NotifyCinematicModeChanged(true);
 }
 
 void UML_CinematicSubsystem::RestorePlayerInput()
@@ -184,6 +189,9 @@ void UML_CinematicSubsystem::RestorePlayerInput()
 	}
 
 	CachedPlayerController->EnableInput(CachedPlayerController);
+
+	if (AML_PlayerController* MLController = Cast<AML_PlayerController>(CachedPlayerController))
+		MLController->NotifyCinematicModeChanged(false);
 }
 
 void UML_CinematicSubsystem::ClearCinematicReferences()

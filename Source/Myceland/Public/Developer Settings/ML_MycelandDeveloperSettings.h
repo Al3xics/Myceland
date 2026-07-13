@@ -7,8 +7,6 @@
 #include "Core/ML_CoreData.h"
 #include "Engine/DeveloperSettings.h"
 #include "InputMappingContext.h"
-#include "Sound/SoundClass.h"
-#include "Sound/SoundMix.h"
 #include "ML_MycelandDeveloperSettings.generated.h"
 
 class AML_Collectible;
@@ -85,24 +83,18 @@ public:
 	
 	
 	// ==================== Audio ====================
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> MasterSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> MusicSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> SFXSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> UISoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Classes")
-	TSoftObjectPtr<USoundClass> VoiceSoundClass;
-    
-	UPROPERTY(EditAnywhere, config, Category="Audio|Sound Mix")
-	TSoftObjectPtr<USoundMix> GameSoundMix;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString MasterFMODVCAPath = TEXT("vca:/Master");
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString MusicFMODVCAPath = TEXT("vca:/Music");
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString SFXFMODVCAPath = TEXT("vca:/SFX");
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
+	FString VoiceFMODVCAPath = TEXT("vca:/Voice");
 	
 	
 	
@@ -137,12 +129,30 @@ public:
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
 	float ResetTargetDuration = 4.0f;
-	
+
+
+	// ==================== Frame Budgets ====================
+	// Per-frame CPU budgets (milliseconds) for the subsystems that time-slice their
+	// work across frames. When the work of one step exceeds the budget, the
+	// remainder continues on the following frames.
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the wave propagation may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
+	float WavePropagationFrameBudgetMs = 2.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the animated undo/reset may spend reverting tiles and destroying spawned actors in a single frame. When an undo wave group is bigger than the budget, the remainder continues on the following frames."))
+	float RollbackFrameBudgetMs = 8.0f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the win propagation wave may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
+	float WinFrameBudgetMs = 2.0f;
+
 
 	// ==================== Win ====================
 
 	UPROPERTY(EditAnywhere,Category = "Myceland WinLose")
 	float WinDelay = 0.5f;
+
+	UPROPERTY(EditAnywhere,Category = "Myceland WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
+	float WinTileDelay = 0.1f;
 	
 	
 	// ==================== Helper ====================

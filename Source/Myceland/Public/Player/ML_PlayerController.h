@@ -229,7 +229,7 @@ public:
 	// ==================== Camera ====================
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
-	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
+	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, float BlendExp = 0.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
 
 	// ==================== Movement Control ====================
 

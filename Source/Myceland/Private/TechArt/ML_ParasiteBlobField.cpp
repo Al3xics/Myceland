@@ -138,7 +138,8 @@ void AML_ParasiteBlobField::RefreshTargetsFromWorld()
 			continue;
 		}
 
-		const TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Tile);
+		FML_TileNeighbors Neighbors;
+		Board->GetNeighbors(Tile, Neighbors);
 
 		for (AML_Tile* Neighbor : Neighbors)
 		{
@@ -393,7 +394,8 @@ void AML_ParasiteBlobField::AddBlobForTile(
 	OutBlobData.Board = Board;
 	OutBlobData.CenterWS = BaseCenterWS;
 
-	const TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Tile);
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(Tile, Neighbors);
 
 	FVector SideDirs[6];
 	for (int32 Side = 0; Side < 6; ++Side)
@@ -639,7 +641,8 @@ int32 AML_ParasiteBlobField::FindSideIndexToNeighbor(AML_Tile* FromTile, AML_Til
 		return INDEX_NONE;
 	}
 
-	const TArray<AML_Tile*> Neighbors = Board->GetNeighbors(FromTile);
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(FromTile, Neighbors);
 
 	for (int32 i = 0; i < Neighbors.Num(); ++i)
 	{
@@ -662,7 +665,8 @@ FVector AML_ParasiteBlobField::GetDirectionVectorForSide(AML_Tile* Tile, int32 S
 	AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 	if (IsValid(Board))
 	{
-		const TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Tile);
+		FML_TileNeighbors Neighbors;
+		Board->GetNeighbors(Tile, Neighbors);
 		if (Neighbors.IsValidIndex(SideIndex) && IsValid(Neighbors[SideIndex]))
 		{
 			FVector Delta = Neighbors[SideIndex]->GetActorLocation() - Tile->GetActorLocation();

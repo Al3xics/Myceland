@@ -181,28 +181,22 @@ public:
 	float SFXVolume = 100.0f;
 	
 	UPROPERTY(Config)
-	float UIVolume = 100.0f;
-	
-	UPROPERTY(Config)
 	float VoiceVolume = 100.0f;
 
 	
 	// ===== Audio Setters =====
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
-	void SetMasterVolume(const float Volume) { MasterVolume = Volume; }
+	void SetMasterVolume(float Volume);
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
-	void SetMusicVolume(const float Volume) { MusicVolume = Volume; }
+	void SetMusicVolume(float Volume);
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
-	void SetSFXVolume(const float Volume) { SFXVolume = Volume; }
+	void SetSFXVolume(float Volume);
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
-	void SetUIVolume(const float Volume) { UIVolume = Volume; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
-	void SetVoiceVolume(const float Volume) { VoiceVolume = Volume; }
+	void SetVoiceVolume(float Volume);
 
 	
 	// ===== Audio Getters =====
@@ -215,9 +209,6 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category = "Settings|Audio")
 	float GetSFXVolume() const { return SFXVolume; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Audio")
-	float GetUIVolume() const { return UIVolume; }
 	
 	UFUNCTION(BlueprintPure, Category = "Settings|Audio")
 	float GetVoiceVolume() const { return VoiceVolume; }

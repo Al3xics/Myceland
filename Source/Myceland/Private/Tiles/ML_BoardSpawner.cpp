@@ -298,28 +298,26 @@ void AML_BoardSpawner::DestroyStaleTiles() const
 	}
 }
 
-TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile)
+// Blueprint-only
+TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile) const
 {
-	if (!CenterTile) return TArray<AML_Tile*>();
+	FML_TileNeighbors Neighbors;
+	GetNeighbors(CenterTile, Neighbors);
+	return TArray<AML_Tile*>(Neighbors);
+}
+
+void AML_BoardSpawner::GetNeighbors(const AML_Tile* CenterTile, FML_TileNeighbors& OutNeighbors) const
+{
+	OutNeighbors.Reset();
+	if (!CenterTile) return;
 
 	const FIntPoint CenterAxial = CenterTile->GetAxialCoord();
-	TArray<AML_Tile*> Neighbors;
-	Neighbors.Reserve(6);
 
 	for (const FIntPoint& Dir : Directions)
 	{
-		const FIntPoint NeighborKey = CenterAxial + Dir;
-		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(NeighborKey))
-		{
-			Neighbors.Add(Found->Get());
-		}
-		else
-		{
-			Neighbors.Add(nullptr);
-		}
+		const TObjectPtr<AML_Tile>* Found = GridMap.Find(CenterAxial + Dir);
+		OutNeighbors.Add(Found ? Found->Get() : nullptr);
 	}
-
-	return Neighbors;
 }
 
 TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const
@@ -392,39 +390,6 @@ AML_Tile* AML_BoardSpawner::FindClosestWalkableBorderTile(const FVector& WorldLo
 	}
 
 	return ClosestBorderTile;
-}
-
-AML_Tile* AML_BoardSpawner::FindClosestWaterPathTile(const AML_Tile* Tile)
-{
-	if (WaterPaths.Num() == 0) return nullptr;
-	
-	AML_Tile* ClosestPathTile = nullptr;
-	float ClosestDistance = FLT_MAX;
-    
-	for (const auto& [EntryTile, ExitTile] : WaterPaths)
-	{
-		if (IsValid(EntryTile))
-		{
-			float Distance = FVector::Dist(Tile->GetActorLocation(), EntryTile->GetActorLocation());
-			if (Distance < ClosestDistance)
-			{
-				ClosestDistance = Distance;
-				ClosestPathTile = EntryTile;
-			}
-		}
-        
-		if (IsValid(ExitTile))
-		{
-			float Distance = FVector::Dist(Tile->GetActorLocation(), ExitTile->GetActorLocation());
-			if (Distance < ClosestDistance)
-			{
-				ClosestDistance = Distance;
-				ClosestPathTile = ExitTile;
-			}
-		}
-	}
-	
-	return ClosestPathTile;
 }
 
 AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocation) const

@@ -11,10 +11,12 @@
 void UML_WaveGrass::ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTile, TSet<AML_Tile*>& WaterConnected)
 {
     TQueue<AML_Tile*> ExpansionQueue;
+    FML_TileNeighbors Neighbors;
 
-        for (AML_Tile* Neighbor : Board->GetNeighbors(FromTile))
-        {
-            if (Neighbor && UML_TileTypeTraits::IsWaterType(Neighbor->GetCurrentType()) && !WaterConnected.Contains(Neighbor))
+    Board->GetNeighbors(FromTile, Neighbors);
+    for (AML_Tile* Neighbor : Neighbors)
+    {
+        if (Neighbor && UML_TileTypeTraits::IsWaterType(Neighbor->GetCurrentType()) && !WaterConnected.Contains(Neighbor))
         {
             WaterConnected.Add(Neighbor);
             ExpansionQueue.Enqueue(Neighbor);
@@ -26,7 +28,8 @@ void UML_WaveGrass::ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTi
         AML_Tile* CurrentWater;
         ExpansionQueue.Dequeue(CurrentWater);
 
-        for (AML_Tile* Neighbor : Board->GetNeighbors(CurrentWater))
+        Board->GetNeighbors(CurrentWater, Neighbors);
+        for (AML_Tile* Neighbor : Neighbors)
         {
             if (Neighbor && UML_TileTypeTraits::IsWaterType(Neighbor->GetCurrentType()) && !WaterConnected.Contains(Neighbor))
             {
@@ -39,8 +42,6 @@ void UML_WaveGrass::ExpandWaterNetwork(AML_BoardSpawner* Board, AML_Tile* FromTi
 
 void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-    GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("Grass Wave"));
-    
     if (!OriginTile) return;
 
     AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
@@ -103,23 +104,24 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
     
     TMap<AML_Tile*, int32> DistanceToGrass;
     DistanceToGrass.Reserve(GridTiles.Num());
-    
+
     TQueue<TPair<AML_Tile*, int32>> DistanceQueue;
-    
+    FML_TileNeighbors Neighbors;
+
     for (AML_Tile* Source : GrassSources)
     {
         DistanceToGrass.Add(Source, 0);
         DistanceQueue.Enqueue({ Source, 0 });
     }
-    
+
     while (!DistanceQueue.IsEmpty())
     {
         TPair<AML_Tile*, int32> Current;
         DistanceQueue.Dequeue(Current);
-        
-        const TArray<AML_Tile*>& Neighbors = Board->GetNeighbors(Current.Key);
+
+        Board->GetNeighbors(Current.Key, Neighbors);
         const int32 NextDist = Current.Value + 1;
-        
+
         for (AML_Tile* Neighbor : Neighbors)
         {
             if (Neighbor && !DistanceToGrass.Contains(Neighbor))
@@ -139,8 +141,8 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
     // Checking neighbors' access to all water tiles in the network
     for (AML_Tile* WaterTile : WaterConnected)
     {
-        const TArray<AML_Tile*>& Neighbors = Board->GetNeighbors(WaterTile);
-        
+        Board->GetNeighbors(WaterTile, Neighbors);
+
         for (AML_Tile* Neighbor : Neighbors)
         {
             if (!Neighbor || Scheduled.Contains(Neighbor) || !UML_TileTypeTraits::CanGrassPropagateTo(Neighbor->GetCurrentType()))
@@ -169,8 +171,8 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
             ExpandWaterNetwork(Board, CurrentTile, WaterConnected);
         }
 
-        const TArray<AML_Tile*>& Neighbors = Board->GetNeighbors(CurrentTile);
-        
+        Board->GetNeighbors(CurrentTile, Neighbors);
+
         for (AML_Tile* Neighbor : Neighbors)
         {
             if (!Neighbor || Scheduled.Contains(Neighbor) || !UML_TileTypeTraits::CanGrassPropagateTo(Neighbor->GetCurrentType()))
@@ -178,8 +180,9 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
 
             // Checking if the neighbor is touching the water
             bool bTouchesWater = false;
-            const TArray<AML_Tile*>& AroundNeighbors = Board->GetNeighbors(Neighbor);
-            
+            FML_TileNeighbors AroundNeighbors;
+            Board->GetNeighbors(Neighbor, AroundNeighbors);
+
             for (AML_Tile* Around : AroundNeighbors)
             {
                 if (Around && WaterConnected.Contains(Around))
@@ -201,8 +204,8 @@ void UML_WaveGrass::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
         }
     }
 
-    // Sort by distance
-    OutChanges.Sort([](const FML_WaveChange& A, const FML_WaveChange& B)
+    // Sort by distance (stable: keeps insertion order inside a ring, deterministic for undo)
+    OutChanges.StableSort([](const FML_WaveChange& A, const FML_WaveChange& B)
     {
         return A.DistanceFromOrigin < B.DistanceFromOrigin;
     });

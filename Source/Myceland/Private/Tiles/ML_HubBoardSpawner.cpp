@@ -182,7 +182,7 @@ void AML_HubBoardSpawner::ApplyAllTileChanges(int32 EntryIndex)
 	// Trigger a full board propagation pass from any placed tile.
 	// Waves scan the entire board, so one call is sufficient regardless of how many tiles changed.
 	if (IsValid(FirstPlacedTile) && WavePropagationSubsystem && !WavePropagationSubsystem->IsResolvingTiles())
-		WavePropagationSubsystem->BeginTileResolved(FirstPlacedTile);
+		WavePropagationSubsystem->BeginTileResolvedWithoutAvatarSurprise(FirstPlacedTile);
 
 	FTimerHandle Handle;
 	GetWorld()->GetTimerManager().SetTimer(
@@ -208,7 +208,7 @@ void AML_HubBoardSpawner::ApplySingleTileChange(int32 EntryIndex, int32 TileChan
 		Change.TargetTile->UpdateClassAtRuntime(Change.TargetType, MLTileClass);
 
 		if (WavePropagationSubsystem && !WavePropagationSubsystem->IsResolvingTiles())
-			WavePropagationSubsystem->BeginTileResolved(Change.TargetTile);
+			WavePropagationSubsystem->BeginTileResolvedWithoutAvatarSurprise(Change.TargetTile);
 	}
 
 	const int32 NextIndex = TileChangeIndex + 1;

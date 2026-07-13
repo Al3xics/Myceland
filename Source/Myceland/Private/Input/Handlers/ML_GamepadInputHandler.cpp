@@ -202,7 +202,8 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 		? FocusedTile
 		: Character->CurrentTileOn;
 
-	const TArray<AML_Tile*> Neighbors = Board->GetNeighbors(OriginTile);
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(OriginTile, Neighbors);
 	if (Neighbors.IsEmpty()) return nullptr;
 
 	const FVector StickWorldDir = StickToWorldDirection(StickValue);
