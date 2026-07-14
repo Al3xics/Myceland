@@ -56,8 +56,28 @@ void UML_InputDeviceManager::SwitchToDevice(EML_InputDevice NewDevice)
 	UE_LOG(LogTemp, Log, TEXT("Input device switched to %s"), *ActiveHandler->GetName());
 }
 
+void UML_InputDeviceManager::SetAvailableDevices(bool bMouseKeyboard, bool bGamepad)
+{
+	// Never lock out everything (e.g. an empty / misconfigured gameplay array) — fall back to both.
+	if (!bMouseKeyboard && !bGamepad)
+	{
+		bMouseKeyboard = true;
+		bGamepad = true;
+	}
+
+	bMouseKeyboardAvailable = bMouseKeyboard;
+	bGamepadAvailable = bGamepad;
+
+	// If the current device just became unavailable, switch to the one that is available.
+	if (CurrentDevice == EML_InputDevice::Gamepad && !bGamepadAvailable)
+		SwitchToDevice(EML_InputDevice::MouseKeyboard);
+	else if (CurrentDevice == EML_InputDevice::MouseKeyboard && !bMouseKeyboardAvailable)
+		SwitchToDevice(EML_InputDevice::Gamepad);
+}
+
 void UML_InputDeviceManager::NotifyGamepadInput()
 {
+	if (!bGamepadAvailable) return; // no gamepad IMC in the array → gamepad input is intentionally ignored
 	bGamepadConnectEventPending = false;
 	if (CurrentDevice != EML_InputDevice::Gamepad)
 		SwitchToDevice(EML_InputDevice::Gamepad);
@@ -77,6 +97,7 @@ void UML_InputDeviceManager::NotifyMixedAction()
 
 void UML_InputDeviceManager::NotifyMouseKeyboardInput()
 {
+	if (!bMouseKeyboardAvailable) return; // no mouse/keyboard IMC in the array → its input is ignored
 	if (CurrentDevice != EML_InputDevice::MouseKeyboard)
 		SwitchToDevice(EML_InputDevice::MouseKeyboard);
 }
@@ -100,6 +121,8 @@ void UML_InputDeviceManager::HandleHardwareDeviceChanged(const FPlatformUserId U
 
 	if (bIsGamepad)
 	{
+		if (!bGamepadAvailable) return; // no gamepad IMC → don't switch to a device with no mappings
+
 		// Gamepad button press. Guard against auto-switch on mere connection when
 		// bSwitchOnGamepadConnect is false.
 		const bool bFromConnectionEvent = bGamepadConnectEventPending;
@@ -118,7 +141,7 @@ void UML_InputDeviceManager::HandleDeviceConnectionChanged(EInputDeviceConnectio
 	if (NewState == EInputDeviceConnectionState::Disconnected)
 	{
 		bGamepadConnectEventPending = false;
-		if (CurrentDevice == EML_InputDevice::Gamepad)
+		if (CurrentDevice == EML_InputDevice::Gamepad && bMouseKeyboardAvailable)
 			SwitchToDevice(EML_InputDevice::MouseKeyboard);
 	}
 	else if (NewState == EInputDeviceConnectionState::Connected)
@@ -138,7 +161,7 @@ void UML_InputDeviceManager::HandleDeviceConnectionChanged(EInputDeviceConnectio
 			return;
 		}
 
-		if (bSwitchOnGamepadConnect)
+		if (bSwitchOnGamepadConnect && bGamepadAvailable)
 		{
 			bGamepadConnectEventPending = false;
 			if (CurrentDevice != EML_InputDevice::Gamepad)
@@ -149,7 +172,7 @@ void UML_InputDeviceManager::HandleDeviceConnectionChanged(EInputDeviceConnectio
 			bGamepadConnectEventPending = true;
 			// HandleHardwareDeviceChanged may have already fired before this callback
 			// and auto-switched — undo that if bSwitchOnGamepadConnect is false.
-			if (CurrentDevice == EML_InputDevice::Gamepad)
+			if (CurrentDevice == EML_InputDevice::Gamepad && bMouseKeyboardAvailable)
 				SwitchToDevice(EML_InputDevice::MouseKeyboard);
 		}
 	}

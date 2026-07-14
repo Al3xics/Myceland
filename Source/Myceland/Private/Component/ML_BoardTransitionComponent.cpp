@@ -168,8 +168,12 @@ void UML_BoardTransitionComponent::TickExitHold()
 		return;
 	}
 
-	// Calculate progress
-	const float Progress = FMath::Clamp(ExitHoldTimer / DevSettings->ExitBoardHoldDuration, 0.f, 1.f);
+	// Calculate progress. A zero (or negative) hold duration means "no hold" — a simple press
+	// exits immediately, so progress is already full on the first tick (guards against div-by-zero).
+	const float HoldDuration = DevSettings->ExitBoardHoldDuration;
+	const float Progress = (HoldDuration > KINDA_SMALL_NUMBER)
+		? FMath::Clamp(ExitHoldTimer / HoldDuration, 0.f, 1.f)
+		: 1.f;
 
 	const bool bJustStartedExiting = !bWasExitingLastFrame;
 	const bool bProgressChanged    = FMath::Abs(Progress - LastBroadcastProgress) > 0.01f;
@@ -184,7 +188,7 @@ void UML_BoardTransitionComponent::TickExitHold()
 	// Must match the timer rate: the hold progress advances by exactly one tick interval per tick.
 	ExitHoldTimer += GetExitHoldTickInterval();
 
-	if (ExitHoldTimer >= DevSettings->ExitBoardHoldDuration)
+	if (ExitHoldTimer >= HoldDuration)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
 		ExitHoldTimer         = 0.f;

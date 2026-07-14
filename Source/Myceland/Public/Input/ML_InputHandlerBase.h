@@ -52,4 +52,19 @@ public:
 
 	/** IA_GamepadMove → Completed / Canceled. Called when the stick returns to the dead zone. */
 	virtual void OnStickReleased() {}
+
+	/**
+	 * IA_GamepadSelectPlant → Triggered. Right stick, called every frame while away from neutral.
+	 * Selects the plantable tile around the player most aligned with the stick direction.
+	 */
+	virtual void OnPlantSelectAxis(FVector2D StickValue, float DeltaTime) {}
+
+	/** IA_GamepadSelectPlant → Completed / Canceled. Right stick returned to the dead zone. */
+	virtual void OnPlantSelectReleased() {}
+
+	/** IA_GamepadExit → Started. Starts the exit hold when the player stands on an exit tile. */
+	virtual void OnExitAction() {}
+
+	/** IA_GamepadExit → Completed / Canceled. Cancels an in-progress exit hold. */
+	virtual void OnExitReleased() {}
 };

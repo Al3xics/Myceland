@@ -48,6 +48,25 @@ void AML_BoardSpawner::SetBoardTransitionEnabled(bool bEnabled)
 			PC->NotifyBoardTransitionDisabled(this);
 }
 
+// ==================== Myceland Board Exits (gamepad) ====================
+
+const FML_BoardExit* AML_BoardSpawner::FindExitForTile(const AML_Tile* PlayerTile) const
+{
+	if (!IsValid(PlayerTile))
+		return nullptr;
+
+	for (const FML_BoardExit& Exit : BoardExits)
+	{
+		for (const TObjectPtr<AML_Tile>& ExitTile : Exit.ExitTiles)
+		{
+			if (ExitTile == PlayerTile)
+				return &Exit;
+		}
+	}
+
+	return nullptr;
+}
+
 #if WITH_EDITOR
 void AML_BoardSpawner::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {

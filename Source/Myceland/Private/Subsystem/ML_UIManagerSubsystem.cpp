@@ -6,6 +6,7 @@
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Input/ML_InputDeviceManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Player/ML_PlayerController.h"
 #include "UI/ML_RootWidgetBase.h"
 #include "UI/ML_WidgetBase.h"
 
@@ -63,6 +64,13 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget)
 	UWidget* FocusTarget = Widget->GetDefaultFocusWidget();
 	TSharedRef<SWidget> FocusSlateWidget = FocusTarget ? FocusTarget->TakeWidget() : Widget->TakeWidget();
 
+	// Only show the OS cursor when the mouse/keyboard is the active device. On gamepad the menu is
+	// navigated by focus (D-pad / stick), so forcing the cursor on would wrongly bring it back
+	// (e.g. after winning a puzzle while playing on gamepad).
+	bool bShowCursor = true;
+	if (const AML_PlayerController* MLPC = Cast<AML_PlayerController>(PC))
+		bShowCursor = !MLPC->IsGamepadActive();
+
 	switch (Widget->InputMode)
 	{
 		case EML_WidgetInputMode::GameOnly:
@@ -70,7 +78,7 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget)
 				FInputModeGameOnly Mode;
 				Mode.SetConsumeCaptureMouseDown(false);
 				PC->SetInputMode(Mode);
-				PC->SetShowMouseCursor(true);
+				PC->SetShowMouseCursor(bShowCursor);
 				break;
 			}
 
@@ -80,7 +88,7 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget)
 				Mode.SetWidgetToFocus(FocusSlateWidget);
 				Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 				PC->SetInputMode(Mode);
-				PC->SetShowMouseCursor(true);
+				PC->SetShowMouseCursor(bShowCursor);
 				break;
 			}
 
@@ -91,7 +99,7 @@ void UML_UIManagerSubsystem::ApplyInputModeFromWidget(UML_WidgetBase* Widget)
 				Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 				Mode.SetHideCursorDuringCapture(false);
 				PC->SetInputMode(Mode);
-				PC->SetShowMouseCursor(true);
+				PC->SetShowMouseCursor(bShowCursor);
 				break;
 			}
 

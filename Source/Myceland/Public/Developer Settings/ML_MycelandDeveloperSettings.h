@@ -20,14 +20,17 @@ class MYCELAND_API UML_MycelandDeveloperSettings : public UDeveloperSettings
 public:
 	// ==================== Input ====================
 	
-	UPROPERTY(EditAnywhere, config, Category="Input")
-	FML_InputMappingEntry DefaultInputMappingContext;
+	// All gameplay IMCs, mapped together while not in a cinematic. Keep BOTH the mouse/keyboard and the
+	// gamepad IMC here: device detection piggy-backs on their action callbacks, so both must stay mapped
+	// for the gamepad <-> mouse/keyboard switch to work in both directions.
+	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
+	TArray<FML_InputMappingEntry> GameplayInputMappingContexts;
 
 	// IMC used during cinematic sequences — should contain only the skip action
-	UPROPERTY(EditAnywhere, config, Category="Input")
+	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
 	FML_InputMappingEntry CinematicInputMappingContext;
 	
-	UPROPERTY(EditAnywhere, config, Category="Input")
+	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
 	FML_InputMappingEntry TeleportInputMappingContext;
 
 	UPROPERTY(EditAnywhere, config, Category="Input")
@@ -43,6 +46,16 @@ public:
 	// Lower = faster. Acts as the hold movement speed of the selection cursor.
 	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.01", Tooltip="Seconds between each tile step while the stick is held (lower = faster).\nDefault value only: the player can override it in the settings menu (saved in GameUserSettings.ini). Reset in the menu picks this value back up."))
 	float GamepadHoldRepeatInterval = 0.1f;
+
+	// Gamepad (inside board): minimum stick/direction alignment (dot product) required to step the
+	// player toward a neighbor tile with the left stick. cos 60 deg = 0.5, cos 30 deg = 0.866.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the left stick to step toward a neighbor tile. 0.5 = cos 60 deg."))
+	float GamepadMoveAlignmentThreshold = 0.5f;
+
+	// Gamepad (inside board): minimum stick/direction alignment (dot product) required for the right
+	// stick to select a plantable tile around the player. cos 60 deg = 0.5, cos 30 deg = 0.866.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the right stick to select a plantable tile. 0.5 = cos 60 deg."))
+	float GamepadSelectAlignmentThreshold = 0.5f;
 
 
 
@@ -176,10 +189,10 @@ public:
 
 	// ==================== Win ====================
 
-	UPROPERTY(EditAnywhere,Category = "Myceland WinLose")
+	UPROPERTY(EditAnywhere,Category = "WinLose")
 	float WinDelay = 0.5f;
 
-	UPROPERTY(EditAnywhere,Category = "Myceland WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
+	UPROPERTY(EditAnywhere,Category = "WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
 	float WinTileDelay = 0.1f;
 	
 	
@@ -198,14 +211,12 @@ public:
 
 		switch (Type)
 		{
-			case EInputMappingType::Cinematic:
-				Entry = &CinematicInputMappingContext;
-				break;
 			case EInputMappingType::Teleport:
 				Entry = &TeleportInputMappingContext;
 				break;
+			case EInputMappingType::Cinematic:
 			default:
-				Entry = &DefaultInputMappingContext;
+				Entry = &CinematicInputMappingContext;
 				break;
 		}
 

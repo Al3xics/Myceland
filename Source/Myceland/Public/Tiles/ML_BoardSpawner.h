@@ -1,4 +1,4 @@
-﻿// Copyright Myceland Team, All Rights Reserved.
+// Copyright Myceland Team, All Rights Reserved.
 
 #pragma once
 
@@ -24,38 +24,41 @@ class AML_Tile;
 // filling it never allocates heap memory, unlike a regular TArray.
 using FML_TileNeighbors = TArray<AML_Tile*, TInlineAllocator<6>>;
 
+// All categories below are prefixed "ML- " so typing "ML" in the Details panel search box
+// filters the panel down to this class's own categories. The Details panel sorts categories by
+// declaration order, never by name, so the prefix is for searching only — don't expect it to sort.
 UCLASS()
 class MYCELAND_API AML_BoardSpawner : public AActor
 {
 	GENERATED_BODY()
 
 private:
-	// ==================== Myceland Runtime ====================
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+	// ==================== ML- Runtime ====================
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	int32 EnergyForPuzzle = 1;
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	UML_BiomeTileSet* BiomeTileSet;
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	ACameraActor* AssociatedCamera;
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	AActor* AssociatedObstacle;
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	TArray<AActor*> AssociatedNatureZones;
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	TArray<AActor*> AssociatedWaterPaths;
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	ULevelSequence* AssociatedWinCinematic;
-	
-	UPROPERTY(EditInstanceOnly, Category="Myceland Runtime")
+
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	TObjectPtr<AML_CinematicCameraRail> AssociatedStartCinematicRail = nullptr;
-	
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AML_Tile>> SpawnedTiles;
 
@@ -72,12 +75,12 @@ private:
 	// active glow on OFF). EditAnywhere/BlueprintReadOnly still expose them via reflection.
 
 	// When false, this board's tiles never glow (cursor hover + path preview).
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Myceland Board Switches", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="ML- Board Switches", meta=(AllowPrivateAccess="true"))
 	bool bGlowEnabled = true;
 
 	// When false, the player never enters this board's tile-by-tile mode: clicking it stays in
 	// free movement, and there is no exit-hold. The board movement system is fully disabled for it.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Myceland Board Switches", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="ML- Board Switches", meta=(AllowPrivateAccess="true"))
 	bool bBoardTransitionEnabled = true;
 
 	// Generators
@@ -89,14 +92,14 @@ private:
 	// Conversions
 	FVector AxialToWorld(int32 Q, int32 R) const;
 	FIntPoint OffsetToAxial(int32 Col, int32 Row) const;
-	
+
 	FML_PuzzleState BuildPuzzleStateFromCurrentGrid() const;
 
 	// Blueprint-only version (UHT can't expose the inline-allocator array above, so this
 	// one copies into a regular TArray). Private on purpose: Blueprint ignores C++ access
 	// specifiers so BP graphs can still call it, while C++ code is forced to use the
 	// allocation-free overload above.
-	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
+	UFUNCTION(BlueprintCallable, Category="ML- Hex Grid")
 	TArray<AML_Tile*> GetNeighbors(AML_Tile* CenterTile) const;
 
 protected:
@@ -112,131 +115,143 @@ protected:
 public:
 	AML_BoardSpawner();
 	FIntPoint WorldToAxial(const FVector& WorldLocation) const;
-	
-	
-	// ==================== Myceland Hex Grid ====================
-	
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+
+
+	// ==================== ML- Hex Grid ====================
+
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TSubclassOf<AML_Tile> TileClass;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	EML_HexGridLayout GridLayout = EML_HexGridLayout::HexagonRadius;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0", EditCondition="GridLayout==EML_HexGridLayout::HexagonRadius", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid", meta=(ClampMin="0", EditCondition="GridLayout==EML_HexGridLayout::HexagonRadius", EditConditionHides))
 	int32 Radius = 2;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Rectangle", meta=(ClampMin="1", EditCondition="GridLayout==EML_HexGridLayout::RectangleWH", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid|Rectangle", meta=(ClampMin="1", EditCondition="GridLayout==EML_HexGridLayout::RectangleWH", EditConditionHides))
 	int32 GridWidth = 5;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid|Rectangle", meta=(ClampMin="1", EditCondition="GridLayout==EML_HexGridLayout::RectangleWH", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid|Rectangle", meta=(ClampMin="1", EditCondition="GridLayout==EML_HexGridLayout::RectangleWH", EditConditionHides))
 	int32 GridHeight = 5;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	EML_HexOrientation Orientation = EML_HexOrientation::FlatTop;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(EditCondition="GridLayout==EML_HexGridLayout::RectangleWH", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid", meta=(EditCondition="GridLayout==EML_HexGridLayout::RectangleWH", EditConditionHides))
 	EML_HexOffsetLayout OffsetLayout = EML_HexOffsetLayout::OddR;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="1.0"))
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid", meta=(ClampMin="1.0"))
 	float TileSize = 100.f;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	FRotator TileRotation = FRotator::ZeroRotator;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid", meta=(ClampMin="0.01"))
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
-	
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TArray<AML_CameraRail*> AssociatedCameraRails;
-	
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TArray<FML_WaterPath> WaterPaths;
 
-	UPROPERTY(EditAnywhere, Category="Myceland Hex Grid")
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TSubclassOf<AML_TileBase> WaterChangeTile;
-	
+
 	UPROPERTY(BlueprintReadWrite)
     bool bIsPuzzleSolved;
-	
-	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Update Current Grid"))
+
+	UFUNCTION(CallInEditor, Category="ML- Hex Grid", meta=(DisplayName="Update Current Grid"))
 	void UpdateCurrentGridEditor();
 
-	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Clear & Rebuild Grid"))
+	UFUNCTION(CallInEditor, Category="ML- Hex Grid", meta=(DisplayName="Clear & Rebuild Grid"))
 	void RebuildGrid();
-	
-	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Clear Grid"))
+
+	UFUNCTION(CallInEditor, Category="ML- Hex Grid", meta=(DisplayName="Clear Grid"))
 	void ClearTiles();
-	
-	UFUNCTION(CallInEditor, Category="Myceland Hex Grid", meta=(DisplayName="Destroy Stale Tiles"))
+
+	UFUNCTION(CallInEditor, Category="ML- Hex Grid", meta=(DisplayName="Destroy Stale Tiles"))
 	void DestroyStaleTiles() const;
-	
+
 	// Fills the caller-provided inline buffer (no heap allocation, reusable across calls).
 	// Always outputs 6 entries, nullptr where no neighbor exists.
 	void GetNeighbors(const AML_Tile* CenterTile, FML_TileNeighbors& OutNeighbors) const;
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	TMap<FIntPoint, AML_Tile*> GetGridMap() const;
 
 	const TMap<FIntPoint, AML_Tile*>& GetGridMapRef() const;
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	TArray<AML_Tile*> GetGridTiles();
 
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	TArray<AML_Tile*> GetTreeTiles() const;
 
-	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	UFUNCTION(BlueprintPure, Category="ML- Hex Grid")
 	AML_Tile* FindClosestWalkableBorderTile(const FVector& WorldLocation) const;
 
-	UFUNCTION(BlueprintPure, Category="Myceland Hex Grid")
+	UFUNCTION(BlueprintPure, Category="ML- Hex Grid")
 	AML_CameraRail* GetClosestCameraRail(const FVector& WorldLocation) const;
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	UML_BiomeTileSet* GetBiomeTileSet() const { return BiomeTileSet; }
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	ACameraActor* GetAssociatedCamera() const { return AssociatedCamera; }
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	AActor* GetAssociatedObstacle() const { return AssociatedObstacle; }
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	ULevelSequence* GetAssociatedWinCinematic() const { return AssociatedWinCinematic; }
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	AML_CinematicCameraRail* GetAssociatedStartCinematicRail() const { return AssociatedStartCinematicRail; }
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
-	TArray<AActor*> GetAssociatedNatureZones() const { return AssociatedNatureZones; } 
-	
-	UFUNCTION(BlueprintPure, Category="Myceland Runtime")
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
+	TArray<AActor*> GetAssociatedNatureZones() const { return AssociatedNatureZones; }
+
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	TArray<AActor*> GetAssociatedWaterPaths() const { return AssociatedWaterPaths; }
 
-	// ==================== Myceland Board Switches ====================
+	// ==================== ML- Board Switches ====================
 	// Per-board ON/OFF switches (backing fields are private — see above).
 
-	UFUNCTION(BlueprintPure, Category="Myceland Board Switches")
+	UFUNCTION(BlueprintPure, Category="ML- Board Switches")
 	bool IsGlowEnabled() const { return bGlowEnabled; }
 
-	UFUNCTION(BlueprintPure, Category="Myceland Board Switches")
+	UFUNCTION(BlueprintPure, Category="ML- Board Switches")
 	bool IsBoardTransitionEnabled() const { return bBoardTransitionEnabled; }
 
 	/** Enables/disables this board's glow. Clears any active glow immediately when turning OFF. */
-	UFUNCTION(BlueprintCallable, Category="Myceland Board Switches")
+	UFUNCTION(BlueprintCallable, Category="ML- Board Switches")
 	void SetGlowEnabled(bool bEnabled);
 
 	/** Enables/disables this board's entry/exit (tile-by-tile) system. Ejects the player to free movement when turning OFF while they are inside. */
-	UFUNCTION(BlueprintCallable, Category="Myceland Board Switches")
+	UFUNCTION(BlueprintCallable, Category="ML- Board Switches")
 	void SetBoardTransitionEnabled(bool bEnabled);
 
-	// ==================== Myceland Hex Procedural Grid ====================
-	
-	UPROPERTY(EditAnywhere, Category="Myceland Puzzle Generator")
+	// ==================== ML- Board Exits (gamepad) ====================
+
+	// Gamepad board exits: each entry maps a set of border tiles to a plane/actor to highlight.
+	// This is pure per-board configuration — the availability broadcast lives on the player controller
+	// (a single subscription point), so this board only needs to answer "which plane for this tile?".
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="ML- Board Exits")
+	TArray<FML_BoardExit> BoardExits;
+
+	// Returns the first exit whose tiles contain PlayerTile, or nullptr. Used both to know which plane
+	// to highlight when the player stands on an exit tile, and to resolve the exit target on confirm.
+	const FML_BoardExit* FindExitForTile(const AML_Tile* PlayerTile) const;
+
+	// ==================== ML- Puzzle Generator ====================
+
+	UPROPERTY(EditAnywhere, Category="ML- Puzzle Generator")
 	FML_PuzzleGenerationSettings PuzzleGenerationSettings;
 
-	UFUNCTION(CallInEditor, Category="Myceland Puzzle Generator")
+	UFUNCTION(CallInEditor, Category="ML- Puzzle Generator")
 	void AnalyzeCurrentPuzzle();
 };

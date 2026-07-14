@@ -15,6 +15,7 @@
 #include "Camera/CameraActor.h"
 #include "Components/SplineComponent.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Input/ML_InputDeviceManager.h"
@@ -125,8 +126,17 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 
 			CurrentPathWorld.Reset();
 			CurrentPathIndex = 0;
-			SetIsMoving(false);
+
+			// Stop the path tick WITHOUT broadcasting the "stopped" state yet: OnPathFinished settles the
+			// board action state to Idle (or starts a new move). We defer the notification so it reflects
+			// the FINAL settled state — otherwise consumers would see BoardActionState still == Moving at
+			// the moment of the broadcast (the source of the earlier auto-select / highlight timing traps).
+			bIsMoving = false;
 			OnPathFinished();
+
+			// If OnPathFinished didn't start a new move, notify the stop now that the state has settled.
+			if (!bIsMoving)
+				TransitionComponent->NotifyIsMoving(false);
 
 			return;
 		}
@@ -527,8 +537,28 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		GamepadHandler->Initialize(this);
 		InputDeviceManager->Initialize(MouseKeyboardHandler, GamepadHandler);
 		InputDeviceManager->OnInputDeviceChanged.AddDynamic(this, &AML_PlayerController::HandleInputDeviceChanged);
-		// Apply cursor visibility for the initial device (starts on MK).
+
+		// Tell the device manager which devices actually have a gameplay IMC, so it never switches to a
+		// device the designer intentionally left out of the array (single-IMC setups lock to one device).
+		bool bMKAvailable = false;
+		bool bGamepadAvailable = false;
+		if (DevSettings)
+		{
+			for (const FML_InputMappingEntry& Entry : DevSettings->GameplayInputMappingContexts)
+			{
+				switch (Entry.Device)
+				{
+					case EML_InputMappingDevice::MouseKeyboard: bMKAvailable = true; break;
+					case EML_InputMappingDevice::Gamepad:       bGamepadAvailable = true; break;
+					case EML_InputMappingDevice::Both:          bMKAvailable = true; bGamepadAvailable = true; break;
+				}
+			}
+		}
+		InputDeviceManager->SetAvailableDevices(bMKAvailable, bGamepadAvailable);
+
+		// Apply cursor visibility + map the gameplay IMCs (mouse/keyboard + gamepad).
 		UpdateCursorVisibility(InputDeviceManager->GetCurrentDevice() == EML_InputDevice::MouseKeyboard);
+		ApplyGameplayInputMappingContext();
 
 		MycelandCharacter->UpdateCurrentTile();
 		// Start inside the board only if the player stands on one AND that board's transition is enabled;
@@ -615,18 +645,11 @@ void AML_PlayerController::OnGamepadConfirmStarted()
 {
 	if (bInCinematicMode) return;
 	if (!InputDeviceManager) return;
+	// The gamepad IMC stays mapped even in MK mode, so this can fire while the MK handler is active:
+	// switch to gamepad first so the action routes to the gamepad handler.
 	InputDeviceManager->NotifyGamepadInput();
 	if (InputDeviceManager->GetActiveHandler())
-		InputDeviceManager->GetActiveHandler()->OnMoveActionStarted();
-}
-
-void AML_PlayerController::OnGamepadMoveAndPlantStarted()
-{
-	if (bInCinematicMode) return;
-	if (!InputDeviceManager) return;
-	InputDeviceManager->NotifyGamepadInput();
-	if (InputDeviceManager->GetActiveHandler())
-		InputDeviceManager->GetActiveHandler()->OnMoveAndPlantAction();
+		InputDeviceManager->GetActiveHandler()->OnMoveAndPlantAction(); // Confirm = plant the selected tile
 }
 
 void AML_PlayerController::OnGamepadMoveAxis(const FVector2D& Value)
@@ -646,6 +669,41 @@ void AML_PlayerController::OnGamepadMoveReleased()
 	if (bInCinematicMode) return;
 	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
 		InputDeviceManager->GetActiveHandler()->OnStickReleased();
+}
+
+void AML_PlayerController::OnGamepadSelectPlantAxis(const FVector2D& Value)
+{
+	if (bInCinematicMode) return;
+	if (!InputDeviceManager) return;
+
+	// Analog axes don't raise OnInputHardwareDeviceChanged, so switch device explicitly here.
+	InputDeviceManager->NotifyGamepadInput();
+
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnPlantSelectAxis(Value, GetWorld()->GetDeltaSeconds());
+}
+
+void AML_PlayerController::OnGamepadSelectPlantReleased()
+{
+	if (bInCinematicMode) return;
+	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnPlantSelectReleased();
+}
+
+void AML_PlayerController::OnGamepadExitStarted()
+{
+	if (bInCinematicMode) return;
+	if (!InputDeviceManager) return;
+	InputDeviceManager->NotifyGamepadInput();
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnExitAction();
+}
+
+void AML_PlayerController::OnGamepadExitReleased()
+{
+	if (bInCinematicMode) return;
+	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnExitReleased();
 }
 
 void AML_PlayerController::OnSkipNarrativeLine()
@@ -762,6 +820,35 @@ void AML_PlayerController::UpdateCursorVisibility(const bool bVisible)
 	bEnableMouseOverEvents = bVisible;
 }
 
+UEnhancedInputLocalPlayerSubsystem* AML_PlayerController::GetEnhancedInputSubsystem() const
+{
+	if (!IsLocalController()) return nullptr;
+	ULocalPlayer* LP = GetLocalPlayer();
+	return LP ? LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
+}
+
+void AML_PlayerController::ApplyGameplayInputMappingContext()
+{
+	UEnhancedInputLocalPlayerSubsystem* InputSub = GetEnhancedInputSubsystem();
+	if (!InputSub || !DevSettings) return;
+
+	// Map every configured gameplay IMC together (mouse/keyboard, gamepad, or both — any combination).
+	// Adding an already-mapped context is a no-op, so this is safe to call repeatedly.
+	for (const FML_InputMappingEntry& Entry : DevSettings->GameplayInputMappingContexts)
+		if (UInputMappingContext* IMC = Entry.Mapping.LoadSynchronous())
+			InputSub->AddMappingContext(IMC, Entry.Priority);
+}
+
+void AML_PlayerController::RemoveGameplayInputMappingContexts()
+{
+	UEnhancedInputLocalPlayerSubsystem* InputSub = GetEnhancedInputSubsystem();
+	if (!InputSub || !DevSettings) return;
+
+	for (const FML_InputMappingEntry& Entry : DevSettings->GameplayInputMappingContexts)
+		if (UInputMappingContext* IMC = Entry.Mapping.LoadSynchronous())
+			InputSub->RemoveMappingContext(IMC);
+}
+
 void AML_PlayerController::NotifyCinematicModeChanged(const bool bNewInCinematicMode)
 {
 	bInCinematicMode = bNewInCinematicMode;
@@ -808,6 +895,9 @@ void AML_PlayerController::HandleInputDeviceChanged(EML_InputDevice NewDevice)
 	PreviousInputDevice    = NewDevice;
 	bShowMouseCursor       = bIsMK;
 	bEnableMouseOverEvents = bIsMK;
+
+	// No IMC swap here: both device IMCs stay mapped (see ApplyGameplayInputMappingContext) so device
+	// detection keeps working. A device switch only changes cursor visibility / hover behavior.
 
 	if (HoverPreviewComponent)
 		HoverPreviewComponent->NotifyInputDeviceChanged(NewDevice);
@@ -931,6 +1021,16 @@ void AML_PlayerController::SetForcedHoverTile(AML_Tile* Tile)
 void AML_PlayerController::ClearForcedHoverTile()
 {
 	if (HoverPreviewComponent) HoverPreviewComponent->ClearForcedHoverTile();
+}
+
+void AML_PlayerController::SetGamepadSelectedTile(AML_Tile* Tile)
+{
+	if (HoverPreviewComponent) HoverPreviewComponent->SetGamepadSelectedTile(Tile);
+}
+
+AML_Tile* AML_PlayerController::GetGamepadSelectedTile() const
+{
+	return HoverPreviewComponent ? HoverPreviewComponent->GetGamepadSelectedTile() : nullptr;
 }
 
 void AML_PlayerController::ClearPathHoverPreview()

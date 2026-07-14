@@ -139,6 +139,10 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 		if (!bWinOwnsInputLock)
 			PlayerController->EnableInput(PlayerController);
 	}
+
+	// The board has reached its final state: let board-dependent UI (e.g. the gamepad plantable
+	// highlight) refresh once, rather than on every tile change during the propagation.
+	OnWavePropagationFinished.Broadcast();
 }
 
 void UML_WavePropagationSubsystem::BeginTileResolved(AML_Tile* HitTile)

@@ -88,6 +88,11 @@ private:
 
 	TArray<FML_ActionUndoRecord>* GetCurrentBoardStack();
 
+	// True when the player's current board's puzzle is solved. Undo/reset are refused then: the mouse UI
+	// hides its buttons on win, but a gamepad/keyboard shortcut could otherwise still reach undo/reset.
+	// bIsPuzzleSolved is set the moment the win is detected, so this covers the whole post-win window.
+	bool IsCurrentBoardSolved() const;
+
 	UPROPERTY(Transient)
 	FML_TurnUndoRecord CurrentTurnRecord;
 

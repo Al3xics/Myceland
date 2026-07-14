@@ -2,6 +2,9 @@
 
 #include "Input/Handlers/ML_GamepadInputHandler.h"
 
+#include "Component/ML_BoardTransitionComponent.h"
+#include "Core/ML_TileTypeTraits.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_PlayerController.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_HexPathfinder.h"
@@ -9,20 +12,29 @@
 #include "Tiles/ML_BoardSpawner.h"
 #include "User Settings/ML_GameUserSettings.h"
 
+// ==================== Lifecycle ====================
+
 void UML_GamepadInputHandler::OnActivated()
 {
 	Settings = UML_GameUserSettings::GetMycelandGameUserSettings();
-	ResetStickRepeatState();
-	FocusedTile = nullptr;
+	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+
+	ResetMoveRepeatState();
+	// All board visuals (plant selection, plantable highlight, exit-plane availability) are owned by the
+	// HoverPreviewComponent and refreshed when the device switches to gamepad. The handler is input-only.
 }
 
 void UML_GamepadInputHandler::OnDeactivated()
 {
 	if (!Controller) return;
+
 	if (Controller->IsHoldingExitInput())
 		Controller->CancelExitHold();
 	Controller->ClearForcedHoverTile();
+	// The HoverPreviewComponent clears its board visuals (selection / plantable / exit) on the device switch.
 }
+
+// ==================== Left stick (movement) ====================
 
 void UML_GamepadInputHandler::OnStickAxis(FVector2D StickValue, float DeltaTime)
 {
@@ -32,35 +44,13 @@ void UML_GamepadInputHandler::OnStickAxis(FVector2D StickValue, float DeltaTime)
 	if (Mode == EML_PlayerMovementMode::FreeMovement)
 		HandleFreeMovementStick(StickValue);
 	else if (Mode == EML_PlayerMovementMode::InsideBoard)
-		HandleInsideBoardStick(StickValue, DeltaTime);
+		HandleInsideBoardMoveStick(StickValue, DeltaTime);
 }
 
 void UML_GamepadInputHandler::OnStickReleased()
 {
-	// IMC Completed fires when the stick returns to the dead zone.
-	if (Controller && Controller->IsHoldingExitInput())
-		Controller->CancelExitHold();
-	ResetStickRepeatState();
+	ResetMoveRepeatState();
 }
-
-void UML_GamepadInputHandler::OnMoveActionStarted()
-{
-	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
-	if (!IsValid(FocusedTile)) return;
-	Controller->Move(FocusedTile);
-	// ForcedHoverTile kept so TickPathHoverPreview continues updating the path glow during the walk.
-	// FocusedTile cleared so the next flick starts from CurrentTileOn (the destination).
-	FocusedTile = nullptr;
-}
-
-void UML_GamepadInputHandler::OnMoveAndPlantAction()
-{
-	if (!Controller || !IsValid(FocusedTile)) return;
-	// ForcedHoverTile intentionally kept: path preview stays visible during the walk to plant.
-	Controller->Plant(FocusedTile);
-}
-
-// ==================== Free movement ====================
 
 void UML_GamepadInputHandler::HandleFreeMovementStick(FVector2D StickValue)
 {
@@ -76,51 +66,102 @@ void UML_GamepadInputHandler::HandleFreeMovementStick(FVector2D StickValue)
 	Character->AddMovementInput(WorldDirection, FreeMovementScale);
 }
 
-// ==================== Inside board ====================
-
-void UML_GamepadInputHandler::HandleInsideBoardStick(FVector2D StickValue, float DeltaTime)
+void UML_GamepadInputHandler::HandleInsideBoardMoveStick(FVector2D StickValue, float DeltaTime)
 {
-	// IMC dead zone ensures the stick is active when this is called.
+	// No movement while the character is turning to plant (no input accepted in that state).
 	if (Controller->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	const float HoldDelay = Settings ? Settings->GetGamepadHoldRepeatDelay() : 0.4f;
-	const float RepeatInterval = Settings ? FMath::Max(Settings->GetGamepadHoldRepeatInterval(), 0.01f) : 0.15f;
+	const float HoldDelay = Settings ? Settings->GetGamepadHoldRepeatDelay() : 0.3f;
+	const float RepeatInterval = Settings ? FMath::Max(Settings->GetGamepadHoldRepeatInterval(), 0.01f) : 0.1f;
 
-	// First frame after returning from neutral: select immediately, then start the hold timer.
-	// Accumulators are already zeroed by ResetStickRepeatState on the previous neutral release.
-	if (bStickWasNeutral)
+	// First frame after returning from neutral: step immediately, then start the hold timer.
+	if (bMoveStickWasNeutral)
 	{
-		bStickWasNeutral = false;
-		SelectTileInStickDirection(StickValue);
+		bMoveStickWasNeutral = false;
+		StepMoveInStickDirection(StickValue);
 		return;
 	}
 
-	// Stick is being held. Wait out the initial delay before the cursor starts auto-advancing.
-	if (!bAutoRepeatActive)
+	// Stick held: wait out the initial delay before the player starts auto-stepping to the next tile.
+	if (!bMoveAutoRepeatActive)
 	{
-		StickHeldTime += DeltaTime;
-		if (StickHeldTime < HoldDelay) return;
+		MoveStickHeldTime += DeltaTime;
+		if (MoveStickHeldTime < HoldDelay) return;
 
-		// Delay elapsed: enter auto-advance and perform the first repeated step right away.
-		bAutoRepeatActive = true;
-		SelectTileInStickDirection(StickValue);
+		bMoveAutoRepeatActive = true;
+		StepMoveInStickDirection(StickValue);
 		return;
 	}
 
-	// Auto-advance active: step to the next tile once per RepeatInterval while held.
-	RepeatTimer += DeltaTime;
-	while (RepeatTimer >= RepeatInterval)
+	// Auto-step active: step to the next tile once per RepeatInterval while held.
+	MoveRepeatTimer += DeltaTime;
+	while (MoveRepeatTimer >= RepeatInterval)
 	{
-		RepeatTimer -= RepeatInterval;
-		SelectTileInStickDirection(StickValue);
+		MoveRepeatTimer -= RepeatInterval;
+		StepMoveInStickDirection(StickValue);
 	}
 }
 
-void UML_GamepadInputHandler::SelectTileInStickDirection(FVector2D StickValue)
+void UML_GamepadInputHandler::StepMoveInStickDirection(FVector2D StickValue)
 {
-	// The exit hold is itself a hold gesture; once it has started, the movement mode leaves
-	// InsideBoard so this is not reached again, but guard anyway against re-requesting.
-	if (Controller->IsHoldingExitInput()) return;
+	AML_PlayerCharacter* Character = Controller->GetMycelandCharacter();
+	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return;
+
+	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return;
+
+	const float Threshold = DevSettings ? DevSettings->GamepadMoveAlignmentThreshold : 0.5f;
+	AML_Tile* Neighbor = FindNeighborInStickDirection(StickValue, Threshold, /*bPlantableOnly=*/false);
+	if (IsValid(Neighbor))
+		Controller->Move(Neighbor);
+}
+
+void UML_GamepadInputHandler::ResetMoveRepeatState()
+{
+	bMoveStickWasNeutral = true;
+	MoveStickHeldTime = 0.f;
+	MoveRepeatTimer = 0.f;
+	bMoveAutoRepeatActive = false;
+}
+
+// ==================== Right stick (plant selection) ====================
+
+void UML_GamepadInputHandler::OnPlantSelectAxis(FVector2D StickValue, float DeltaTime)
+{
+	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
+	if (Controller->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
+	UpdatePlantSelection(StickValue);
+}
+
+void UML_GamepadInputHandler::OnPlantSelectReleased()
+{
+	// Selection is persistent (mirrors the mouse cursor staying on the last hovered tile):
+	// nothing to reset here. The plant button acts on the HoverPreviewComponent's selection.
+}
+
+void UML_GamepadInputHandler::UpdatePlantSelection(FVector2D StickValue)
+{
+	if (StickValue.IsNearlyZero()) return;
+
+	const float Threshold = DevSettings ? DevSettings->GamepadSelectAlignmentThreshold : 0.5f;
+	AML_Tile* Best = FindNeighborInStickDirection(StickValue, Threshold, /*bPlantableOnly=*/true);
+	if (!IsValid(Best) || Best == Controller->GetGamepadSelectedTile()) return;
+
+	// The HoverPreviewComponent owns the selection state + its cursor glow.
+	Controller->SetGamepadSelectedTile(Best);
+}
+
+void UML_GamepadInputHandler::OnMoveAndPlantAction()
+{
+	if (!Controller) return;
+	Controller->Plant(Controller->GetGamepadSelectedTile()); // Plant() rejects gracefully if null
+}
+
+// ==================== Exit ====================
+
+void UML_GamepadInputHandler::OnExitAction()
+{
+	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
 
 	AML_PlayerCharacter* Character = Controller->GetMycelandCharacter();
 	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return;
@@ -128,43 +169,24 @@ void UML_GamepadInputHandler::SelectTileInStickDirection(FVector2D StickValue)
 	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return;
 
-	// On a walkable border tile, use a stricter alignment threshold (cos 30° instead of cos 60°)
-	// so a diagonal neighbor at ~60° off from the outward push doesn't block the exit gesture.
-	const bool bOnWalkableBorder = IsOriginTileWalkableBorderTile(Board);
-	const float NeighborThreshold = bOnWalkableBorder ? 0.866f : 0.5f;
+	const FML_BoardExit* Exit = Board->FindExitForTile(Character->CurrentTileOn);
+	if (!Exit || !IsValid(Exit->ExitPlane)) return;
 
-	AML_Tile* NeighborTile = FindNeighborInStickDirection(StickValue, NeighborThreshold);
-	if (IsValid(NeighborTile))
-	{
-		// Neighbor found (walkable or not): advance the selection cursor.
-		FocusedTile = NeighborTile;
-		Controller->SetForcedHoverTile(FocusedTile);
-	}
-	else if (!IsValid(NeighborTile) && bOnWalkableBorder)
-	{
-		// No walkable neighbor in this direction and the cursor is on a walkable border tile.
-		// Mirror the mouse behavior: any walkable border tile is a valid exit point.
-		const FVector StickWorldDir = StickToWorldDirection(StickValue);
-		FVector ExitTarget = Character->GetActorLocation() + StickWorldDir * 5000.f;
-		ExitTarget.Z = Character->GetActorLocation().Z;
-
-		AML_Tile* ExitGate = Controller->FindReachableExitBorderTile(Board, ExitTarget);
-		if (IsValid(ExitGate))
-		{
-			Controller->RequestExitHold(ExitGate, ExitTarget);
-			// Keep the hover on the tile the player was navigating from, not on the exit gate.
-			AML_Tile* HoverTile = IsValid(FocusedTile) ? FocusedTile : Character->CurrentTileOn;
-			Controller->SetForcedHoverTile(HoverTile);
-		}
-	}
+	// Reuse the shared exit-hold flow (same as the mouse). With ExitBoardHoldDuration = 0 this
+	// resolves on the first tick, i.e. an instant press. The player already stands on the exit
+	// border tile, so the hold confirms into a direct exit toward the plane location.
+	Controller->RequestExitHold(Character->CurrentTileOn, Exit->ExitPlane->GetActorLocation());
+	Controller->SetForcedHoverTile(Character->CurrentTileOn);
 }
 
-void UML_GamepadInputHandler::ResetStickRepeatState()
+void UML_GamepadInputHandler::OnExitReleased()
 {
-	bStickWasNeutral = true;
-	StickHeldTime = 0.f;
-	RepeatTimer = 0.f;
-	bAutoRepeatActive = false;
+	if (!Controller) return;
+	if (Controller->IsHoldingExitInput())
+	{
+		Controller->CancelExitHold();
+		Controller->ClearForcedHoverTile();
+	}
 }
 
 // ==================== Helpers ====================
@@ -186,21 +208,15 @@ FVector UML_GamepadInputHandler::StickToWorldDirection(FVector2D StickValue) con
 	return (WorldForward * StickValue.Y + WorldRight * StickValue.X).GetSafeNormal();
 }
 
-AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold) const
+AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly) const
 {
 	AML_PlayerCharacter* Character = Controller ? Controller->GetMycelandCharacter() : nullptr;
 	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return nullptr;
 
-	// Navigate from FocusedTile (the selection cursor), not from the player's physical tile.
-	// This lets successive flicks advance the cursor through the board without requiring
-	// the player to physically move between each flick.
-	// Guard: discard FocusedTile if it belongs to a different board (stale from a previous visit).
 	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return nullptr;
 
-	AML_Tile* OriginTile = (IsValid(FocusedTile) && FocusedTile->GetBoardSpawnerFromTile() == Board)
-		? FocusedTile
-		: Character->CurrentTileOn;
+	AML_Tile* OriginTile = Character->CurrentTileOn;
 
 	FML_TileNeighbors Neighbors;
 	Board->GetNeighbors(OriginTile, Neighbors);
@@ -214,13 +230,15 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 
 	for (AML_Tile* Neighbor : Neighbors)
 	{
-		// Skip only truly missing board slots. Non-walkable tiles (water, obstacles) are
-		// included so they can be detected as "something is there" by the caller.
 		if (!IsValid(Neighbor)) continue;
 
+		// Movement only walks onto walkable tiles; plant selection only picks plantable tiles.
+		const bool bCandidate = bPlantableOnly
+			? UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType())
+			: UML_HexPathfinder::IsTileWalkable(Neighbor);
+		if (!bCandidate) continue;
+
 		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();
-		// Dot product: 1 = same direction, 0 = perpendicular, -1 = opposite.
-		// Keep the neighbor most aligned with the stick direction.
 		const float Dot = FVector::DotProduct(StickWorldDir, ToNeighbor);
 
 		if (Dot > BestDot)
@@ -231,16 +249,4 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 	}
 
 	return (BestDot >= AlignmentThreshold) ? BestNeighbor : nullptr;
-}
-
-bool UML_GamepadInputHandler::IsOriginTileWalkableBorderTile(const AML_BoardSpawner* Board) const
-{
-	AML_PlayerCharacter* Character = Controller ? Controller->GetMycelandCharacter() : nullptr;
-	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn) || !IsValid(Board)) return false;
-
-	const AML_Tile* OriginTile = (IsValid(FocusedTile) && FocusedTile->GetBoardSpawnerFromTile() == Board)
-		? FocusedTile
-		: Character->CurrentTileOn;
-
-	return UML_HexPathfinder::IsTileWalkable(OriginTile) && OriginTile->IsBorderTile();
 }

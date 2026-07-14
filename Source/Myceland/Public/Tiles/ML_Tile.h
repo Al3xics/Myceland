@@ -144,6 +144,14 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowingPathWalk();
+
+	// Gamepad: glow used to advertise a tile the player can plant on (a plantable neighbor around
+	// the player). Distinct from GlowCursorHovered, which marks the single currently-selected tile.
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void GlowPlantableAvailable();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void StopGlowingPlantableAvailable();
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);
