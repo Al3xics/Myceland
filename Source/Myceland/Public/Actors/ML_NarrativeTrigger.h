@@ -78,7 +78,8 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UCameraComponent* CinematicCamera;
 
-    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative")
+    bool canPlay = true;
     
     // ==================== DATA ====================
     
@@ -124,6 +125,9 @@ public:
     void ResetTrigger();
 
     UFUNCTION(BlueprintCallable, Category = "Narrative")
+    void PlaySequence();
+    
+    UFUNCTION(BlueprintCallable, Category = "Narrative")
     UCameraComponent* GetCinematicCamera() const { return CinematicCamera; }
 
     IML_DialogueSpeaker* GetSpeaker(ESpeakerTag Tag) const;
@@ -134,7 +138,7 @@ public:
 
     // Interrupts the approach (sequence skipped/stopped) and restores the character movement settings.
     void StopCinematicApproach();
-
+ 
     virtual void Tick(float DeltaTime) override;
     virtual bool ShouldTickIfViewportsOnly() const override { return true; }
 };
