@@ -7,6 +7,8 @@
 #include "FMODStudioModule.h"
 #include "FMOD/fmod_studio.hpp"
 
+#define LOCTEXT_NAMESPACE "MycelandSettings"
+
 TArray<FIntPoint> UML_GameUserSettings::ValidResolutions;
 TArray<float> UML_GameUserSettings::ValidFrameLimits;
 
@@ -81,53 +83,6 @@ FIntPoint UML_GameUserSettings::GetClosestValidResolution(FIntPoint DesiredResol
 	return ClosestResolution;
 }
 
-bool UML_GameUserSettings::ParseResolutionText(const FString& ResolutionText, FIntPoint& OutResolution)
-{
-	// Normalize the input: trim whitespace and uppercase
-	const FString NormalizedText = ResolutionText.TrimStartAndEnd().ToUpper();
-	
-	// Split on "X" (now guaranteed uppercase, no spaces)
-	FString LeftStr, RightStr;
-	if (NormalizedText.Split(TEXT("X"), &LeftStr, &RightStr))
-	{
-		// Trim any remaining whitespace on each side
-		LeftStr = LeftStr.TrimStartAndEnd();
-		RightStr = RightStr.TrimStartAndEnd();
-		
-		const int32 Width = FCString::Atoi(*LeftStr);
-		const int32 Height = FCString::Atoi(*RightStr);
-		
-		// Validate
-		if (Width > 0 && Height > 0)
-		{
-			OutResolution = FIntPoint(Width, Height);
-			return true;
-		}
-	}
-	
-	return false;
-}
-
-bool UML_GameUserSettings::ParseFrameLimitText(const FString& LimitText, float& OutFrameLimit)
-{
-	const FString LimitString = LimitText.TrimStartAndEnd();
-
-	// Parse "Unlimited" or similar → 0.0f
-	if (LimitString.Equals(TEXT("Unlimited"), ESearchCase::IgnoreCase))
-		OutFrameLimit = 0.0f;
-	else
-	{
-		// Parse numeric value (e.g., "30", "60", "120", "144")
-		const float ParsedLimit = static_cast<float>(FCString::Atoi(*LimitString));
-		if (ParsedLimit > 0.0f)
-			OutFrameLimit = ParsedLimit;
-		else
-			return false;
-	}
-	
-	return true;
-}
-
 void UML_GameUserSettings::LoadResolution()
 {
 	EnsureValidListsInitialized();
@@ -140,6 +95,15 @@ void UML_GameUserSettings::LoadResolution()
 		ResolutionPx = GetClosestValidResolution(NativeResolution);
 	else
 		ResolutionPx = NativeResolution;
+
+	// Keep the dropdown index in step with the resolution the UI reads back,
+	// mirroring LoadFrameLimit.
+	if (AreValidResolutionsInitialized())
+	{
+		ResolutionValue = ValidResolutions.IndexOfByKey(ResolutionPx);
+		if (ResolutionValue == INDEX_NONE)
+			ResolutionValue = DefaultResolutionValue;
+	}
 }
 
 void UML_GameUserSettings::LoadFrameLimit()
@@ -311,9 +275,21 @@ TArray<FText> UML_GameUserSettings::GetValidResolutionTexts()
 {
 	EnsureValidListsInitialized();
 
+	// Digits are formatted per culture, but never grouped: a resolution is an identifier,
+	// so "1920" must not become "1,920".
+	FNumberFormattingOptions NumberFormat;
+	NumberFormat.SetUseGrouping(false);
+
 	TArray<FText> Texts;
 	for (const FIntPoint& Resolution : ValidResolutions)
-		Texts.Add(FText::AsCultureInvariant(FString::Printf(TEXT("%d x %d"), Resolution.X, Resolution.Y)));
+	{
+		Texts.Add(FText::Format(
+			LOCTEXT("ResolutionOptionFormat", "{Width} x {Height}"),
+			FFormatNamedArguments{
+				{TEXT("Width"), FText::AsNumber(Resolution.X, &NumberFormat)},
+				{TEXT("Height"), FText::AsNumber(Resolution.Y, &NumberFormat)}
+			}));
+	}
 	return Texts;
 }
 
@@ -321,11 +297,17 @@ TArray<FText> UML_GameUserSettings::GetValidFrameLimitTexts()
 {
 	EnsureValidListsInitialized();
 
-	// Culture invariant: these strings are parsed back by SetFrameRateLimitFromText /
-	// SetResolutionFromText, so they must not be localized.
+	FNumberFormattingOptions NumberFormat;
+	NumberFormat.SetUseGrouping(false);
+	NumberFormat.SetMaximumFractionalDigits(0);
+
 	TArray<FText> Texts;
 	for (const float Limit : ValidFrameLimits)
-		Texts.Add(FText::AsCultureInvariant(Limit <= 0.f ? FString(TEXT("Unlimited")) : FString::Printf(TEXT("%.0f"), Limit)));
+	{
+		Texts.Add(Limit <= 0.f
+			? LOCTEXT("FrameLimitUnlimited", "Unlimited")
+			: FText::AsNumber(Limit, &NumberFormat));
+	}
 	return Texts;
 }
 
@@ -364,36 +346,34 @@ float UML_GameUserSettings::GetClosestValidFrameLimit(const float DesiredLimit)
 	return Closest;
 }
 
-void UML_GameUserSettings::SetResolutionFromText(const FString& ResolutionText)
+void UML_GameUserSettings::SetResolutionFromIndex(const int32 Index)
 {
-	FIntPoint RequestedResolution;
-	if (ParseResolutionText(ResolutionText, RequestedResolution))
+	EnsureValidListsInitialized();
+
+	// The index comes straight from the dropdown, which was filled by GetValidResolutionTexts:
+	// same order, same source list, so it needs no snapping — only a range check.
+	if (!ValidResolutions.IsValidIndex(Index))
 	{
-		ResolutionPx = GetClosestValidResolution(RequestedResolution);
-		ResolutionValue = ValidResolutions.IndexOfByKey(ResolutionPx);
+		UE_LOG(LogTemp, Warning, TEXT("SetResolutionFromIndex: index %d out of range (%d options)"), Index, ValidResolutions.Num());
+		return;
 	}
+
+	ResolutionValue = Index;
+	ResolutionPx = ValidResolutions[Index];
 }
 
-void UML_GameUserSettings::SetFrameRateLimitFromText(const FString& FrameRateText)
+void UML_GameUserSettings::SetFrameRateLimitFromIndex(const int32 Index)
 {
-	float ParsedLimit;
-	if (ParseFrameLimitText(FrameRateText, ParsedLimit))
-		FrameRLimit = ParsedLimit;
+	EnsureValidListsInitialized();
 
-	LoadFrameLimit();
-}
+	if (!ValidFrameLimits.IsValidIndex(Index))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SetFrameRateLimitFromIndex: index %d out of range (%d options)"), Index, ValidFrameLimits.Num());
+		return;
+	}
 
-FString UML_GameUserSettings::GetCurrentResolutionText() const
-{
-	return FString::Printf(TEXT("%d x %d"), ResolutionPx.X, ResolutionPx.Y);
-}
-
-FString UML_GameUserSettings::GetCurrentFrameRateLimitText() const
-{
-	if (FrameRLimit <= 0.0f)
-		return TEXT("Unlimited");
-	
-	return FString::Printf(TEXT("%.0f"), FrameRLimit);
+	FrameLimit = Index;
+	FrameRLimit = ValidFrameLimits[Index];
 }
 
 
@@ -624,3 +604,5 @@ void UML_GameUserSettings::LoadSettings(bool bForceReload)
 
 	OnSettingsLoaded.Broadcast();
 }
+
+#undef LOCTEXT_NAMESPACE

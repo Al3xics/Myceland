@@ -98,26 +98,3 @@ void UML_UserWidgetTemplate::GetSettingValue(float& OutFloat, bool& OutBool, int
 		UE_LOG(LogTemp, Warning, TEXT("[%s] Property '%s' has unsupported type"), *GetName(), *PropertyName.ToString());
 	}
 }
-
-FString UML_UserWidgetTemplate::GetOptionTextValue() const
-{
-	const UML_GameUserSettings* Settings = UML_GameUserSettings::GetMycelandGameUserSettings();
-	if (!Settings) return TEXT("");
-    
-	// Check for special properties
-	if (PropertyName == TEXT("ResolutionValue"))
-		return Settings->GetCurrentResolutionText();
-	if (PropertyName == TEXT("FrameLimit"))
-		return Settings->GetCurrentFrameRateLimitText();
-    
-	return TEXT(""); // Not a special property
-}
-
-int32 UML_UserWidgetTemplate::FindTextOptionIndex(const TArray<FText>& Options, const FString& SearchText)
-{
-	for (int32 i = 0; i < Options.Num(); ++i)
-		if (Options[i].ToString().Equals(SearchText, ESearchCase::IgnoreCase))
-			return i;
-    
-	return INDEX_NONE;
-}

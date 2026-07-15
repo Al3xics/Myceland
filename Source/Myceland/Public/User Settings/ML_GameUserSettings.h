@@ -150,8 +150,6 @@ private:
 
 	UWorld* GetWorld() const;
 	FIntPoint GetClosestValidResolution(FIntPoint DesiredResolution) const;
-	static bool ParseResolutionText(const FString& ResolutionText, FIntPoint& OutResolution);
-	static bool ParseFrameLimitText(const FString& LimitText, float& OutFrameLimit);
 
 	void LoadResolution();
 	void LoadFrameLimit();
@@ -210,27 +208,33 @@ public:
 
 	// ==================== Graphics Setters (from widgets) ====================
 
-	/** Options for the resolution dropdown, from the DeveloperSettings whitelist (e.g. "1920 x 1080"). */
+	/**
+	 * Options for the resolution dropdown, from the DeveloperSettings whitelist (e.g. "1920 x 1080").
+	 * Display only: these are localized, so never parse them back. Index into them with SetResolutionFromIndex.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
 	static TArray<FText> GetValidResolutionTexts();
 
-	/** Options for the frame limit dropdown, from the DeveloperSettings whitelist (e.g. "60", "Unlimited"). */
+	/**
+	 * Options for the frame limit dropdown, from the DeveloperSettings whitelist (e.g. "60", "Unlimited").
+	 * Display only: these are localized, so never parse them back. Index into them with SetFrameRateLimitFromIndex.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
 	static TArray<FText> GetValidFrameLimitTexts();
 
 	/**
-	 * Set resolution from dropdown text (e.g., "1920x1080")
-	 * Also updates ResolutionValue index.
+	 * Set resolution from the dropdown selection, indexing the same whitelist that filled
+	 * GetValidResolutionTexts. Also updates the ResolutionValue index. Out-of-range values are ignored.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetResolutionFromText(const FString& ResolutionText);
+	void SetResolutionFromIndex(int32 Index);
 
 	/**
-	 * Set frame rate limit from dropdown text (e.g., "60" or "Unlimited")
-	 * Also updates FrameLimit index.
+	 * Set frame rate limit from the dropdown selection, indexing the same whitelist that filled
+	 * GetValidFrameLimitTexts. Also updates the FrameLimit index. Out-of-range values are ignored.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetFrameRateLimitFromText(const FString& FrameRateText);
+	void SetFrameRateLimitFromIndex(int32 Index);
 
 	/**
 	 * Set resolution scale from slider value (0-100)
@@ -246,12 +250,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
 	void SetOverallQuality(const EMLQualityLevel Quality) { OverallQuality = Quality; }
-
-
-	// ===== Graphics Getters (for debugging) =====
-
-	FString GetCurrentResolutionText() const;
-	FString GetCurrentFrameRateLimitText() const;
 
 
 
