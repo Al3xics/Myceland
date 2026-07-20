@@ -23,8 +23,10 @@ class AML_BoardSpawner;
  *                 RIGHT STICK selects a plantable tile around the player (only among the highlighted
  *                 plantable neighbors), highlighting it like the mouse cursor hover. The plant button
  *                 then plants the selected tile (classic turn-to-plant + propagation).
- *                 EXIT: walk onto an exit tile — the board broadcasts the exit plane(s) to highlight;
- *                 pressing the exit input starts the exit hold (instant when ExitBoardHoldDuration is 0).
+ *                 EXIT: there is no exit button — standing on an exit border tile, pushing the LEFT STICK
+ *                 toward the exit plane walks the player straight out of the board. Mirrors the mouse exit
+ *                 hold: instant when ExitBoardHoldDurationGamepad is 0, otherwise the stick must stay pointed at
+ *                 the exit for the whole duration (releasing / steering away cancels).
  */
 UCLASS(ClassGroup=(Myceland), meta=(BlueprintSpawnableComponent))
 class MYCELAND_API UML_GamepadInputHandler : public UML_InputHandlerBase
@@ -57,7 +59,14 @@ private:
 	void HandleFreeMovementStick(FVector2D StickValue);
 	void HandleInsideBoardMoveStick(FVector2D StickValue, float DeltaTime);
 
-	/** Steps the player one tile toward the left-stick direction (walks to the aligned neighbor). */
+	/**
+	 * Called each frame while the exit hold is in progress (ExitingBoard mode). Keeps the hold alive
+	 * while the stick stays pointed at the exit plane; cancels it if the stick steers away from the exit.
+	 */
+	void HandleExitingBoardStick(FVector2D StickValue);
+
+	/** Steps the player one tile toward the left-stick direction, or starts the board exit when the
+	 *  stick points at the current tile's exit plane (see EvaluateStickExit). */
 	void StepMoveInStickDirection(FVector2D StickValue);
 
 	/** Resets the left-stick hold/repeat state so the next push starts a fresh step cycle. */
@@ -83,9 +92,18 @@ private:
 	 * Finds the neighbor tile of the player's current tile most aligned with the stick direction.
 	 * bPlantableOnly true  → only considers tiles the player can plant on (right-stick selection).
 	 * bPlantableOnly false → only considers walkable tiles (left-stick movement).
-	 * Returns nullptr if no candidate clears AlignmentThreshold.
+	 * Returns nullptr if no candidate clears AlignmentThreshold. When OutBestDot is provided it receives
+	 * the alignment dot of the returned neighbor (or -1 when none clears the threshold), so callers can
+	 * compare it against the exit direction.
 	 */
-	AML_Tile* FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly) const;
+	AML_Tile* FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly, float* OutBestDot = nullptr) const;
+
+	/**
+	 * If the player stands on an exit border tile, computes how well the stick points at that exit's plane.
+	 * OutExitDot receives the alignment dot [-1,1], OutExitTarget the plane's world location.
+	 * Returns false (leaving the outputs untouched) when the player is not on a valid exit tile.
+	 */
+	bool EvaluateStickExit(FVector2D StickValue, float& OutExitDot, FVector& OutExitTarget) const;
 
 public:
 	virtual void OnActivated() override;
@@ -95,8 +113,6 @@ public:
 	virtual void OnPlantSelectAxis(FVector2D StickValue, float DeltaTime) override;
 	virtual void OnPlantSelectReleased() override;
 	virtual void OnMoveAndPlantAction() override;
-	virtual void OnExitAction() override;
-	virtual void OnExitReleased() override;
 
 	/** Movement speed scale forwarded to AddMovementInput during free movement. */
 	UPROPERTY(EditAnywhere, Category = "Myceland")

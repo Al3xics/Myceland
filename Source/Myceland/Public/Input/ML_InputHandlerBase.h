@@ -61,10 +61,4 @@ public:
 
 	/** IA_GamepadSelectPlant → Completed / Canceled. Right stick returned to the dead zone. */
 	virtual void OnPlantSelectReleased() {}
-
-	/** IA_GamepadExit → Started. Starts the exit hold when the player stands on an exit tile. */
-	virtual void OnExitAction() {}
-
-	/** IA_GamepadExit → Completed / Canceled. Cancels an in-progress exit hold. */
-	virtual void OnExitReleased() {}
 };

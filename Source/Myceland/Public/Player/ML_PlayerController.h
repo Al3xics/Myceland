@@ -148,14 +148,6 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnGamepadSelectPlantReleased();
 
-	// Bind to IA_GamepadExit → Started (gamepad button, configurable in the IMC) — leaves the board
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void OnGamepadExitStarted();
-
-	// Bind to IA_GamepadExit → Completed / Canceled — cancels an in-progress exit hold
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void OnGamepadExitReleased();
-
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSkipNarrativeLine();
 

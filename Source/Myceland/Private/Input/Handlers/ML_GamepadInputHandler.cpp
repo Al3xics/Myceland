@@ -45,10 +45,19 @@ void UML_GamepadInputHandler::OnStickAxis(FVector2D StickValue, float DeltaTime)
 		HandleFreeMovementStick(StickValue);
 	else if (Mode == EML_PlayerMovementMode::InsideBoard)
 		HandleInsideBoardMoveStick(StickValue, DeltaTime);
+	else if (Mode == EML_PlayerMovementMode::ExitingBoard)
+		HandleExitingBoardStick(StickValue);
 }
 
 void UML_GamepadInputHandler::OnStickReleased()
 {
+	// Releasing the stick during an exit hold cancels it (mouse-parity: releasing the button cancels).
+	if (Controller && Controller->IsHoldingExitInput())
+	{
+		Controller->CancelExitHold();
+		Controller->ClearForcedHoverTile();
+	}
+
 	ResetMoveRepeatState();
 }
 
@@ -111,7 +120,26 @@ void UML_GamepadInputHandler::StepMoveInStickDirection(FVector2D StickValue)
 	if (!IsValid(Board)) return;
 
 	const float Threshold = DevSettings ? DevSettings->GamepadMoveAlignmentThreshold : 0.5f;
-	AML_Tile* Neighbor = FindNeighborInStickDirection(StickValue, Threshold, /*bPlantableOnly=*/false);
+
+	// Best walkable neighbor aligned with the stick (NeighborDot measures how well it matches).
+	float NeighborDot = -1.f;
+	AML_Tile* Neighbor = FindNeighborInStickDirection(StickValue, Threshold, /*bPlantableOnly=*/false, &NeighborDot);
+
+	// On an exit border tile, pushing the stick toward the exit plane starts leaving the board — there is
+	// no dedicated exit button anymore. The exit direction competes with the neighbor tiles: it only wins
+	// when the stick points at the plane at least as well as at any walkable neighbor.
+	float ExitDot = -1.f;
+	FVector ExitTarget = FVector::ZeroVector;
+	if (EvaluateStickExit(StickValue, ExitDot, ExitTarget) && ExitDot >= Threshold && ExitDot >= NeighborDot)
+	{
+		// Reuse the shared exit-hold flow (same as the mouse). With ExitBoardHoldDurationGamepad = 0 it resolves
+		// on the first tick (instant); with a positive duration the player must keep the stick pointed at
+		// the exit — HandleExitingBoardStick keeps the hold alive, releasing/steering away cancels it.
+		Controller->RequestExitHold(Character->CurrentTileOn, ExitTarget);
+		Controller->SetForcedHoverTile(Character->CurrentTileOn); // Exit-tile glow while the hold is active.
+		return;
+	}
+
 	if (IsValid(Neighbor))
 		Controller->Move(Neighbor);
 }
@@ -159,30 +187,19 @@ void UML_GamepadInputHandler::OnMoveAndPlantAction()
 
 // ==================== Exit ====================
 
-void UML_GamepadInputHandler::OnExitAction()
+void UML_GamepadInputHandler::HandleExitingBoardStick(FVector2D StickValue)
 {
-	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
+	if (!Controller->IsHoldingExitInput()) return;
 
-	AML_PlayerCharacter* Character = Controller->GetMycelandCharacter();
-	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return;
+	// Mouse-parity hold: the exit only completes if the player keeps the stick pointed at the exit for
+	// the full ExitBoardHoldDurationGamepad. Steering the stick away from the exit cancels the hold; a full
+	// release is handled by OnStickReleased. (With ExitBoardHoldDurationGamepad = 0 the hold resolves before
+	// this ever runs, so this path only matters for a positive hold duration.)
+	const float Threshold = DevSettings ? DevSettings->GamepadMoveAlignmentThreshold : 0.5f;
 
-	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board)) return;
-
-	const FML_BoardExit* Exit = Board->FindExitForTile(Character->CurrentTileOn);
-	if (!Exit || !IsValid(Exit->ExitPlane)) return;
-
-	// Reuse the shared exit-hold flow (same as the mouse). With ExitBoardHoldDuration = 0 this
-	// resolves on the first tick, i.e. an instant press. The player already stands on the exit
-	// border tile, so the hold confirms into a direct exit toward the plane location.
-	Controller->RequestExitHold(Character->CurrentTileOn, Exit->ExitPlane->GetActorLocation());
-	Controller->SetForcedHoverTile(Character->CurrentTileOn);
-}
-
-void UML_GamepadInputHandler::OnExitReleased()
-{
-	if (!Controller) return;
-	if (Controller->IsHoldingExitInput())
+	float ExitDot = -1.f;
+	FVector ExitTarget = FVector::ZeroVector;
+	if (!EvaluateStickExit(StickValue, ExitDot, ExitTarget) || ExitDot < Threshold)
 	{
 		Controller->CancelExitHold();
 		Controller->ClearForcedHoverTile();
@@ -190,6 +207,24 @@ void UML_GamepadInputHandler::OnExitReleased()
 }
 
 // ==================== Helpers ====================
+
+bool UML_GamepadInputHandler::EvaluateStickExit(FVector2D StickValue, float& OutExitDot, FVector& OutExitTarget) const
+{
+	AML_PlayerCharacter* Character = Controller ? Controller->GetMycelandCharacter() : nullptr;
+	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return false;
+
+	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return false;
+
+	const FML_BoardExit* Exit = Board->FindExitForTile(Character->CurrentTileOn);
+	if (!Exit || !IsValid(Exit->ExitPlane)) return false;
+
+	OutExitTarget = Exit->ExitPlane->GetActorLocation();
+	const FVector StickWorldDir = StickToWorldDirection(StickValue);
+	const FVector ToExit = (OutExitTarget - Character->CurrentTileOn->GetActorLocation()).GetSafeNormal2D();
+	OutExitDot = FVector::DotProduct(StickWorldDir, ToExit);
+	return true;
+}
 
 FVector UML_GamepadInputHandler::StickToWorldDirection(FVector2D StickValue) const
 {
@@ -208,8 +243,10 @@ FVector UML_GamepadInputHandler::StickToWorldDirection(FVector2D StickValue) con
 	return (WorldForward * StickValue.Y + WorldRight * StickValue.X).GetSafeNormal();
 }
 
-AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly) const
+AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly, float* OutBestDot) const
 {
+	if (OutBestDot) *OutBestDot = -1.f;
+
 	AML_PlayerCharacter* Character = Controller ? Controller->GetMycelandCharacter() : nullptr;
 	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return nullptr;
 
@@ -248,5 +285,7 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 		}
 	}
 
-	return (BestDot >= AlignmentThreshold) ? BestNeighbor : nullptr;
+	const bool bClears = (BestDot >= AlignmentThreshold);
+	if (OutBestDot) *OutBestDot = bClears ? BestDot : -1.f;
+	return bClears ? BestNeighbor : nullptr;
 }

@@ -50,16 +50,26 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 	if (!bIsMoving)
 		return;
 
-	// Handle nav mesh movement (FreeMovement and EnteringBoard modes)
-	if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement ||
-	    TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::EnteringBoard)
+	// Handle nav mesh movement (FreeMovement, EnteringBoard, and the ExitingBoard walk-out off the board)
+	const EML_PlayerMovementMode NavMode = TransitionComponent->GetMovementMode();
+	if (NavMode == EML_PlayerMovementMode::FreeMovement ||
+	    NavMode == EML_PlayerMovementMode::EnteringBoard ||
+	    NavMode == EML_PlayerMovementMode::ExitingBoard)
 	{
 		if (NavigationBridgeComponent && NavigationBridgeComponent->TickNavMeshMovement(DeltaTime))
 		{
 			SetIsMoving(false);
+
+			// Walk-out finished while still ExitingBoard: the player never crossed off the board footprint
+			// (e.g. the exit plane sits on a border tile), so HandleBoardStateChanged never flipped the mode.
+			// Force FreeMovement here so the player is never stuck unable to move.
+			if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::ExitingBoard)
+			{
+				SetMovementMode(EML_PlayerMovementMode::FreeMovement);
+			}
 			// Never trigger board entry while a cinematic is running — the narrative subsystem
 			// owns player movement during that window.
-			if (TransitionComponent->IsPendingBoardEntry() && !bInCinematicMode)
+			else if (TransitionComponent->IsPendingBoardEntry() && !bInCinematicMode)
 			{
 				OnPathFinished();
 			}
@@ -688,22 +698,6 @@ void AML_PlayerController::OnGamepadSelectPlantReleased()
 	if (bInCinematicMode) return;
 	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
 		InputDeviceManager->GetActiveHandler()->OnPlantSelectReleased();
-}
-
-void AML_PlayerController::OnGamepadExitStarted()
-{
-	if (bInCinematicMode) return;
-	if (!InputDeviceManager) return;
-	InputDeviceManager->NotifyGamepadInput();
-	if (InputDeviceManager->GetActiveHandler())
-		InputDeviceManager->GetActiveHandler()->OnExitAction();
-}
-
-void AML_PlayerController::OnGamepadExitReleased()
-{
-	if (bInCinematicMode) return;
-	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
-		InputDeviceManager->GetActiveHandler()->OnExitReleased();
 }
 
 void AML_PlayerController::OnSkipNarrativeLine()

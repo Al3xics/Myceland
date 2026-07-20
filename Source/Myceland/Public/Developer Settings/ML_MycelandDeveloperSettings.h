@@ -33,8 +33,15 @@ public:
 	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
 	FML_InputMappingEntry TeleportInputMappingContext;
 
-	UPROPERTY(EditAnywhere, config, Category="Input")
-	float ExitBoardHoldDuration = 2.f;
+	// Mouse/keyboard: how long the click must be held outside the board before the exit resolves. 0 = instant.
+	// Shares the exit hold tick rate (ExitHoldTickRate) with the gamepad.
+	UPROPERTY(EditAnywhere, config, Category="Input|Mouse", meta=(ClampMin="0.0", Tooltip="Mouse/keyboard: seconds the click must be held outside the board before leaving. 0 = instant. Shares ExitHoldTickRate with the gamepad."))
+	float ExitBoardHoldDurationMouse = 0.f;
+
+	// Gamepad: how long the stick must be held toward the exit plane before the exit resolves. 0 = instant.
+	// Shares the exit hold tick rate (ExitHoldTickRate) with the mouse/keyboard.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Gamepad: seconds the stick must be held toward the exit plane before leaving. 0 = instant. Shares ExitHoldTickRate with the mouse."))
+	float ExitBoardHoldDurationGamepad = 0.f;
 
 	// Gamepad: inside a board, how long the stick must be held in a direction before the
 	// tile selection starts auto-advancing to the next tile (the first tile is always
