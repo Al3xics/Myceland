@@ -20,9 +20,11 @@ class AML_BoardSpawner;
  * Inside board  : LEFT STICK moves the player tile-by-tile — pushing the stick walks the character
  *                 to the neighbor tile most aligned with the direction; holding keeps stepping to the
  *                 next tile (GamepadHoldRepeatDelay / GamepadHoldRepeatInterval).
- *                 RIGHT STICK selects a plantable tile around the player (only among the highlighted
- *                 plantable neighbors), highlighting it like the mouse cursor hover. The plant button
- *                 then plants the selected tile (classic turn-to-plant + propagation).
+ *                 RIGHT STICK moves a selection cursor over the plantable tiles, stepping one tile at a
+ *                 time from the currently selected tile toward the stick direction (throttled by
+ *                 GamepadHoldRepeatInterval while held; a flick steps once). The cursor stays within
+ *                 GamepadSelectRingDistance of the player and highlights like the mouse cursor hover. The
+ *                 plant button then plants the selected tile (classic turn-to-plant + propagation).
  *                 EXIT: there is no exit button — standing on an exit border tile, pushing the LEFT STICK
  *                 toward the exit plane walks the player straight out of the board. Mirrors the mouse exit
  *                 hold: instant when ExitBoardHoldDurationGamepad is 0, otherwise the stick must stay pointed at
@@ -72,6 +74,14 @@ private:
 	/** Resets the left-stick hold/repeat state so the next push starts a fresh step cycle. */
 	void ResetMoveRepeatState();
 
+	// ===== Right stick: plant selection =====
+
+	/** True while the right stick has been in the neutral zone since the last selection update. */
+	bool bSelectStickWasNeutral = true;
+
+	/** Accumulator gating held re-selection to one update per GamepadHoldRepeatInterval. */
+	float SelectRepeatTimer = 0.f;
+
 	// ==================== Plant selection (right stick) ====================
 
 	/**
@@ -89,14 +99,18 @@ private:
 	FVector StickToWorldDirection(FVector2D StickValue) const;
 
 	/**
-	 * Finds the neighbor tile of the player's current tile most aligned with the stick direction.
+	 * Finds the tile most aligned with the stick direction among those at hex ring RingDistance from the
+	 * player's current tile (RingDistance 1 = the immediate neighbors).
 	 * bPlantableOnly true  → only considers tiles the player can plant on (right-stick selection).
 	 * bPlantableOnly false → only considers walkable tiles (left-stick movement).
 	 * Returns nullptr if no candidate clears AlignmentThreshold. When OutBestDot is provided it receives
-	 * the alignment dot of the returned neighbor (or -1 when none clears the threshold), so callers can
+	 * the alignment dot of the returned tile (or -1 when none clears the threshold), so callers can
 	 * compare it against the exit direction.
 	 */
-	AML_Tile* FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly, float* OutBestDot = nullptr) const;
+	AML_Tile* FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly, int32 RingDistance = 1, float* OutBestDot = nullptr) const;
+
+	/** Hex (axial) distance between two axial coordinates. */
+	static int32 HexAxialDistance(const FIntPoint& A, const FIntPoint& B);
 
 	/**
 	 * If the player stands on an exit border tile, computes how well the stick points at that exit's plane.

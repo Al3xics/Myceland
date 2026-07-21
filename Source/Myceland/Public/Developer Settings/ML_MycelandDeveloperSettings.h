@@ -42,6 +42,9 @@ public:
 	// Shares the exit hold tick rate (ExitHoldTickRate) with the mouse/keyboard.
 	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Gamepad: seconds the stick must be held toward the exit plane before leaving. 0 = instant. Shares ExitHoldTickRate with the mouse."))
 	float ExitBoardHoldDurationGamepad = 0.f;
+	
+	UPROPERTY(EditAnywhere, Config, Category="Input|Gamepad", meta=(ClampMin="1", ClampMax="5", Tooltip="The distance from the player a tile can be selected with the gamepad."))
+	uint8 GamepadSelectRingDistance = 1;
 
 	// Gamepad: inside a board, how long the stick must be held in a direction before the
 	// tile selection starts auto-advancing to the next tile (the first tile is always

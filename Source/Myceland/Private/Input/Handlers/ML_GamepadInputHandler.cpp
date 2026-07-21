@@ -123,7 +123,7 @@ void UML_GamepadInputHandler::StepMoveInStickDirection(FVector2D StickValue)
 
 	// Best walkable neighbor aligned with the stick (NeighborDot measures how well it matches).
 	float NeighborDot = -1.f;
-	AML_Tile* Neighbor = FindNeighborInStickDirection(StickValue, Threshold, /*bPlantableOnly=*/false, &NeighborDot);
+	AML_Tile* Neighbor = FindNeighborInStickDirection(StickValue, Threshold, false, 1, &NeighborDot);
 
 	// On an exit border tile, pushing the stick toward the exit plane starts leaving the board — there is
 	// no dedicated exit button anymore. The exit direction competes with the neighbor tiles: it only wins
@@ -158,22 +158,93 @@ void UML_GamepadInputHandler::OnPlantSelectAxis(FVector2D StickValue, float Delt
 {
 	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
 	if (Controller->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
+
+	// Stick back in the neutral zone: arm the next push to select immediately (flick) and drop the timer.
+	// The current selection is left untouched (it persists like the mouse cursor), so re-holding just
+	// resumes from where the selection already was.
+	if (StickValue.IsNearlyZero())
+	{
+		bSelectStickWasNeutral = true;
+		SelectRepeatTimer = 0.f;
+		return;
+	}
+
+	// Flick (first frame away from neutral): select once immediately, then start throttling.
+	if (bSelectStickWasNeutral)
+	{
+		bSelectStickWasNeutral = false;
+		SelectRepeatTimer = 0.f;
+		UpdatePlantSelection(StickValue);
+		return;
+	}
+
+	// Held: only let the selection move again once per repeat interval, so sweeping the stick doesn't
+	// blast through every tile in a single frame. Reuses the movement hold-repeat interval (no initial
+	// hold delay here — selection is meant to feel responsive on the first push).
+	const float RepeatInterval = Settings ? FMath::Max(Settings->GetGamepadHoldRepeatInterval(), 0.01f) : 0.1f;
+	SelectRepeatTimer += DeltaTime;
+	if (SelectRepeatTimer < RepeatInterval) return;
+
+	SelectRepeatTimer -= RepeatInterval;
 	UpdatePlantSelection(StickValue);
 }
 
 void UML_GamepadInputHandler::OnPlantSelectReleased()
 {
-	// Selection is persistent (mirrors the mouse cursor staying on the last hovered tile):
-	// nothing to reset here. The plant button acts on the HoverPreviewComponent's selection.
+	// Selection itself is persistent (mirrors the mouse cursor staying on the last hovered tile), so we
+	// keep the selected tile. We only re-arm the flick so the next push selects immediately, and reset the
+	// hold-repeat timer — covers input backends that stop broadcasting axis events at neutral instead of
+	// sending a zero value.
+	bSelectStickWasNeutral = true;
+	SelectRepeatTimer = 0.f;
 }
 
 void UML_GamepadInputHandler::UpdatePlantSelection(FVector2D StickValue)
 {
 	if (StickValue.IsNearlyZero()) return;
 
+	AML_PlayerCharacter* Character = Controller->GetMycelandCharacter();
+	if (!IsValid(Character) || !IsValid(Character->CurrentTileOn)) return;
+
+	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return;
+
 	const float Threshold = DevSettings ? DevSettings->GamepadSelectAlignmentThreshold : 0.5f;
-	AML_Tile* Best = FindNeighborInStickDirection(StickValue, Threshold, /*bPlantableOnly=*/true);
-	if (!IsValid(Best) || Best == Controller->GetGamepadSelectedTile()) return;
+	const int32 MaxRing = DevSettings ? FMath::Max<int32>(DevSettings->GamepadSelectRingDistance, 1) : 1;
+
+	// The cursor steps one tile at a time, relative to the tile that is currently selected — flicking a
+	// direction moves to that tile's neighbor in the stick direction (not the best tile around the player).
+	// When nothing is selected yet, the first push starts from the player's tile (so it steps onto a ring-1
+	// neighbor). The step is restricted to plantable tiles that stay within MaxRing of the player.
+	AML_Tile* OriginTile = Controller->GetGamepadSelectedTile();
+	if (!IsValid(OriginTile)) OriginTile = Character->CurrentTileOn;
+
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(OriginTile, Neighbors);
+
+	const FVector StickWorldDir = StickToWorldDirection(StickValue);
+	const FVector OriginPos = OriginTile->GetActorLocation();
+	const FIntPoint PlayerAxial = Character->CurrentTileOn->GetAxialCoord();
+
+	AML_Tile* Best = nullptr;
+	float BestDot = -1.f;
+	for (AML_Tile* Neighbor : Neighbors)
+	{
+		if (!IsValid(Neighbor)) continue;
+		if (!UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType())) continue;
+		if (HexAxialDistance(Neighbor->GetAxialCoord(), PlayerAxial) > MaxRing) continue;
+
+		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();
+		const float Dot = FVector::DotProduct(StickWorldDir, ToNeighbor);
+		if (Dot > BestDot)
+		{
+			BestDot = Dot;
+			Best = Neighbor;
+		}
+	}
+
+	if (!IsValid(Best) || BestDot < Threshold) return;
+	if (Best == Controller->GetGamepadSelectedTile()) return;
 
 	// The HoverPreviewComponent owns the selection state + its cursor glow.
 	Controller->SetGamepadSelectedTile(Best);
@@ -243,7 +314,15 @@ FVector UML_GamepadInputHandler::StickToWorldDirection(FVector2D StickValue) con
 	return (WorldForward * StickValue.Y + WorldRight * StickValue.X).GetSafeNormal();
 }
 
-AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly, float* OutBestDot) const
+int32 UML_GamepadInputHandler::HexAxialDistance(const FIntPoint& A, const FIntPoint& B)
+{
+	// Axial -> cube distance: (|dq| + |dq+dr| + |dr|) / 2.
+	const int32 dq = A.X - B.X;
+	const int32 dr = A.Y - B.Y;
+	return (FMath::Abs(dq) + FMath::Abs(dq + dr) + FMath::Abs(dr)) / 2;
+}
+
+AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickValue, float AlignmentThreshold, bool bPlantableOnly, int32 RingDistance, float* OutBestDot) const
 {
 	if (OutBestDot) *OutBestDot = -1.f;
 
@@ -254,10 +333,30 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 	if (!IsValid(Board)) return nullptr;
 
 	AML_Tile* OriginTile = Character->CurrentTileOn;
+	RingDistance = FMath::Max(RingDistance, 1);
 
-	FML_TileNeighbors Neighbors;
-	Board->GetNeighbors(OriginTile, Neighbors);
-	if (Neighbors.IsEmpty()) return nullptr;
+	// Gather every candidate tile within RingDistance of the player (hex distance 1..RingDistance,
+	// origin excluded). Ring 1 uses the fast neighbor lookup; larger ranges scan the grid map.
+	TArray<AML_Tile*, TInlineAllocator<24>> Candidates;
+	if (RingDistance == 1)
+	{
+		FML_TileNeighbors Neighbors;
+		Board->GetNeighbors(OriginTile, Neighbors);
+		for (AML_Tile* Neighbor : Neighbors)
+			if (IsValid(Neighbor)) Candidates.Add(Neighbor);
+	}
+	else
+	{
+		const FIntPoint OriginAxial = OriginTile->GetAxialCoord();
+		for (const TPair<FIntPoint, AML_Tile*>& Pair : Board->GetGridMapRef())
+		{
+			if (!IsValid(Pair.Value)) continue;
+			const int32 Dist = HexAxialDistance(Pair.Key, OriginAxial);
+			if (Dist >= 1 && Dist <= RingDistance)
+				Candidates.Add(Pair.Value);
+		}
+	}
+	if (Candidates.IsEmpty()) return nullptr;
 
 	const FVector StickWorldDir = StickToWorldDirection(StickValue);
 	const FVector OriginPos = OriginTile->GetActorLocation();
@@ -265,14 +364,10 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 	AML_Tile* BestNeighbor = nullptr;
 	float BestDot = -1.f;
 
-	for (AML_Tile* Neighbor : Neighbors)
+	for (AML_Tile* Neighbor : Candidates)
 	{
-		if (!IsValid(Neighbor)) continue;
-
 		// Movement only walks onto walkable tiles; plant selection only picks plantable tiles.
-		const bool bCandidate = bPlantableOnly
-			? UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType())
-			: UML_HexPathfinder::IsTileWalkable(Neighbor);
+		const bool bCandidate = bPlantableOnly ? UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()) : UML_HexPathfinder::IsTileWalkable(Neighbor);
 		if (!bCandidate) continue;
 
 		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();
