@@ -10,7 +10,9 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Subsystem/ML_NarrativeSubsystem.h"
+#include "Save System/ML_SaveSubsystem.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/GameInstance.h"
 #include "Player/ML_PlayerCharacter.h"
 
 AML_NarrativeTrigger::AML_NarrativeTrigger()
@@ -46,6 +48,11 @@ void AML_NarrativeTrigger::BeginPlay()
 
     // Only tick when a cinematic approach is running (or to keep drawing debug paths in PIE)
     SetActorTickEnabled(bDrawDebugPaths);
+    
+    // Restore the played state from the save file so a play-once trigger that
+    // already fired in a previous session does not play again after loading.
+    if (const UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
+        bHasBeenPlayed = SaveSys->IsNarrativeTriggerPlayed(GetTriggerSaveID());
 
     // Bind overlap event
     if (TriggerBox)
@@ -89,6 +96,11 @@ void AML_NarrativeTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overlapped
     if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
     {
         bHasBeenPlayed = true;
+
+        // Persist the played state so it survives a reload.
+        if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
+            SaveSys->SetNarrativeTriggerPlayed(GetTriggerSaveID());
+
         OnSequenceStarted(NarrativeSequence);
         SubSys->PlaySequence(NarrativeSequence, this);
     }
@@ -131,6 +143,23 @@ void AML_NarrativeTrigger::OnSequenceEnded_Implementation(UML_NarrativeSequence*
 void AML_NarrativeTrigger::ResetTrigger()
 {
     bHasBeenPlayed = false;
+
+    // Clear the persisted flag so the trigger can play again after a reset.
+    if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
+        SaveSys->ClearNarrativeTriggerPlayed(GetTriggerSaveID());
+}
+
+UML_SaveSubsystem* AML_NarrativeTrigger::GetSaveSubsystem() const
+{
+    const UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    return GI ? GI->GetSubsystem<UML_SaveSubsystem>() : nullptr;
+}
+
+FName AML_NarrativeTrigger::GetTriggerSaveID() const
+{
+    // Level-placed actors keep a stable FName across sessions, which makes it a
+    // reliable per-trigger save key without any extra editor setup.
+    return GetFName();
 }
 
 void AML_NarrativeTrigger::Tick(const float DeltaTime)

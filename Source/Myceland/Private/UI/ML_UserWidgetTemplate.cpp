@@ -79,31 +79,22 @@ void UML_UserWidgetTemplate::GetSettingValue(float& OutFloat, bool& OutBool, int
 		OutType = ESettingValueType::Int32;
 		UE_LOG(LogTemp, Verbose, TEXT("[%s] Loaded int32 property '%s' = %d"), *GetName(), *PropertyName.ToString(), OutInt32);
 	}
+	else if (const FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+	{
+		// enum class properties (e.g. OverallQuality, ColorblindMode), returned as their index
+		OutInt32 = static_cast<int32>(EnumProp->GetUnderlyingProperty()->GetSignedIntPropertyValue(EnumProp->ContainerPtrToValuePtr<void>(Settings)));
+		OutType = ESettingValueType::Int32;
+		UE_LOG(LogTemp, Verbose, TEXT("[%s] Loaded enum property '%s' = %d"), *GetName(), *PropertyName.ToString(), OutInt32);
+	}
+	else if (const FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+	{
+		// TEnumAsByte properties (e.g. WindowMode), returned as their index
+		OutInt32 = ByteProp->GetPropertyValue_InContainer(Settings);
+		OutType = ESettingValueType::Int32;
+		UE_LOG(LogTemp, Verbose, TEXT("[%s] Loaded byte property '%s' = %d"), *GetName(), *PropertyName.ToString(), OutInt32);
+	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[%s] Property '%s' has unsupported type"), *GetName(), *PropertyName.ToString());
 	}
-}
-
-FString UML_UserWidgetTemplate::GetOptionTextValue() const
-{
-	const UML_GameUserSettings* Settings = UML_GameUserSettings::GetMycelandGameUserSettings();
-	if (!Settings) return TEXT("");
-    
-	// Check for special properties
-	if (PropertyName == TEXT("ResolutionValue"))
-		return Settings->GetCurrentResolutionText();
-	if (PropertyName == TEXT("FrameLimit"))
-		return Settings->GetCurrentFrameRateLimitText();
-    
-	return TEXT(""); // Not a special property
-}
-
-int32 UML_UserWidgetTemplate::FindTextOptionIndex(const TArray<FText>& Options, const FString& SearchText)
-{
-	for (int32 i = 0; i < Options.Num(); ++i)
-		if (Options[i].ToString().Equals(SearchText, ESearchCase::IgnoreCase))
-			return i;
-    
-	return INDEX_NONE;
 }

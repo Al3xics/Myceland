@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "ML_BiomeTileSet.generated.h"
 
+class AML_TileWaterPath;
 class AML_TileBase;
 enum class EML_TileType : uint8;
 class AML_TileWater;
@@ -34,6 +35,9 @@ private:
 
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<AML_TileWater> WaterClass;
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<AML_TileWaterPath> WaterPathClass;
 	
 public:
 	TSubclassOf<AML_TileBase> GetClassFromTileType(EML_TileType Type) const;

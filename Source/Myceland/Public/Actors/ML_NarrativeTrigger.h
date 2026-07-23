@@ -15,6 +15,7 @@ class UML_NarrativeSequence;
 class UBoxComponent;
 class UCameraComponent;
 class UNarrativeSubsystem;
+class UML_SaveSubsystem;
 
 UCLASS(Blueprintable)
 class MYCELAND_API AML_NarrativeTrigger : public AActor
@@ -141,4 +142,11 @@ public:
  
     virtual void Tick(float DeltaTime) override;
     virtual bool ShouldTickIfViewportsOnly() const override { return true; }
+
+private:
+    // Resolves the game-instance save subsystem (null if unavailable).
+    UML_SaveSubsystem* GetSaveSubsystem() const;
+
+    // Stable key used to persist bHasBeenPlayed: the level-placed actor name.
+    FName GetTriggerSaveID() const;
 };

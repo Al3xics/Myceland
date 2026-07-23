@@ -228,15 +228,15 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 	// the player to enter the board mid-cinematic once the navmesh proximity check fires.
 	GetPlayerController()->CancelPendingNavigation();
 
-	// Swap IMCs: remove main (no movement/click) and add cinematic-only (skip only)
+	// Swap IMCs: remove all gameplay IMCs (no movement/click) and add cinematic-only (skip only).
+	// The detection IMC is intentionally left mapped so device switching still works during the cutscene.
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	GetPlayerController()->RemoveGameplayInputMappingContexts();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
-		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->RemoveMappingContext(MainIMC);
-
-		if (UInputMappingContext* CinematicIMC = DevSettings->CinematicInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->AddMappingContext(CinematicIMC, DevSettings->CinematicInputMappingContext.Priority);
+		int32 Priority = 0;
+		if (UInputMappingContext* CinematicIMC = DevSettings->GetInputMappingContext(EInputMappingType::Cinematic, Priority))
+			InputSub->AddMappingContext(CinematicIMC, Priority);
 	}
 
 	// Walk the player to the arrow with a steering arc; the trigger calls
@@ -299,16 +299,17 @@ void UML_NarrativeSubsystem::RestorePlayerControl() const
 	if (CurrentNarrativeTrigger)
 		CurrentNarrativeTrigger->StopCinematicApproach();
 
-	// Swap IMCs back: remove cinematic, restore main
+	// Swap IMCs back: remove cinematic, then restore the IMC matching the device used before the
+	// cinematic (ApplyGameplayInputMappingContext reads the currently active device).
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
-		if (UInputMappingContext* CinematicIMC = DevSettings->CinematicInputMappingContext.Mapping.LoadSynchronous())
+		int32 Priority = 0;
+		if (UInputMappingContext* CinematicIMC = DevSettings->GetInputMappingContext(EInputMappingType::Cinematic, Priority))
 			InputSub->RemoveMappingContext(CinematicIMC);
-
-		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->AddMappingContext(MainIMC, DevSettings->DefaultInputMappingContext.Priority);
 	}
+
+	GetPlayerController()->ApplyGameplayInputMappingContext();
 
 	GetPlayerController()->NotifyCinematicModeChanged(false); // false because cinematic ends
 

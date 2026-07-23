@@ -149,9 +149,19 @@ void UML_RollBackSubsystem::RecordSpawnedActor(AActor* Spawned, int32 DistanceFr
 	CurrentTurnRecord.SpawnDeltas.Add(Delta);
 }
 
+bool UML_RollBackSubsystem::IsCurrentBoardSolved() const
+{
+	if (!PlayerController) return false;
+	const AML_PlayerCharacter* PC = Cast<AML_PlayerCharacter>(PlayerController->GetPawn());
+	if (!PC || !PC->CurrentTileOn) return false;
+	const AML_BoardSpawner* Board = PC->CurrentTileOn->GetBoardSpawnerFromTile();
+	return IsValid(Board) && Board->bIsPuzzleSolved;
+}
+
 bool UML_RollBackSubsystem::CanUndo() const
 {
 	if (bIsUndoAnimating) return false;
+	if (IsCurrentBoardSolved()) return false; // no undo once the puzzle is won
 	if (!PlayerController) return false;
 
 	const UML_WavePropagationSubsystem* WaveSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>() : nullptr;
@@ -804,6 +814,7 @@ bool UML_RollBackSubsystem::ResetAllActions_Animated()
 	EnsureInitialized();
 	if (!PlayerController || !DevSettings) return false;
 	if (bIsUndoAnimating || bIsResetAllAnimating) return false;
+	if (IsCurrentBoardSolved()) return false; // no reset once the puzzle is won
 
 	UML_WavePropagationSubsystem* WaveSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>() : nullptr;
 	if (!WaveSubsystem || WaveSubsystem->IsResolvingTiles()) return false;
@@ -906,6 +917,7 @@ bool UML_RollBackSubsystem::UndoLastAction_Animated()
 {
 	EnsureInitialized();
 	if (!PlayerController || !DevSettings) return false;
+	if (IsCurrentBoardSolved()) return false; // no undo once the puzzle is won
 
 	bool bStarted = false;
 	if (DevSettings->bUndoUntilPlant && !bIsResetAllAnimating)

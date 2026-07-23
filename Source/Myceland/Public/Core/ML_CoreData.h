@@ -25,6 +25,14 @@ class UInputMappingContext;
 class AML_Collectible;
 class UML_PropagationWaves;
 class AML_Tile;
+class AActor;
+
+UENUM(BlueprintType)
+enum class EInputMappingType : uint8
+{
+	Cinematic,
+	Teleport
+};
 
 UENUM(BlueprintType)
 enum class EML_HexGridLayout : uint8
@@ -102,6 +110,17 @@ enum class EML_InputDevice : uint8
 	Gamepad       UMETA(DisplayName = "Gamepad")
 };
 
+// Which input device(s) a gameplay IMC entry covers. Drives which devices the input-device switch is
+// allowed to target: an array whose entries only cover one device locks input to it. "Both" is the
+// neutral default — also what non-gameplay IMCs (Cinematic, Teleport) keep, since they ignore this field.
+UENUM(BlueprintType)
+enum class EML_InputMappingDevice : uint8
+{
+	Both,
+	MouseKeyboard UMETA(DisplayName = "Mouse & Keyboard"),
+	Gamepad       UMETA(DisplayName = "Gamepad")
+};
+
 UENUM(BlueprintType)
 enum class ESettingValueType : uint8
 {
@@ -109,6 +128,17 @@ enum class ESettingValueType : uint8
 	Bool,
 	Int32,
 	Unknown
+};
+
+// Player's overall story/level progression. Persisted in the save and mirrored on the
+// GameInstance. Order matters: it is the serialized underlying value, so only ever append
+// new states — never reorder or remove existing ones.
+UENUM(BlueprintType)
+enum class EML_ProgressionState : uint8
+{
+	W1L0,
+	W1L1,
+	W1L2
 };
 
 
@@ -161,6 +191,12 @@ USTRUCT(BlueprintType)
 struct FML_InputMappingEntry
 {
 	GENERATED_BODY()
+
+	// Only meaningful for the gameplay IMC array: which device(s) this IMC covers. The input-device
+	// switch only targets devices present in the array, so a single-device array locks input to it.
+	// Left at "Both" (the default) for Cinematic / Teleport IMCs, which ignore this field.
+	UPROPERTY(EditAnywhere, config)
+	EML_InputMappingDevice Device = EML_InputMappingDevice::Both;
 
 	UPROPERTY(EditAnywhere, config)
 	TSoftObjectPtr<UInputMappingContext> Mapping;
@@ -233,10 +269,27 @@ USTRUCT(BlueprintType)
 struct FML_WaterPath
 {
 	GENERATED_BODY()
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Water Path")
 	TObjectPtr<AML_Tile> EntryTile;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Water Path")
 	TObjectPtr<AML_Tile> ExitTile;
+};
+
+// Describes one gamepad board exit: a plane/actor to highlight and the border tiles that activate it.
+// The ExitPlane is also the world destination the player walks toward when confirming the exit.
+USTRUCT(BlueprintType)
+struct FML_BoardExit
+{
+	GENERATED_BODY()
+
+	// The plane/actor that should highlight when the player stands on one of the ExitTiles.
+	// It also serves as the world destination the player walks toward when confirming the exit.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Board Exit")
+	TObjectPtr<AActor> ExitPlane = nullptr;
+
+	// Border tiles that activate this exit while the player stands on one of them.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Board Exit")
+	TArray<TObjectPtr<AML_Tile>> ExitTiles;
 };

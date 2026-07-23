@@ -18,12 +18,19 @@
 
 class AML_CameraRail;
 class UML_MycelandDeveloperSettings;
+class UEnhancedInputLocalPlayerSubsystem;
 struct FInputActionValue;
 class AML_PlayerCharacter;
 class AML_BoardSpawner;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
+
+// Single, controller-wide broadcast for gamepad board-exit availability. Boards only hold their exit
+// config; the gamepad handler resolves the plane for the player's tile and broadcasts here so exit
+// plane actors have ONE place to subscribe (Get Player Controller → Cast → bind this event) instead
+// of subscribing to every board individually. Compare ExitPlane against self to know if it concerns you.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBoardExitAvailabilityChanged, AActor*, ExitPlane, bool, bIsAvailable);
 
 UCLASS()
 class MYCELAND_API AML_PlayerController : public APlayerController
@@ -83,6 +90,10 @@ private:
 
 	AML_CameraRail* FindClosestCameraRailFromPlayer(const FVector& WorldLocation);
 
+	// ==================== Input Mapping ====================
+
+	UEnhancedInputLocalPlayerSubsystem* GetEnhancedInputSubsystem() const;
+
 	// ==================== Delegates ====================
 
 	UFUNCTION()
@@ -117,13 +128,10 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnMoveAndPlantStarted();
 
-	// Bind to IA_GamepadConfirm → Started (gamepad button — replaces IA_Move gamepad binding)
+	// Bind to IA_GamepadConfirm → Started. In-board this is the PLANT button: it plants the tile
+	// currently selected by the right stick. (Movement is now handled directly by the left stick.)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnGamepadConfirmStarted();
-
-	// Bind to IA_GamepadMoveAndPlant → Started (gamepad button — replaces IA_MoveAndPlant gamepad binding)
-	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
-	void OnGamepadMoveAndPlantStarted();
 
 	// Bind to IA_GamepadMove → Triggered (Axis2D, left stick)
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
@@ -131,6 +139,14 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnGamepadMoveReleased();
+
+	// Bind to IA_GamepadSelectPlant → Triggered (Axis2D, right stick) — selects a plantable tile
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnGamepadSelectPlantAxis(const FVector2D& Value);
+
+	// Bind to IA_GamepadSelectPlant → Completed / Canceled
+	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
+	void OnGamepadSelectPlantReleased();
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland Controller")
 	void OnSkipNarrativeLine();
@@ -226,6 +242,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
 
+	// Gamepad: broadcast when the player stands on / leaves a board exit tile. Subscribe from the exit
+	// plane actor and highlight when ExitPlane == self. Single endpoint for every board's exits.
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Board Exit")
+	FOnBoardExitAvailabilityChanged OnBoardExitAvailabilityChanged;
+
 	// ==================== Camera ====================
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
@@ -250,6 +271,16 @@ public:
 	void UpdateCursorVisibility(const bool bVisible);
 	void NotifyCinematicModeChanged(const bool bInCinematicMode);
 
+	/**
+	 * Maps every configured gameplay IMC (GameplayInputMappingContexts) at once. Called on possession and
+	 * when a cinematic ends (the Narrative subsystem removes them while the Cinematic IMC is active, then
+	 * calls this to restore them). Device detection does NOT depend on these — see the detection IMC.
+	 */
+	void ApplyGameplayInputMappingContext();
+
+	/** Removes every configured gameplay IMC. Called by the Narrative subsystem when a cinematic starts. */
+	void RemoveGameplayInputMappingContexts();
+
 	// ==================== Actions ====================
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller")
@@ -264,6 +295,10 @@ public:
 
 	bool IsMoveInProgress() const { return MoveRecordingComponent && MoveRecordingComponent->IsMoveInProgress(); }
 	bool IsUndoMovePlayback() const { return MoveRecordingComponent && MoveRecordingComponent->IsUndoMovePlayback(); }
+
+	/** True while the gamepad is the active input device (used e.g. to keep the cursor hidden in menus). */
+	UFUNCTION(BlueprintPure, Category = "Myceland Controller|Input")
+	bool IsGamepadActive() const { return InputDeviceManager && InputDeviceManager->GetCurrentDevice() == EML_InputDevice::Gamepad; }
 	
 	float GetMoveSpeedScale() const { return MoveSpeedScale; }
 	float GetShortPressThreshold() const { return ShortPressThreshold; }
@@ -287,6 +322,10 @@ public:
 	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
 	void SetForcedHoverTile(AML_Tile* Tile);
 	void ClearForcedHoverTile();
+
+	/** Gamepad plant selection (forwarded to the HoverPreviewComponent, which owns the board visuals). */
+	void SetGamepadSelectedTile(AML_Tile* Tile);
+	AML_Tile* GetGamepadSelectedTile() const;
 	void ClearPathHoverPreview();
 
 	/** Clears the currently active glow (cursor + path). Called by AML_BoardSpawner when glow is toggled OFF. */

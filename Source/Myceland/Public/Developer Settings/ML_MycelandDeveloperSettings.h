@@ -20,26 +20,77 @@ class MYCELAND_API UML_MycelandDeveloperSettings : public UDeveloperSettings
 public:
 	// ==================== Input ====================
 	
-	UPROPERTY(EditAnywhere, config, Category="Input")
-	FML_InputMappingEntry DefaultInputMappingContext;
+	// All gameplay IMCs, mapped together while not in a cinematic. Keep BOTH the mouse/keyboard and the
+	// gamepad IMC here: device detection piggy-backs on their action callbacks, so both must stay mapped
+	// for the gamepad <-> mouse/keyboard switch to work in both directions.
+	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
+	TArray<FML_InputMappingEntry> GameplayInputMappingContexts;
 
 	// IMC used during cinematic sequences — should contain only the skip action
-	UPROPERTY(EditAnywhere, config, Category="Input")
+	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
 	FML_InputMappingEntry CinematicInputMappingContext;
+	
+	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
+	FML_InputMappingEntry TeleportInputMappingContext;
 
-	UPROPERTY(EditAnywhere, config, Category="Input")
-	float ExitBoardHoldDuration = 2.f;
+	// Mouse/keyboard: how long the click must be held outside the board before the exit resolves. 0 = instant.
+	// Shares the exit hold tick rate (ExitHoldTickRate) with the gamepad.
+	UPROPERTY(EditAnywhere, config, Category="Input|Mouse", meta=(ClampMin="0.0", Tooltip="Mouse/keyboard: seconds the click must be held outside the board before leaving. 0 = instant. Shares ExitHoldTickRate with the gamepad."))
+	float ExitBoardHoldDurationMouse = 0.f;
+
+	// Gamepad: how long the stick must be held toward the exit plane before the exit resolves. 0 = instant.
+	// Shares the exit hold tick rate (ExitHoldTickRate) with the mouse/keyboard.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Gamepad: seconds the stick must be held toward the exit plane before leaving. 0 = instant. Shares ExitHoldTickRate with the mouse."))
+	float ExitBoardHoldDurationGamepad = 0.f;
+	
+	UPROPERTY(EditAnywhere, Config, Category="Input|Gamepad", meta=(ClampMin="1", ClampMax="5", Tooltip="The distance from the player a tile can be selected with the gamepad."))
+	uint8 GamepadSelectRingDistance = 1;
 
 	// Gamepad: inside a board, how long the stick must be held in a direction before the
 	// tile selection starts auto-advancing to the next tile (the first tile is always
 	// selected immediately on push).
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Seconds the stick must be held before tile selection starts auto-advancing."))
-	float GamepadHoldRepeatDelay = 0.4f;
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Seconds the stick must be held before tile selection starts auto-advancing.\nDefault value only: the player can override it in the settings menu (saved in GameUserSettings.ini). Reset in the menu picks this value back up."))
+	float GamepadHoldRepeatDelay = 0.3f;
 
 	// Gamepad: once auto-advance is active, seconds between each step to the next tile.
 	// Lower = faster. Acts as the hold movement speed of the selection cursor.
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.01", Tooltip="Seconds between each tile step while the stick is held (lower = faster)."))
-	float GamepadHoldRepeatInterval = 0.15f;
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.01", Tooltip="Seconds between each tile step while the stick is held (lower = faster).\nDefault value only: the player can override it in the settings menu (saved in GameUserSettings.ini). Reset in the menu picks this value back up."))
+	float GamepadHoldRepeatInterval = 0.1f;
+
+	// Gamepad (inside board): minimum stick/direction alignment (dot product) required to step the
+	// player toward a neighbor tile with the left stick. cos 60 deg = 0.5, cos 30 deg = 0.866.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the left stick to step toward a neighbor tile. 0.5 = cos 60 deg."))
+	float GamepadMoveAlignmentThreshold = 0.5f;
+
+	// Gamepad (inside board): minimum stick/direction alignment (dot product) required for the right
+	// stick to select a plantable tile around the player. cos 60 deg = 0.5, cos 30 deg = 0.866.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the right stick to select a plantable tile. 0.5 = cos 60 deg."))
+	float GamepadSelectAlignmentThreshold = 0.5f;
+
+
+
+	// ==================== User Settings (Graphics whitelists) ====================
+
+	// Resolutions offered in the graphics settings dropdown. The saved resolution
+	// snaps to the closest entry when the game boots (ValidateSettings).
+	UPROPERTY(EditAnywhere, config, Category="User Settings|Graphics")
+	TArray<FIntPoint> ValidResolutions = {
+		FIntPoint(1280, 720),
+		FIntPoint(1600, 900),
+		FIntPoint(1920, 1080),
+		FIntPoint(2560, 1440),
+		FIntPoint(3840, 2160)
+	};
+
+	// Frame rate limits offered in the graphics settings dropdown. 0 = Unlimited.
+	UPROPERTY(EditAnywhere, config, Category="User Settings|Graphics")
+	TArray<float> ValidFrameLimits = {
+		30.f,
+		60.f,
+		120.f,
+		144.f,
+		0.f
+	};
 
 
 
@@ -148,10 +199,10 @@ public:
 
 	// ==================== Win ====================
 
-	UPROPERTY(EditAnywhere,Category = "Myceland WinLose")
+	UPROPERTY(EditAnywhere,Category = "WinLose")
 	float WinDelay = 0.5f;
 
-	UPROPERTY(EditAnywhere,Category = "Myceland WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
+	UPROPERTY(EditAnywhere,Category = "WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
 	float WinTileDelay = 0.1f;
 	
 	
@@ -164,11 +215,25 @@ public:
 	}
 	
 	UFUNCTION(BlueprintPure, Category="Myceland Settings")
-	UInputMappingContext* GetDefaultInputMappingContext(int32& Priority) const
+	UInputMappingContext* GetInputMappingContext(EInputMappingType Type, int32& Priority) const
 	{
-		if (DefaultInputMappingContext.Mapping.IsNull())
-			return nullptr;
+		const FML_InputMappingEntry* Entry;
 
-		return DefaultInputMappingContext.Mapping.LoadSynchronous();
+		switch (Type)
+		{
+			case EInputMappingType::Teleport:
+				Entry = &TeleportInputMappingContext;
+				break;
+			case EInputMappingType::Cinematic:
+			default:
+				Entry = &CinematicInputMappingContext;
+				break;
+		}
+
+		Priority = Entry->Priority;
+
+		// Resolve the soft reference: returns the asset if already in memory, loads it now
+		// otherwise (IMCs are tiny assets). Returns nullptr if the entry is unset.
+		return Entry->Mapping.LoadSynchronous();
 	}
 };

@@ -1,4 +1,4 @@
-﻿// Copyright Myceland Team, All Rights Reserved.
+// Copyright Myceland Team, All Rights Reserved.
 
 #pragma once
 
@@ -7,126 +7,234 @@
 #include "ML_GameUserSettings.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSettingsLoaded);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnControlsSettingsApplied);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAccessibilitySettingsApplied);
+
+/** Scalability preset, mirrors Unreal's overall scalability levels (0-4). */
+UENUM(BlueprintType)
+enum class EMLQualityLevel : uint8
+{
+	Low,
+	Medium,
+	High,
+	Epic,
+	Cinematic
+};
+
+UENUM(BlueprintType)
+enum class EMLColorblindMode : uint8
+{
+	None,
+	Protanopia,
+	Deuteranopia,
+	Tritanopia
+};
+
+UENUM(BlueprintType)
+enum class EMLSettingCategory : uint8
+{
+	Graphics,
+	Audio,
+	Controls,
+	Accessibility
+};
 
 UCLASS()
 class MYCELAND_API UML_GameUserSettings : public UGameUserSettings
 {
 	GENERATED_BODY()
-	
+
 private:
-	FIntPoint ResolutionPx = FIntPoint(1920, 1080); // Actual resolution in pixel
+	// ==================== Default values ====================
+
+	static inline const FIntPoint DefaultResolutionPx = FIntPoint(1920, 1080);
+	static constexpr int32 DefaultResolutionValue = 2;
+	static constexpr float DefaultResolutionScale = 70.0f;
+	static constexpr EWindowMode::Type DefaultWindowMode = EWindowMode::Windowed;
+	static constexpr bool DefaultVSync = false;
+	static constexpr int32 DefaultFrameLimit = 1;
+	static constexpr float DefaultFrameRateLimit = 60.0f;
+	static constexpr EMLQualityLevel DefaultQualityLevel = EMLQualityLevel::Medium;
+	static constexpr float DefaultMasterVolume = 100.0f;
+	static constexpr float DefaultMusicVolume = 100.0f;
+	static constexpr float DefaultSFXVolume = 100.0f;
+	static constexpr float DefaultVoiceVolume = 100.0f;
+	static constexpr float DefaultGamepadDeadZone = 0.2f;
+	static constexpr float DefaultHoldRepeatDelay = 0.3f;
+	static constexpr float DefaultHoldRepeatInterval = 0.1f;
+	static constexpr bool DefaultSubtitles = true;
+	static constexpr float DefaultSubtitlesSize = 18.0f;
+	static constexpr EMLColorblindMode DefaultColorblindMode = EMLColorblindMode::None;
+
+
+
+	// ==================== Graphics Variables (Wrappers) ====================
+
+	/*
+	 * Note: These properties are wrappers for Unreal's native settings.
+	 * They are NOT saved in the .ini file (no Config).
+	 * They are synchronized from the actual values in LoadSettings().
+	 * BlueprintReadOnly + AllowPrivateAccess: WB_Graphics reads them to sync its widgets.
+	 */
+
+	FIntPoint ResolutionPx = DefaultResolutionPx; // Actual resolution in pixel
 	float FrameRLimit = 0.0f; // Actual frame rate limit
+
+	// Whitelists, filled from the DeveloperSettings (EnsureValidListsInitialized)
 	static TArray<FIntPoint> ValidResolutions;
 	static TArray<float> ValidFrameLimits;
-	
+
+	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics", meta = (AllowPrivateAccess = "true"))
+	int32 ResolutionValue = DefaultResolutionValue; // Index in the component
+
+	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics", meta = (AllowPrivateAccess = "true"))
+	float ResolutionScale = DefaultResolutionScale; // 0-100
+
+	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics", meta = (AllowPrivateAccess = "true"))
+	TEnumAsByte<EWindowMode::Type> WindowMode = DefaultWindowMode;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics", meta = (AllowPrivateAccess = "true"))
+	bool bVSync = DefaultVSync;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics", meta = (AllowPrivateAccess = "true"))
+	int32 FrameLimit = DefaultFrameLimit; // Index in the component (0=30, 1=60, 2=120, 3=144, 4=Unlimited...)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics", meta = (AllowPrivateAccess = "true"))
+	EMLQualityLevel OverallQuality = DefaultQualityLevel;
+
+
+
+	// ==================== Audio Variables ====================
+
+	UPROPERTY(Config)
+	float MasterVolume = DefaultMasterVolume;
+
+	UPROPERTY(Config)
+	float MusicVolume = DefaultMusicVolume;
+
+	UPROPERTY(Config)
+	float SFXVolume = DefaultSFXVolume;
+
+	UPROPERTY(Config)
+	float VoiceVolume = DefaultVoiceVolume;
+
+
+
+	// ==================== Controls Variables ====================
+
+	UPROPERTY(Config)
+	float GamepadDeadZone = DefaultGamepadDeadZone;
+
+	UPROPERTY(Config)
+	float GamepadHoldRepeatDelay = DefaultHoldRepeatDelay;
+
+	UPROPERTY(Config)
+	float GamepadHoldRepeatInterval = DefaultHoldRepeatInterval;
+
+
+
+	// ==================== Accessibility Variables ====================
+
+	UPROPERTY(Config)
+	bool bSubtitles = DefaultSubtitles;
+
+	UPROPERTY(Config)
+	float SubtitlesSize = DefaultSubtitlesSize;
+
+	UPROPERTY(Config)
+	EMLColorblindMode ColorblindMode = DefaultColorblindMode;
+
+
+
+	// ==================== Internal Helpers ====================
+
 	UWorld* GetWorld() const;
 	FIntPoint GetClosestValidResolution(FIntPoint DesiredResolution) const;
-	static bool ParseResolutionText(const FString& ResolutionText, FIntPoint& OutResolution);
-	static bool ParseFrameLimitText(const FString& LimitText, float& OutFrameLimit);
-	
+
 	void LoadResolution();
 	void LoadFrameLimit();
-	
-public:
-	UML_GameUserSettings();
 	void InitValues();
 
+	static bool AreValidResolutionsInitialized();
+	static bool AreValidFrameLimitsInitialized();
+
+	// Fills the whitelists from the DeveloperSettings the first time they are needed
+	static void EnsureValidListsInitialized();
+	static float GetClosestValidFrameLimit(float DesiredLimit);
+
+	// Called automatically by the setters and ApplyMycelandSetting; Blueprints never call these directly
+	void ApplyGraphicsSettings();
+	void ApplyAudioSettings();
+	void ApplyControlsSettings();
+	void ApplyAccessibilitySettings();
+
+public:
+	UML_GameUserSettings();
+
 	// ==================== Singleton Access ====================
-	
+
 	UFUNCTION(BlueprintPure, Category = "Settings")
 	static UML_GameUserSettings* GetMycelandGameUserSettings()
 	{
 		return Cast<UML_GameUserSettings>(UGameUserSettings::GetGameUserSettings());
 	}
-	
-	
-	
+
+
+
 	// ==================== Delegates ====================
-	
+
 	UPROPERTY(BlueprintAssignable, Category = "Settings|Events")
 	FOnSettingsLoaded OnSettingsLoaded;
-	
-	
-	
-	// ==================== Delegates ====================
-	
+
+	/** Fired by ApplyControlsSettings. Bind input code that caches dead zone or hold repeat values. */
+	UPROPERTY(BlueprintAssignable, Category = "Settings|Events")
+	FOnControlsSettingsApplied OnControlsSettingsApplied;
+
+	/** Fired by ApplyAccessibilitySettings. Bind subtitle widgets, colorblind post-process, etc. */
+	UPROPERTY(BlueprintAssignable, Category = "Settings|Events")
+	FOnAccessibilitySettingsApplied OnAccessibilitySettingsApplied;
+
+
+
+	// ==================== Helpers ====================
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Helper")
 	static float Normalize(float Value, float Min, float Max);
-	
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Helper")
 	static float Denormalize(float Normalized, float Min, float Max);
-	
-	
-	
-	// ==================== Graphics Settings (Wrappers) ====================
-
-	/*
-	 * Note: These properties are wrappers for Unreal's native settings.
-	 * They are NOT saved in the .ini file (no Config).
-	 * They are synchronized from the actual values in LoadSettings()
-	 */
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 ResolutionValue = 2; // Index in the component
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	float ResolutionScale = 100.0f; // 0-100
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 WindowMode = 2; // 0=Fullscreen, 1=Windowed Fullscreen, 2=Windowed
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	bool bVSync = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 FrameLimit = 1; // Index in the component (0=30, 1=60, 2=120, 3=144, 4=Unlimited...)
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 OverallQuality = 1; // 0=Low, 1=Medium, 2=High, 3=Epic, 4=Cinematic
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 TextureQuality = 1;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 ShadowQuality = 1;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 EffectsQuality = 1;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 PostProcessingQuality = 1;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings|Graphics")
-	int32 GlobalIlluminationQuality = 1;
 
 
-	// ===== Graphics Setters (from widgets) =====
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	static void SetValidResolutions(const TArray<FText>& Resolutions);
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
-	static bool AreValidResolutionsInitialized();
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	static void SetValidFrameLimits(const TArray<FText>& FrameLimits);
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
-	static bool AreValidFrameLimitsInitialized();
+
+	// ==================== Graphics Setters (from widgets) ====================
 
 	/**
-	 * Set resolution from dropdown text (e.g., "1920x1080")
-	 * Also updates ResolutionValue index.
+	 * Options for the resolution dropdown, from the DeveloperSettings whitelist (e.g. "1920 x 1080").
+	 * Display only: these are localized, so never parse them back. Index into them with SetResolutionFromIndex.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetResolutionFromText(const FString& ResolutionText);
+	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
+	static TArray<FText> GetValidResolutionTexts();
 
 	/**
-	 * Set frame rate limit from dropdown text (e.g., "60" or "Unlimited")
-	 * Also updates FrameLimit index.
+	 * Options for the frame limit dropdown, from the DeveloperSettings whitelist (e.g. "60", "Unlimited").
+	 * Display only: these are localized, so never parse them back. Index into them with SetFrameRateLimitFromIndex.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
+	static TArray<FText> GetValidFrameLimitTexts();
+
+	/**
+	 * Set resolution from the dropdown selection, indexing the same whitelist that filled
+	 * GetValidResolutionTexts. Also updates the ResolutionValue index. Out-of-range values are ignored.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetFrameRateLimitFromText(const FString& FrameRateText);
+	void SetResolutionFromIndex(int32 Index);
+
+	/**
+	 * Set frame rate limit from the dropdown selection, indexing the same whitelist that filled
+	 * GetValidFrameLimitTexts. Also updates the FrameLimit index. Out-of-range values are ignored.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
+	void SetFrameRateLimitFromIndex(int32 Index);
 
 	/**
 	 * Set resolution scale from slider value (0-100)
@@ -135,251 +243,117 @@ public:
 	void SetResolutionScaleFromSlider(const float SliderValue) { ResolutionScale = SliderValue; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetWindowModeFromIndex(const int32 Index) { WindowMode = FMath::Clamp(Index, 0, 2); }
+	void SetWindowMode(const EWindowMode::Type Mode) { WindowMode = Mode; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
 	void SetVSyncFromToggle(const bool bEnabled) { bVSync = bEnabled; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetOverallQualityFromIndex(const int32 Index) { OverallQuality = FMath::Clamp(Index, 0, 4); }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetTextureQualityFromIndex(const int32 Index) { TextureQuality = FMath::Clamp(Index, 0, 4); }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetShadowQualityFromIndex(const int32 Index) { ShadowQuality = FMath::Clamp(Index, 0, 4); }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetEffectsQualityFromIndex(const int32 Index) { EffectsQuality = FMath::Clamp(Index, 0, 4); }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetPostProcessingQualityFromIndex(const int32 Index) { PostProcessingQuality = FMath::Clamp(Index, 0, 4); }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void SetGlobalIlluminationQualityFromIndex(const int32 Index) { GlobalIlluminationQuality = FMath::Clamp(Index, 0, 4); }
+	void SetOverallQuality(const EMLQualityLevel Quality) { OverallQuality = Quality; }
 
 
-	// ===== Graphics Getters (for debugging) =====
 
-	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
-	FString GetCurrentResolutionText() const;
+	// ==================== Audio Setters / Getters ====================
 
-	UFUNCTION(BlueprintPure, Category = "Settings|Graphics")
-	FString GetCurrentFrameRateLimitText() const;
-
-	
-	
-	// ==================== Audio Settings ====================
-	
-	UPROPERTY(Config)
-	float MasterVolume = 100.0f;
-	
-	UPROPERTY(Config)
-	float MusicVolume = 100.0f;
-	
-	UPROPERTY(Config)
-	float SFXVolume = 100.0f;
-	
-	UPROPERTY(Config)
-	float VoiceVolume = 100.0f;
-
-	
-	// ===== Audio Setters =====
-	
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
 	void SetMasterVolume(float Volume);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
 	void SetMusicVolume(float Volume);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
 	void SetSFXVolume(float Volume);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
 	void SetVoiceVolume(float Volume);
 
-	
-	// ===== Audio Getters =====
-	
 	UFUNCTION(BlueprintPure, Category = "Settings|Audio")
 	float GetMasterVolume() const { return MasterVolume; }
-	
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Audio")
 	float GetMusicVolume() const { return MusicVolume; }
-	
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Audio")
 	float GetSFXVolume() const { return SFXVolume; }
-	
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Audio")
 	float GetVoiceVolume() const { return VoiceVolume; }
 
-	
-	
-	// ==================== Controls ====================
-	
-	UPROPERTY(Config)
-	float MouseSensitivity = 0.5f;
-	
-	UPROPERTY(Config)
-	float GamepadSensitivity = 0.5f;
-	
-	UPROPERTY(Config)
-	float GamepadDeadZone = 0.2f;
 
-	
-	// ===== Controls Setters =====
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
-	void SetMouseSensitivity(const float Sensitivity) { MouseSensitivity = Sensitivity; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
-	void SetGamepadSensitivity(const float Sensitivity) { GamepadSensitivity = Sensitivity; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
-	void SetGamepadDeadZone(const float DeadZone) { GamepadDeadZone = DeadZone; }
 
-	
-	// ===== Controls Getters =====
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
-	float GetMouseSensitivity() const { return MouseSensitivity; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
-	float GetGamepadSensitivity() const { return GamepadSensitivity; }
-	
+	// ==================== Controls Setters / Getters ====================
+
+	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
+	void SetGamepadDeadZone(float DeadZone);
+
+	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
+	void SetGamepadHoldRepeatDelay(float Delay);
+
+	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
+	void SetGamepadHoldRepeatInterval(float Interval);
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
 	float GetGamepadDeadZone() const { return GamepadDeadZone; }
 
-	
-	
-	// ==================== Gameplay Settings ====================
-	
-	UPROPERTY(Config)
-	bool bShowGrid = true;
-	
-	UPROPERTY(Config)
-	bool bTileHighlight = true;
-	
-	UPROPERTY(Config)
-	float HighlightIntensity = 1.0f;
-	
-	UPROPERTY(Config)
-	bool bPropagationPreview = true;
-	
-	UPROPERTY(Config)
-	bool bUndoConfirmation = false;
-	
-	UPROPERTY(Config)
-	bool bResetConfirmation = true;
-	
-	UPROPERTY(Config)
-	bool bTutorialHints = true;
+	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
+	float GetGamepadHoldRepeatDelay() const { return GamepadHoldRepeatDelay; }
 
-	
-	// ===== Gameplay Setters =====
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void SetShowGrid(const bool bShow) { bShowGrid = bShow; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void SetTileHighlight(const bool bEnable) { bTileHighlight = bEnable; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void SetHighlightIntensity(const float Intensity) { HighlightIntensity = Intensity; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void SetPropagationPreview(const bool bEnable) { bPropagationPreview = bEnable; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void SetUndoConfirmation(const bool bEnable) { bUndoConfirmation = bEnable; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void SetResetConfirmation(const bool bEnable) { bResetConfirmation = bEnable; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void SetTutorialHints(const bool bEnable) { bTutorialHints = bEnable; }
+	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
+	float GetGamepadHoldRepeatInterval() const { return GamepadHoldRepeatInterval; }
 
-	
-	// ===== Gameplay Getters =====
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Gameplay")
-	bool GetShowGrid() const { return bShowGrid; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Gameplay")
-	bool GetTileHighlight() const { return bTileHighlight; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Gameplay")
-	float GetHighlightIntensity() const { return HighlightIntensity; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Gameplay")
-	bool GetPropagationPreview() const { return bPropagationPreview; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Gameplay")
-	bool GetUndoConfirmation() const { return bUndoConfirmation; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Gameplay")
-	bool GetResetConfirmation() const { return bResetConfirmation; }
-	
-	UFUNCTION(BlueprintPure, Category = "Settings|Gameplay")
-	bool GetTutorialHints() const { return bTutorialHints; }
 
-	
-	
-	// ==================== Accessibility Settings ====================
-	
-	UPROPERTY(Config)
-	bool bSubtitles = false;
-	
-	UPROPERTY(Config)
-	float SubtitlesSize = 50.0f;
-	
-	UPROPERTY(Config)
-	int32 ColorblindMode = 0; // 0=None, 1=Protanopia, 2=Deuteranopia, 3=Tritanopia
 
-	
-	// ===== Accessibility Setters =====
-	
+	// ==================== Accessibility Setters / Getters ====================
+
 	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
-	void SetSubtitles(const bool bEnable) { bSubtitles = bEnable; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
-	void SetSubtitlesSize(const float Size) { SubtitlesSize = Size; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
-	void SetColorblindMode(const int32 Mode) { ColorblindMode = Mode; }
+	void SetSubtitles(bool bEnable);
 
-	
-	// ===== Accessibility Getters =====
-	
+	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
+	void SetSubtitlesSize(float Size);
+
+	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
+	void SetColorblindMode(EMLColorblindMode Mode);
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
 	bool GetSubtitles() const { return bSubtitles; }
-	
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
 	float GetSubtitlesSize() const { return SubtitlesSize; }
-	
+
 	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
-	int32 GetColorblindMode() const { return ColorblindMode; }
+	EMLColorblindMode GetColorblindMode() const { return ColorblindMode; }
 
-	
-	
-	// ==================== Apply Methods ====================
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void ApplyGraphicsSettings();
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
-	void ApplyAudioSettings();
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Gameplay")
-	void ApplyGameplaySettings();
-	
-	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
-	void ApplyAccessibilitySettings();
 
-	
-	
+
+	// ==================== Per-Category Apply / Reset ====================
+
+	/**
+	 * Apply every setting of the given category, then save to disk.
+	 * Call this when a value is committed (slider released, option selected, toggle clicked).
+	 * Graphics are normally batched behind the Apply button instead.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void ApplyMycelandSetting(EMLSettingCategory Setting);
+
+	/**
+	 * Reset every setting of the given category to its default value.
+	 * Non-graphics categories are applied and saved immediately.
+	 * Graphics only update the pending values: press Apply to take effect.
+	 * Broadcasts OnSettingsLoaded so the UI can refresh its widgets.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void ResetMycelandSettingToDefault(EMLSettingCategory Setting);
+
+
+
 	// ==================== Overrides ====================
-	
+
+	/**
+	 * Snaps out-of-whitelist saved values (first run, monitor change, hand-edited ini).
+	 * The engine calls this at boot before creating the game window and before every apply,
+	 * so the game always starts on a whitelisted resolution / frame limit.
+	 */
+	virtual void ValidateSettings() override;
 	virtual void ApplySettings(bool bCheckForCommandLineOverrides) override;
 	virtual void SetToDefaults() override;
 	virtual void LoadSettings(bool bForceReload = false) override;

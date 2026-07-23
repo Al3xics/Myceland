@@ -168,8 +168,14 @@ void UML_BoardTransitionComponent::TickExitHold()
 		return;
 	}
 
-	// Calculate progress
-	const float Progress = FMath::Clamp(ExitHoldTimer / DevSettings->ExitBoardHoldDuration, 0.f, 1.f);
+	// Calculate progress. A zero (or negative) hold duration means "no hold" — a simple press
+	// exits immediately, so progress is already full on the first tick (guards against div-by-zero).
+	// Mouse and gamepad have separate hold durations (they share the tick rate). OwningController is
+	// guaranteed valid here (checked at the top of TickExitHold).
+	const float HoldDuration = OwningController->IsGamepadActive() ? DevSettings->ExitBoardHoldDurationGamepad : DevSettings->ExitBoardHoldDurationMouse;
+	const float Progress = (HoldDuration > KINDA_SMALL_NUMBER)
+		? FMath::Clamp(ExitHoldTimer / HoldDuration, 0.f, 1.f)
+		: 1.f;
 
 	const bool bJustStartedExiting = !bWasExitingLastFrame;
 	const bool bProgressChanged    = FMath::Abs(Progress - LastBroadcastProgress) > 0.01f;
@@ -184,7 +190,7 @@ void UML_BoardTransitionComponent::TickExitHold()
 	// Must match the timer rate: the hold progress advances by exactly one tick interval per tick.
 	ExitHoldTimer += GetExitHoldTickInterval();
 
-	if (ExitHoldTimer >= DevSettings->ExitBoardHoldDuration)
+	if (ExitHoldTimer >= HoldDuration)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
 		ExitHoldTimer         = 0.f;
@@ -192,7 +198,12 @@ void UML_BoardTransitionComponent::TickExitHold()
 		LastBroadcastProgress = -1.f;
 
 		OnExitCursorHold.Broadcast(false, 1.0f);
-		
+
+		// The hold is fulfilled: clear the holding flag before starting the walk-out. From here the player is
+		// carried off the board by the navmesh (see ConfirmExitBoard) while staying in ExitingBoard, and the
+		// stick/cursor must no longer run the exit-cancel logic (HandleExitingBoardStick / TickGroundHover).
+		bIsHoldingExitInput = false;
+
 		OwningController->ClearForcedHoverTile();
 		ConfirmExitBoard();
 	}
@@ -217,12 +228,23 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 	if (StartAxial == GoalAxial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[EXIT] Direct exit (already on border tile)"));
-		OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 
 		if (bHasExitTargetWorld)
 		{
+			// Stay in ExitingBoard while the navmesh carries the player off the board. The switch to
+			// FreeMovement happens in AML_PlayerController::HandleBoardStateChanged the moment the player
+			// physically leaves the board footprint (board -> null). Until then no free-movement input is
+			// accepted (in ExitingBoard the stick routes to HandleExitingBoardStick and mouse clicks are
+			// ignored), so the player can't hijack the walk-out and end up free-moving while still on the
+			// board's tiles. TickMoveAlongPath force-switches to FreeMovement if the walk-out ever finishes
+			// without leaving the footprint (e.g. an exit plane placed on a border tile).
 			OwningController->StartNavMeshMovement(PendingExitTargetWorld);
 			bHasExitTargetWorld = false;
+		}
+		else
+		{
+			// No target to walk to — nothing would carry the player out, so leave immediately.
+			OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 		}
 
 		PendingExitBorderTile = nullptr;
@@ -238,7 +260,8 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 		AxialPath.Num(), bHasExitTargetWorld);
 
 	bPendingFreeMovementOnArrival = true;
-	// Walk to border inside board; FreeMovement triggers on arrival via HandlePathFinished
+	// Walk to the border tile-by-tile inside the board. On arrival HandlePathFinished switches to ExitingBoard
+	// and navmeshes off the board; FreeMovement then triggers once the player leaves the board footprint.
 	OwningController->SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 	// Don't clear pending exit state: HandlePathFinished needs PendingExitTargetWorld.
 
@@ -418,12 +441,14 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 		UE_LOG(LogTemp, Warning, TEXT("[EXIT] OnPathFinished: bPendingFreeMovementOnArrival=true"));
 
 		bPendingFreeMovementOnArrival = false;
-		OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 
 		if (bHasExitTargetWorld)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[EXIT] Returning StartNavMesh command to %s"),
-				*PendingExitTargetWorld.ToString());
+			UE_LOG(LogTemp, Warning, TEXT("[EXIT] Returning StartNavMesh command to %s"), *PendingExitTargetWorld.ToString());
+			// Reached the border tile; now cross off the board via navmesh. Stay in ExitingBoard (input stays
+			// disabled) until the player physically leaves the footprint — HandleBoardStateChanged then flips
+			// to FreeMovement. Same rationale as the direct-exit case in ConfirmExitBoard.
+			OwningController->SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
 			Cmd.bStartNavMesh   = true;
 			Cmd.NavMeshTarget   = PendingExitTargetWorld;
 			bHasExitTargetWorld = false;
@@ -431,6 +456,7 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 		else
 		{
 			UE_LOG(LogTemp, Error, TEXT("[EXIT] ERROR: bHasExitTargetWorld is FALSE!"));
+			OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 		}
 
 		PendingExitBorderTile = nullptr;

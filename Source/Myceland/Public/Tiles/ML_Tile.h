@@ -16,6 +16,7 @@ class AML_TileWater;
 class AML_TileParasite;
 class AML_TileGrass;
 class AML_TileDirt;
+class AML_TileWaterPath;
 class AML_BoardSpawner;
 class UNavModifierComponent;
 enum class EML_TileType : uint8;
@@ -48,6 +49,9 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Tile", meta=(EditCondition="CurrentType==EML_TileType::Tree", EditConditionHides))
 	TSubclassOf<AML_TileTree> TreeClass;
+
+	UPROPERTY(EditAnywhere, Category="Myceland Tile", meta=(EditCondition="CurrentType==EML_TileType::WaterPath", EditConditionHides))
+	TSubclassOf<AML_TileWaterPath> WaterPathClass;
 	
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	FIntPoint AxialCoord = FIntPoint(0, 0);
@@ -144,6 +148,14 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void StopGlowingPathWalk();
+
+	// Gamepad: glow used to advertise a tile the player can plant on (a plantable neighbor around
+	// the player). Distinct from GlowCursorHovered, which marks the single currently-selected tile.
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void GlowPlantableAvailable();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
+	void StopGlowingPlantableAvailable();
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Tile|Feedback")
 	void OnTileTypeChanged(EML_TileType OldType, EML_TileType NewType);

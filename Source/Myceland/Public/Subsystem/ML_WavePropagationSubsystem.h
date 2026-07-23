@@ -18,6 +18,11 @@ class AML_Tile;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUndoAnimating, bool, IsUndoAnimating);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnResetAnimating, bool, IsResetAnimating);
 
+// Broadcast once when a full tile-resolution action (plant + all wave propagation) has finished and
+// the board has reached its final state. Consumers that display board-dependent UI (e.g. the gamepad
+// plantable highlight) refresh here instead of reacting to every individual tile change mid-propagation.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWavePropagationFinished);
+
 UCLASS()
 class MYCELAND_API UML_WavePropagationSubsystem : public UTickableWorldSubsystem
 {
@@ -74,6 +79,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Reset")
 	FOnResetAnimating OnResetAnimating;
+
+	UPROPERTY(BlueprintAssignable, Category="Myceland Wave Propagation")
+	FOnWavePropagationFinished OnWavePropagationFinished;
 
 private:
 	// =========================================================================

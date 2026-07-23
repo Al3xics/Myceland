@@ -52,10 +52,4 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Myceland Settings", meta = (ExpandEnumAsExecs = "OutType"))
 	void GetSettingValue(float& OutFloat, bool& OutBool, int32& OutInt32, ESettingValueType& OutType);
-	
-	UFUNCTION(BlueprintPure, Category = "Myceland Settings")
-	FString GetOptionTextValue() const;
-	
-	UFUNCTION(BlueprintPure, Category = "Myceland Settings")
-	int32 FindTextOptionIndex(const TArray<FText>& Options, const FString& SearchText);
 };

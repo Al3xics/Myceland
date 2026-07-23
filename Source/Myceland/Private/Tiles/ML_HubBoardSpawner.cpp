@@ -1,7 +1,10 @@
 // Copyright Myceland Team, All Rights Reserved.
 
 #include "Tiles/ML_HubBoardSpawner.h"
+#include "Actors/ML_WaterNavPath.h"
 #include "Components/ChildActorComponent.h"
+#include "Data Asset/ML_BiomeTileSet.h"
+#include "Save System/ML_SaveSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
@@ -47,6 +50,60 @@ void AML_HubBoardSpawner::BeginPlay()
 
 	BindDelegates();
 	RehydrateAlreadySolvedPuzzles();
+
+	// The base BeginPlay's solved-restore — which respawns AssociatedWaterPaths on load — is
+	// skipped for the hub (ShouldAutoRestoreSolvedGrid()==false). Replay the hub's own water-
+	// bridge activation here the same way as the regular board: gated on the hub being marked
+	// solved in the save (i.e. fully revitalized), deferred one tick so each WaterNavPath has
+	// finished its own BeginPlay before we reveal it.
+	if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
+	{
+		if (PuzzleID.IsValid() && SaveSys->IsPuzzleSolved(PuzzleID.GetTagName()))
+		{
+			TArray<AActor*> PathsToSpawn = GetAssociatedWaterPaths();
+			GetWorld()->GetTimerManager().SetTimerForNextTick([PathsToSpawn]()
+			{
+				for (AActor* PathActor : PathsToSpawn)
+				{
+					if (AML_WaterNavPath* NavPath = Cast<AML_WaterNavPath>(PathActor))
+						NavPath->Spawn();
+				}
+			});
+
+			// Hide/disable the hub's associated obstacle on load, the same way the base board
+			// does in its solved-restore branch (which the hub skips).
+			if (AActor* Obstacle = GetAssociatedObstacle())
+			{
+				Obstacle->SetActorHiddenInGame(true);
+				Obstacle->SetActorEnableCollision(false);
+			}
+
+			// Same as the base board's solved-restore: a fully-revitalized hub turns off its
+			// entry/exit (tile-by-tile) system and its hover-preview glow, so it doesn't load
+			// back as enterable or glow under the cursor.
+			SetBoardTransitionEnabled(false);
+			SetGlowEnabled(false);
+		}
+	}
+
+	// On load, reveal the connected goals for the puzzles that were already solved.
+	// Deferred one tick so the tile Blueprints that draw the links have finished BeginPlay.
+	// bImmediate=true broadcasts synchronously: it avoids the shared connected-goal queue/
+	// timer, which the player's initial board placement would otherwise wipe via
+	// ResetConnectedGoalPathState before the reveal finished.
+	if (AppliedEntryIndices.Num() > 0)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			TWeakObjectPtr<AML_HubBoardSpawner> WeakThis(this);
+			World->GetTimerManager().SetTimerForNextTick([WeakThis]()
+			{
+				AML_HubBoardSpawner* Hub = WeakThis.Get();
+				if (Hub && IsValid(Hub->WinLoseSubsystem))
+					Hub->WinLoseSubsystem->TriggerConnectedGoalAnimationForBoard(Hub, /*bImmediate=*/true);
+			});
+		}
+	}
 }
 
 void AML_HubBoardSpawner::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -129,6 +186,11 @@ void AML_HubBoardSpawner::HandleResetAnimating(bool bIsResetAnimating)
 	CancelPendingSpawnTimers();
 	RevertPuzzleEntryTiles(EntryIndex);
 	AppliedEntryIndices.Remove(EntryIndex);
+
+	// Persist the reverted state so the change survives a reload. Never marked solved —
+	// a revert by definition means the hub is no longer fully revitalized.
+	PersistHubGrid(/*bMarkSolved=*/false);
+
 	OnHubPuzzleTilesReverted.Broadcast(EntryIndex);
 }
 
@@ -238,7 +300,14 @@ void AML_HubBoardSpawner::FinalizeTileChanges(int32 EntryIndex)
 {
 	OnHubTileChangesEnd.Broadcast(EntryIndex);
 
-	if (PuzzleEntries.Num() > 0 && AppliedEntryIndices.Num() == PuzzleEntries.Num())
+	const bool bFullyRevitalized = PuzzleEntries.Num() > 0 && AppliedEntryIndices.Num() == PuzzleEntries.Num();
+
+	// The tiles (and any wave propagation they triggered) have now settled — this is the
+	// definitive change we persist. Marking the hub solved only happens once every entry
+	// is placed, so the hub becomes the respawn anchor only when fully revitalized.
+	PersistHubGrid(/*bMarkSolved=*/bFullyRevitalized);
+
+	if (bFullyRevitalized)
 		OnHubAllTilesPlaced.Broadcast();
 
 	if (!IsValid(WinLoseSubsystem)) return;
@@ -270,26 +339,108 @@ void AML_HubBoardSpawner::RevertPuzzleEntryTiles(int32 EntryIndex)
 
 // ==================== Initialization ====================
 
-// On BeginPlay, silently applies tile changes for any linked puzzle already marked solved — restores hub visuals without triggering delegates or delays.
-// Requires bIsPuzzleSolved to be set on each linked puzzle before this hub's BeginPlay runs (e.g. by a save system, not during the puzzle's own BeginPlay).
+// On BeginPlay (and after a cascade reset), restores hub visuals for every linked puzzle
+// currently marked solved — without triggering delegates or delays.
+//
+// Solved state is read from the save (authoritative and order-independent), so this no
+// longer depends on each linked puzzle's own BeginPlay having run first. Snapshots for
+// revert are taken while tiles are still authored (the base auto-restore is skipped),
+// then the board is repainted from the persisted grid when available.
 void AML_HubBoardSpawner::RehydrateAlreadySolvedPuzzles()
 {
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+
+	bool bAnyApplied = false;
 	for (int32 i = 0; i < PuzzleEntries.Num(); ++i)
 	{
 		const FML_HubPuzzleEntry& Entry = PuzzleEntries[i];
-		if (!IsValid(Entry.LinkedPuzzle) || !Entry.LinkedPuzzle->bIsPuzzleSolved) continue;
+		if (!IsValid(Entry.LinkedPuzzle)) continue;
 		if (AppliedEntryIndices.Contains(i)) continue;
+
+		const bool bSolved = SaveSys
+			? SaveSys->IsPuzzleSolved(Entry.LinkedPuzzle->PuzzleID.GetTagName())
+			: Entry.LinkedPuzzle->bIsPuzzleSolved;
+		if (!bSolved) continue;
 
 		TakeEntrySnapshot(i);
 		AppliedEntryIndices.Add(i);
+		bAnyApplied = true;
+	}
 
-		for (const FML_HubTileChange& Change : Entry.TileChanges)
+	if (!bAnyApplied) return;
+
+	// Prefer the persisted grid (captures wave-propagation results the per-entry
+	// TileChanges can't reproduce). Fall back for saves written before hub-grid persistence.
+	if (RestoreSavedHubGrid()) return;
+
+	for (int32 i = 0; i < PuzzleEntries.Num(); ++i)
+	{
+		if (!AppliedEntryIndices.Contains(i)) continue;
+		for (const FML_HubTileChange& Change : PuzzleEntries[i].TileChanges)
 		{
 			UClass* const MLTileClass = GetClassForChange(Change);
 			if (!IsValid(Change.TargetTile) || !MLTileClass) continue;
 			Change.TargetTile->UpdateClassAtRuntime_Silent(Change.TargetType, MLTileClass);
 		}
 	}
+}
+
+// Repaints the board from the hub's persisted grid snapshot. Returns false when no
+// snapshot exists so the caller can fall back to replaying the per-entry TileChanges.
+bool AML_HubBoardSpawner::RestoreSavedHubGrid()
+{
+	if (!PuzzleID.IsValid()) return false;
+
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	UML_BiomeTileSet* Biome = GetBiomeTileSet();
+	if (!SaveSys || !Biome) return false;
+
+	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
+	if (Record.SolvedGrid.Num() == 0) return false;
+
+	const TMap<FIntPoint, AML_Tile*>& Grid = GetGridMapRef();
+	for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)
+	{
+		if (AML_Tile* Tile = Grid.FindRef(Entry.Axial))
+			Tile->UpdateClassAtRuntime_Silent(Entry.TileType, Biome->GetClassFromTileType(Entry.TileType));
+	}
+	return true;
+}
+
+// Writes the current hub grid to the save. bMarkSolved additionally flags the hub as
+// solved (respawn anchor) via MarkPuzzleSolved; otherwise only the grid is stored.
+void AML_HubBoardSpawner::PersistHubGrid(bool bMarkSolved)
+{
+	if (!PuzzleID.IsValid()) return;
+
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	if (bMarkSolved)
+		SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid(), GetLevelKey());
+	else
+		SaveSys->SaveGridSnapshot(PuzzleID.GetTagName(), SnapshotGrid());
+}
+
+// The hub is never reset as a single board. When a cascade reset reaches it, drop the
+// per-entry bookkeeping, let the base repaint the authored grid, then repaint from the
+// linked puzzles that are still solved — rather than blanking the whole hub to dirt.
+void AML_HubBoardSpawner::RestoreToInitialState()
+{
+	CancelPendingSpawnTimers();
+	AppliedEntryIndices.Empty();
+	EntrySnapshots.Empty();
+
+	Super::RestoreToInitialState();
+
+	RehydrateAlreadySolvedPuzzles();
+	PersistHubGrid(/*bMarkSolved=*/false);
+
+	// Super cleared ALL of the hub's goal-link visuals; RehydrateAlreadySolvedPuzzles has
+	// just repainted the grid for whichever linked puzzles are still solved. Re-reveal so
+	// those remaining connections light back up (bImmediate — the grid is already settled).
+	if (AppliedEntryIndices.Num() > 0 && IsValid(WinLoseSubsystem))
+		WinLoseSubsystem->TriggerConnectedGoalAnimationForBoard(this, /*bImmediate=*/true);
 }
 
 // Captures the current type and class of each hub tile in the entry so they can be restored if the associated puzzle is reset.

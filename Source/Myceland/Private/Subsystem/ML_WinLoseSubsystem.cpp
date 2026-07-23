@@ -396,9 +396,14 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 	}
 }
 
-void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board)
+void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board, bool bImmediate)
 {
 	if (!IsValid(Board)) return;
+
+	// This can run before OnWorldBeginPlay (e.g. a hub revealing its solved connections
+	// during load), so make sure the allowed-path set is populated first.
+	if (CachedGoalPathAllowedSet.Num() == 0)
+		CachedGoalPathAllowedSet = UML_TileTypeTraits::GetWinPathTypes();
 
 	// Compute connected groups on the requested board — does NOT alter
 	// CurrentBoardSpawner or PreviousConnectedPathTiles, so the active
@@ -417,8 +422,18 @@ void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawne
 			if (PersistentAnimatedTiles.Contains(Tile)) continue;
 
 			PersistentAnimatedTiles.Add(Tile);
-			PendingConnectedGoalPathQueue.Add(Tile);
-			bAddedAny = true;
+
+			if (bImmediate)
+			{
+				// Reveal instantly (load): broadcast now so the shared queue/timer aren't
+				// involved and a board change can't cancel a partially-played reveal.
+				OnConnectedGoalPathTile.Broadcast(Tile);
+			}
+			else
+			{
+				PendingConnectedGoalPathQueue.Add(Tile);
+				bAddedAny = true;
+			}
 		}
 	}
 
@@ -428,6 +443,23 @@ void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawne
 		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
 			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, DevSettings->WinTileDelay, true);
 	}
+}
+
+void UML_WinLoseSubsystem::ResetConnectedGoalAnimationForBoard(AML_BoardSpawner* Board)
+{
+	if (!IsValid(Board)) return;
+
+	// Only this board's tiles are cleared — PersistentAnimatedTiles is a flat set shared
+	// across boards (incl. the hub), so scope by iterating the board's own grid.
+	TArray<AML_Tile*> Disconnected;
+	for (AML_Tile* Tile : Board->GetGridTiles())
+	{
+		if (IsValid(Tile) && PersistentAnimatedTiles.Remove(Tile) > 0)
+			Disconnected.Add(Tile);
+	}
+
+	if (Disconnected.Num() > 0)
+		OnDisconnectedGoalPathTile.Broadcast(Disconnected);
 }
 
 void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
@@ -530,6 +562,8 @@ void UML_WinLoseSubsystem::FireWinSequence()
 				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
 			);
 		}
+
+		OnWinPathSettled.Broadcast();
 	});
 }
 
