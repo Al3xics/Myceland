@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/ML_CoreData.h"
 #include "ML_GameSaveData.generated.h"
 
 USTRUCT(BlueprintType)
@@ -32,4 +33,46 @@ struct FML_GameSaveData
 	//Player statistics
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int64 TotalPlayTimeSeconds = 0;
+};
+
+// One tile entry in a saved grid snapshot: axial coordinate + tile type.
+USTRUCT(BlueprintType)
+struct FML_TileSaveEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame, BlueprintReadWrite)
+	FIntPoint Axial = FIntPoint::ZeroValue;
+
+	UPROPERTY(SaveGame, BlueprintReadWrite)
+	EML_TileType TileType = EML_TileType::Dirt;
+};
+
+// Ordered list of puzzle IDs solved within one level (oldest → most recent).
+// Wrapped in a struct because UHT forbids TArray as a direct TMap value.
+USTRUCT(BlueprintType)
+struct FML_LevelSolveOrder
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame, BlueprintReadWrite)
+	TArray<FName> PuzzleIDs;
+};
+
+// All persistent data for one puzzle board, keyed by PuzzleID in the save object.
+USTRUCT(BlueprintType)
+struct FML_PuzzleSaveRecord
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame, BlueprintReadWrite)
+	bool bIsSolved = false;
+
+	// Board state as authored in the level (captured on first BeginPlay).
+	UPROPERTY(SaveGame, BlueprintReadWrite)
+	TArray<FML_TileSaveEntry> InitialGrid;
+
+	// Board state at the moment the player won (empty until the puzzle is solved).
+	UPROPERTY(SaveGame, BlueprintReadWrite)
+	TArray<FML_TileSaveEntry> SolvedGrid;
 };

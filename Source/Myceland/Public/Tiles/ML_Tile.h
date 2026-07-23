@@ -16,6 +16,7 @@ class AML_TileWater;
 class AML_TileParasite;
 class AML_TileGrass;
 class AML_TileDirt;
+class AML_TileWaterPath;
 class AML_BoardSpawner;
 class UNavModifierComponent;
 enum class EML_TileType : uint8;
@@ -48,6 +49,9 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category="Myceland Tile", meta=(EditCondition="CurrentType==EML_TileType::Tree", EditConditionHides))
 	TSubclassOf<AML_TileTree> TreeClass;
+
+	UPROPERTY(EditAnywhere, Category="Myceland Tile", meta=(EditCondition="CurrentType==EML_TileType::WaterPath", EditConditionHides))
+	TSubclassOf<AML_TileWaterPath> WaterPathClass;
 	
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	FIntPoint AxialCoord = FIntPoint(0, 0);

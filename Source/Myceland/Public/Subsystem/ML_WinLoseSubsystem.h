@@ -13,6 +13,10 @@ class AML_PlayerCharacter;
 struct FML_GameResult;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWin);
+// Fires after BOTH ClearWinPath passes have run and every winning-path tile has
+// settled to WaterPath. Use this (not OnWin) when you need the final board state,
+// e.g. snapshotting the solved grid for the save system.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWinPathSettled);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLose);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnConnectedGoalPathTile, AML_Tile*, Tile);
@@ -28,8 +32,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnWin OnWin;
 
+	// Broadcast one tick after OnWin, once the deferred Entry→Exit ClearWinPath
+	// pass has finished, so listeners see the fully-settled winning path.
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
-	FOnLose OnLose; 
+	FOnWinPathSettled OnWinPathSettled;
+
+	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
+	FOnLose OnLose;
 
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnDeath OnDeath;
@@ -69,9 +78,25 @@ public:
 	 * solved-puzzle connections).  Tiles are tracked in PersistentAnimatedTiles
 	 * so re-entering the hub never re-animates already-shown connections.
 	 * Unlike the regular flow, these tiles are never broadcast as disconnected.
+	 *
+	 * When bImmediate is true the tiles are broadcast synchronously instead of staggered
+	 * over a timer. This is used on load: it avoids the shared queue/timer so a board
+	 * change (which calls ResetConnectedGoalPathState) can't cancel a partial reveal.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
-	void TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board);
+	void TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board, bool bImmediate = false);
+
+	/**
+	 * Clears the persistent connected-goal visuals for Board's tiles: broadcasts them as
+	 * disconnected (so the Blueprints erase the drawn links) and removes them from
+	 * PersistentAnimatedTiles so they can light up again if re-connected later.
+	 *
+	 * The counterpart to TriggerConnectedGoalAnimationForBoard — call this when a board is
+	 * reset to its initial state (RestoreToInitialState / ReplayPuzzle) so the revealed
+	 * links don't linger over the now-blank board.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	void ResetConnectedGoalAnimationForBoard(AML_BoardSpawner* Board);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	void ResetConnectedGoalPathState();

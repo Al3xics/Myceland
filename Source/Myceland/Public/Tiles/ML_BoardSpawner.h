@@ -1,10 +1,12 @@
-// Copyright Myceland Team, All Rights Reserved.
+﻿// Copyright Myceland Team, All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Core/ML_CoreData.h"
 #include "GameFramework/Actor.h"
+#include "GameplayTagContainer.h"
+#include "Save System/ML_GameSaveData.h"
 #include "PuzzleGeneration/ML_PuzzleGenerationTypes.h"
 #include "LevelSequence.h"
 #include "CineCameraActor.h"
@@ -12,6 +14,7 @@
 #include "ML_BoardSpawner.generated.h"
 
 class UML_BiomeTileSet;
+class UML_SaveSubsystem;
 class AML_CameraRail;
 class AML_Collectible;
 class AML_TileBase;
@@ -148,6 +151,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="ML- Hex Grid", meta=(ClampMin="0.01"))
 	FVector TileScale = FVector(2.f, 2.f, 2.f);
+	
+	UPROPERTY(EditAnywhere, Category="ML- Hex Grid", meta=(Categories="Puzzle"))
+	FGameplayTag PuzzleID;
 
 	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TArray<AML_CameraRail*> AssociatedCameraRails;
@@ -254,4 +260,41 @@ public:
 
 	UFUNCTION(CallInEditor, Category="ML- Puzzle Generator")
 	void AnalyzeCurrentPuzzle();
+	
+	
+	// Restores this board's tiles to their authored initial state and re-enables the
+	// obstacle. Does NOT write to the save — call ReplayPuzzle (or ResetPuzzle on the
+	// subsystem) to commit the change. Used directly for cascade resets.
+	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
+	virtual void RestoreToInitialState();
+
+protected:
+
+	// ==================== Save / Load Helpers ====================
+
+	// If false, BeginPlay skips the automatic solved-grid restore so a subclass can
+	// own its own restore path (e.g. the hub, which must snapshot pre-change tile
+	// state for reverts before repainting). Default: true.
+	virtual bool ShouldAutoRestoreSolvedGrid() const { return true; }
+
+	// Returns a snapshot of the current GridMap as a flat array of tile entries.
+	TArray<FML_TileSaveEntry> SnapshotGrid() const;
+
+	// Fetches the SaveSubsystem from the owning GameInstance. Returns null if unavailable.
+	UML_SaveSubsystem* GetSaveSubsystem() const;
+
+	// Returns a stable level key (map name with PIE prefix stripped) used to scope
+	// solve orders and cascade resets to the current level.
+	FName GetLevelKey() const;
+
+private:
+
+	// Resets this puzzle (and every puzzle solved after it) back to its initial state
+	// and updates the save. Intended for editor and Blueprint use.
+	UFUNCTION(CallInEditor, BlueprintCallable, Category="Myceland Hex Grid", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
+	void ReplayPuzzle();
+
+	// Bound to UML_WinLoseSubsystem::OnWin; captures the solved grid and saves to disk.
+	UFUNCTION()
+	void HandlePuzzleWon();
 };

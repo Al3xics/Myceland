@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ML_TileWater.h"
 #include "Tiles/ML_TileBase.h"
 #include "ML_TileWaterPath.generated.h"
 
@@ -10,7 +11,7 @@
  * 
  */
 UCLASS()
-class MYCELAND_API AML_TileWaterPath : public AML_TileBase
+class MYCELAND_API AML_TileWaterPath : public AML_TileWater
 {
 	GENERATED_BODY()
 

@@ -130,6 +130,17 @@ enum class ESettingValueType : uint8
 	Unknown
 };
 
+// Player's overall story/level progression. Persisted in the save and mirrored on the
+// GameInstance. Order matters: it is the serialized underlying value, so only ever append
+// new states — never reorder or remove existing ones.
+UENUM(BlueprintType)
+enum class EML_ProgressionState : uint8
+{
+	W1L0,
+	W1L1,
+	W1L2
+};
+
 
 // ==================== STRUCT ====================
 

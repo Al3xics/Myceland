@@ -8,6 +8,7 @@
 #include "Tiles/TileBase/ML_TileGrass.h"
 #include "Tiles/TileBase/ML_TileParasite.h"
 #include "Tiles/TileBase/ML_TileWater.h"
+#include "Tiles/TileBase/ML_TileWaterPath.h"
 
 TSubclassOf<AML_TileBase> UML_BiomeTileSet::GetClassFromTileType(EML_TileType Type) const
 {
@@ -16,7 +17,7 @@ TSubclassOf<AML_TileBase> UML_BiomeTileSet::GetClassFromTileType(EML_TileType Ty
 		case EML_TileType::Grass: return GrassClass;
 		case EML_TileType::Parasite: return ParasiteClass;
 		case EML_TileType::Water: return WaterClass;
-		case EML_TileType::WaterPath: return WaterClass;
+		case EML_TileType::WaterPath: return WaterPathClass;
 		default: return DirtClass;
 	}
 }
