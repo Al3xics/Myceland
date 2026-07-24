@@ -71,7 +71,7 @@ public:
 
 	// Gamepad left stick (inside board): minimum stick/direction alignment (dot product) required to step
 	// the player toward a neighbor tile. cos 60 deg = 0.5, cos 30 deg = 0.866.
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Left Stick (Move)", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the left stick to step toward a neighbor tile. 0.5 = cos 60 deg."))
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Left Stick (Move)", meta=(ClampMin="0.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the left stick to step toward a neighbor tile. 0.5 = cos 60 deg."))
 	float GamepadMoveAlignmentThreshold = 0.5f;
 
 	// ---------- Gamepad · Right Stick (Select) ----------
@@ -88,7 +88,7 @@ public:
 
 	// Gamepad right stick (inside board): minimum stick/direction alignment (dot product) required to
 	// select a tile around the player. cos 60 deg = 0.5, cos 30 deg = 0.866.
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Right Stick (Select)", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the right stick to select a tile. 0.5 = cos 60 deg."))
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Right Stick (Select)", meta=(ClampMin="0.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the right stick to select a tile. 0.5 = cos 60 deg."))
 	float GamepadSelectAlignmentThreshold = 0.5f;
 
 	UPROPERTY(EditAnywhere, Config, Category="Input|Gamepad|Right Stick (Select)", meta=(ClampMin="1", Tooltip="The distance from the player a tile can be selected with the gamepad."))

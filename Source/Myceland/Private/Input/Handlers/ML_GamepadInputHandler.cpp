@@ -118,7 +118,7 @@ void UML_GamepadInputHandler::StepMoveInStickDirection(FVector2D StickValue)
 	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return;
 
-	const float Threshold = DevSettings ? DevSettings->GamepadMoveAlignmentThreshold : 0.5f;
+	const float Threshold = FMath::Max(DevSettings ? DevSettings->GamepadMoveAlignmentThreshold : 0.5f, 0.f);
 
 	// Best walkable neighbor aligned with the stick (NeighborDot measures how well it matches).
 	float NeighborDot = -1.f;
@@ -227,7 +227,7 @@ void UML_GamepadInputHandler::UpdatePlantSelection(FVector2D StickValue)
 	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return;
 
-	const float Threshold = DevSettings ? DevSettings->GamepadSelectAlignmentThreshold : 0.5f;
+	const float Threshold = FMath::Max(DevSettings ? DevSettings->GamepadSelectAlignmentThreshold : 0.5f, 0.f);
 	const int32 MaxRing = DevSettings ? FMath::Max<int32>(DevSettings->GamepadSelectRingDistance, 1) : 1;
 
 	// The cursor steps one tile at a time, relative to the tile that is currently selected — flicking a
@@ -285,7 +285,7 @@ void UML_GamepadInputHandler::HandleExitingBoardStick(FVector2D StickValue)
 	// the full ExitBoardHoldDurationGamepad. Steering the stick away from the exit cancels the hold; a full
 	// release is handled by OnStickReleased. (With ExitBoardHoldDurationGamepad = 0 the hold resolves before
 	// this ever runs, so this path only matters for a positive hold duration.)
-	const float Threshold = DevSettings ? DevSettings->GamepadMoveAlignmentThreshold : 0.5f;
+	const float Threshold = FMath::Max(DevSettings ? DevSettings->GamepadMoveAlignmentThreshold : 0.5f, 0.f);
 
 	float ExitDot = -1.f;
 	FVector ExitTarget = FVector::ZeroVector;
