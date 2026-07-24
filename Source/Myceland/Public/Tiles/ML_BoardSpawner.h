@@ -39,9 +39,6 @@ private:
 	// ==================== ML- Runtime ====================
 
 	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
-	int32 EnergyForPuzzle = 1;
-
-	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
 	UML_BiomeTileSet* BiomeTileSet;
 
 	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
@@ -119,6 +116,8 @@ public:
 	AML_BoardSpawner();
 	FIntPoint WorldToAxial(const FVector& WorldLocation) const;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Myceland Runtime")
+	int32 EnergyForPuzzle = 1;
 
 	// ==================== ML- Hex Grid ====================
 
