@@ -215,7 +215,9 @@ void UML_GamepadInputHandler::UpdatePlantSelection(FVector2D StickValue)
 	// The cursor steps one tile at a time, relative to the tile that is currently selected — flicking a
 	// direction moves to that tile's neighbor in the stick direction (not the best tile around the player).
 	// When nothing is selected yet, the first push starts from the player's tile (so it steps onto a ring-1
-	// neighbor). The step is restricted to plantable tiles that stay within MaxRing of the player.
+	// neighbor). The step can land on ANY tile that stays within MaxRing of the player (plantable or not) so
+	// the cursor can hover the whole board around the player like the mouse — the plant button (OnMoveAndPlantAction
+	// -> Plant()) rejects non-plantable tiles, so hovering one is harmless.
 	AML_Tile* OriginTile = Controller->GetGamepadSelectedTile();
 	if (!IsValid(OriginTile)) OriginTile = Character->CurrentTileOn;
 
@@ -231,7 +233,6 @@ void UML_GamepadInputHandler::UpdatePlantSelection(FVector2D StickValue)
 	for (AML_Tile* Neighbor : Neighbors)
 	{
 		if (!IsValid(Neighbor)) continue;
-		if (!UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType())) continue;
 		if (HexAxialDistance(Neighbor->GetAxialCoord(), PlayerAxial) > MaxRing) continue;
 
 		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();
