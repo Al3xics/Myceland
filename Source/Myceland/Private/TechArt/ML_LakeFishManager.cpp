@@ -482,8 +482,12 @@ void AML_LakeFishManager::RebuildLakes()
 				AliveWaterTiles.Contains(Tile)
 				? EML_WaterState::Alive
 				: EML_WaterState::Dead;
+			const float CoastLineColorValue =
+				NewState == EML_WaterState::Alive
+				? 1.f
+				: 0.f;
 
-			Water->SetWaterState(NewState);
+			Water->SetWaterState(NewState, CoastLineColorValue);
 		}
 	}
 
