@@ -148,12 +148,7 @@ void UML_GameUserSettings::InitValues()
 	VoiceVolume = DefaultVoiceVolume;
 
 	// Controls
-	// Hold repeat defaults live in the DeveloperSettings: the designer tunes them there,
-	// the player overrides them here, and reset picks the designer values back up.
-	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	GamepadDeadZone = DefaultGamepadDeadZone;
-	GamepadHoldRepeatDelay = DevSettings ? DevSettings->GamepadHoldRepeatDelay : DefaultHoldRepeatDelay;
-	GamepadHoldRepeatInterval = DevSettings ? DevSettings->GamepadHoldRepeatInterval : DefaultHoldRepeatInterval;
 
 	// Accessibility
 	bSubtitles = DefaultSubtitles;
@@ -206,18 +201,6 @@ void UML_GameUserSettings::SetVoiceVolume(const float Volume)
 void UML_GameUserSettings::SetGamepadDeadZone(const float DeadZone)
 {
 	GamepadDeadZone = DeadZone;
-	ApplyControlsSettings();
-}
-
-void UML_GameUserSettings::SetGamepadHoldRepeatDelay(const float Delay)
-{
-	GamepadHoldRepeatDelay = Delay;
-	ApplyControlsSettings();
-}
-
-void UML_GameUserSettings::SetGamepadHoldRepeatInterval(const float Interval)
-{
-	GamepadHoldRepeatInterval = Interval;
 	ApplyControlsSettings();
 }
 
@@ -409,13 +392,12 @@ void UML_GameUserSettings::ApplyAudioSettings()
 
 void UML_GameUserSettings::ApplyControlsSettings()
 {
-	// Controls are pull-based: the input code reads sensitivity, dead zone and hold repeat
-	// through the getters when it needs them. The broadcast lets systems that cache these
-	// values (e.g. an input component configured once) refresh themselves.
+	// Controls are pull-based: the input code reads the gamepad dead zone through the getter when it
+	// needs it. The broadcast lets systems that cache these values (e.g. an input component configured
+	// once) refresh themselves.
 	OnControlsSettingsApplied.Broadcast();
 
-	UE_LOG(LogTemp, Verbose, TEXT("Controls settings applied - DeadZone: %.2f, HoldDelay: %.2f, HoldInterval: %.2f"),
-		GamepadDeadZone, GamepadHoldRepeatDelay, GamepadHoldRepeatInterval);
+	UE_LOG(LogTemp, Verbose, TEXT("Controls settings applied - DeadZone: %.2f"), GamepadDeadZone);
 }
 
 void UML_GameUserSettings::ApplyAccessibilitySettings()
@@ -489,14 +471,8 @@ void UML_GameUserSettings::ResetMycelandSettingToDefault(const EMLSettingCategor
 			break;
 
 		case EMLSettingCategory::Controls:
-		{
-			// Hold repeat defaults come from the DeveloperSettings (designer tuning)
-			const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 			GamepadDeadZone = DefaultGamepadDeadZone;
-			GamepadHoldRepeatDelay = DevSettings ? DevSettings->GamepadHoldRepeatDelay : DefaultHoldRepeatDelay;
-			GamepadHoldRepeatInterval = DevSettings ? DevSettings->GamepadHoldRepeatInterval : DefaultHoldRepeatInterval;
 			break;
-		}
 
 		case EMLSettingCategory::Accessibility:
 			bSubtitles = DefaultSubtitles;

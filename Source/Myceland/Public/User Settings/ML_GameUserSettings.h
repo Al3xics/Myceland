@@ -60,8 +60,6 @@ private:
 	static constexpr float DefaultSFXVolume = 100.0f;
 	static constexpr float DefaultVoiceVolume = 100.0f;
 	static constexpr float DefaultGamepadDeadZone = 0.2f;
-	static constexpr float DefaultHoldRepeatDelay = 0.3f;
-	static constexpr float DefaultHoldRepeatInterval = 0.1f;
 	static constexpr bool DefaultSubtitles = true;
 	static constexpr float DefaultSubtitlesSize = 18.0f;
 	static constexpr EMLColorblindMode DefaultColorblindMode = EMLColorblindMode::None;
@@ -124,12 +122,6 @@ private:
 
 	UPROPERTY(Config)
 	float GamepadDeadZone = DefaultGamepadDeadZone;
-
-	UPROPERTY(Config)
-	float GamepadHoldRepeatDelay = DefaultHoldRepeatDelay;
-
-	UPROPERTY(Config)
-	float GamepadHoldRepeatInterval = DefaultHoldRepeatInterval;
 
 
 
@@ -286,20 +278,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
 	void SetGamepadDeadZone(float DeadZone);
 
-	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
-	void SetGamepadHoldRepeatDelay(float Delay);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Controls")
-	void SetGamepadHoldRepeatInterval(float Interval);
-
 	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
 	float GetGamepadDeadZone() const { return GamepadDeadZone; }
-
-	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
-	float GetGamepadHoldRepeatDelay() const { return GamepadHoldRepeatDelay; }
-
-	UFUNCTION(BlueprintPure, Category = "Settings|Controls")
-	float GetGamepadHoldRepeatInterval() const { return GamepadHoldRepeatInterval; }
 
 
 

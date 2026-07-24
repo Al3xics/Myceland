@@ -56,30 +56,43 @@ public:
 	// Shares the exit hold tick rate (ExitHoldTickRate) with the mouse/keyboard.
 	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Gamepad: seconds the stick must be held toward the exit plane before leaving. 0 = instant. Shares ExitHoldTickRate with the mouse."))
 	float ExitBoardHoldDurationGamepad = 0.f;
-	
-	UPROPERTY(EditAnywhere, Config, Category="Input|Gamepad", meta=(ClampMin="1", Tooltip="The distance from the player a tile can be selected with the gamepad."))
-	uint8 GamepadSelectRingDistance = 1;
 
-	// Gamepad: inside a board, how long the stick must be held in a direction before the
-	// tile selection starts auto-advancing to the next tile (the first tile is always
-	// selected immediately on push).
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.0", Tooltip="Seconds the stick must be held before tile selection starts auto-advancing.\nDefault value only: the player can override it in the settings menu (saved in GameUserSettings.ini). Reset in the menu picks this value back up."))
-	float GamepadHoldRepeatDelay = 0.3f;
+	// ---------- Gamepad · Left Stick (Move) ----------
 
-	// Gamepad: once auto-advance is active, seconds between each step to the next tile.
-	// Lower = faster. Acts as the hold movement speed of the selection cursor.
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="0.01", Tooltip="Seconds between each tile step while the stick is held (lower = faster).\nDefault value only: the player can override it in the settings menu (saved in GameUserSettings.ini). Reset in the menu picks this value back up."))
-	float GamepadHoldRepeatInterval = 0.1f;
+	// Gamepad left stick (inside board): seconds the stick must be held before the player starts
+	// auto-stepping to the next tile (the first tile is always stepped immediately on push).
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Left Stick (Move)", meta=(ClampMin="0.0", Tooltip="Seconds the left stick must be held before the player starts auto-stepping to the next tile (first step is immediate)."))
+	float GamepadMoveHoldRepeatDelay = 0.3f;
 
-	// Gamepad (inside board): minimum stick/direction alignment (dot product) required to step the
-	// player toward a neighbor tile with the left stick. cos 60 deg = 0.5, cos 30 deg = 0.866.
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the left stick to step toward a neighbor tile. 0.5 = cos 60 deg."))
+	// Gamepad left stick: once auto-stepping is active, seconds between each step to the next tile.
+	// Lower = faster.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Left Stick (Move)", meta=(ClampMin="0.01", Tooltip="Seconds between each tile step while the left stick is held (lower = faster)."))
+	float GamepadMoveHoldRepeatInterval = 0.1f;
+
+	// Gamepad left stick (inside board): minimum stick/direction alignment (dot product) required to step
+	// the player toward a neighbor tile. cos 60 deg = 0.5, cos 30 deg = 0.866.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Left Stick (Move)", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the left stick to step toward a neighbor tile. 0.5 = cos 60 deg."))
 	float GamepadMoveAlignmentThreshold = 0.5f;
 
-	// Gamepad (inside board): minimum stick/direction alignment (dot product) required for the right
-	// stick to select a plantable tile around the player. cos 60 deg = 0.5, cos 30 deg = 0.866.
-	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the right stick to select a plantable tile. 0.5 = cos 60 deg."))
+	// ---------- Gamepad · Right Stick (Select) ----------
+
+	// Gamepad right stick (inside board): seconds the stick must be held before the selection cursor starts
+	// auto-advancing to the next tile (the first tile is always selected immediately on push).
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Right Stick (Select)", meta=(ClampMin="0.0", Tooltip="Seconds the right stick must be held before the tile selection starts auto-advancing (first selection is immediate)."))
+	float GamepadSelectHoldRepeatDelay = 0.3f;
+
+	// Gamepad right stick: once auto-advance is active, seconds between each step to the next tile.
+	// Lower = faster. Acts as the hold movement speed of the selection cursor.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Right Stick (Select)", meta=(ClampMin="0.01", Tooltip="Seconds between each tile step while the right stick is held (lower = faster)."))
+	float GamepadSelectHoldRepeatInterval = 0.1f;
+
+	// Gamepad right stick (inside board): minimum stick/direction alignment (dot product) required to
+	// select a tile around the player. cos 60 deg = 0.5, cos 30 deg = 0.866.
+	UPROPERTY(EditAnywhere, config, Category="Input|Gamepad|Right Stick (Select)", meta=(ClampMin="-1.0", ClampMax="1.0", Tooltip="Minimum alignment (dot product) for the right stick to select a tile. 0.5 = cos 60 deg."))
 	float GamepadSelectAlignmentThreshold = 0.5f;
+
+	UPROPERTY(EditAnywhere, Config, Category="Input|Gamepad|Right Stick (Select)", meta=(ClampMin="1", Tooltip="The distance from the player a tile can be selected with the gamepad."))
+	uint8 GamepadSelectRingDistance = 1;
 
 
 

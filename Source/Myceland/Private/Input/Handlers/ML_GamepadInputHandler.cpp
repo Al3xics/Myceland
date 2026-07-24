@@ -10,16 +10,15 @@
 #include "Player/ML_HexPathfinder.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_BoardSpawner.h"
-#include "User Settings/ML_GameUserSettings.h"
 
 // ==================== Lifecycle ====================
 
 void UML_GamepadInputHandler::OnActivated()
 {
-	Settings = UML_GameUserSettings::GetMycelandGameUserSettings();
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 
 	ResetMoveRepeatState();
+	ResetSelectRepeatState();
 	// All board visuals (plant selection, plantable highlight, exit-plane availability) are owned by the
 	// HoverPreviewComponent and refreshed when the device switches to gamepad. The handler is input-only.
 }
@@ -80,8 +79,8 @@ void UML_GamepadInputHandler::HandleInsideBoardMoveStick(FVector2D StickValue, f
 	// No movement while the character is turning to plant (no input accepted in that state).
 	if (Controller->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	const float HoldDelay = Settings ? Settings->GetGamepadHoldRepeatDelay() : 0.3f;
-	const float RepeatInterval = Settings ? FMath::Max(Settings->GetGamepadHoldRepeatInterval(), 0.01f) : 0.1f;
+	const float HoldDelay = DevSettings ? DevSettings->GamepadMoveHoldRepeatDelay : 0.3f;
+	const float RepeatInterval = DevSettings ? FMath::Max(DevSettings->GamepadMoveHoldRepeatInterval, 0.01f) : 0.1f;
 
 	// First frame after returning from neutral: step immediately, then start the hold timer.
 	if (bMoveStickWasNeutral)
@@ -152,6 +151,14 @@ void UML_GamepadInputHandler::ResetMoveRepeatState()
 	bMoveAutoRepeatActive = false;
 }
 
+void UML_GamepadInputHandler::ResetSelectRepeatState()
+{
+	bSelectStickWasNeutral = true;
+	SelectStickHeldTime = 0.f;
+	SelectRepeatTimer = 0.f;
+	bSelectAutoRepeatActive = false;
+}
+
 // ==================== Right stick (plant selection) ====================
 
 void UML_GamepadInputHandler::OnPlantSelectAxis(FVector2D StickValue, float DeltaTime)
@@ -159,44 +166,55 @@ void UML_GamepadInputHandler::OnPlantSelectAxis(FVector2D StickValue, float Delt
 	if (!Controller || Controller->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return;
 	if (Controller->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return;
 
-	// Stick back in the neutral zone: arm the next push to select immediately (flick) and drop the timer.
-	// The current selection is left untouched (it persists like the mouse cursor), so re-holding just
+	// Stick back in the neutral zone: re-arm the next push to select immediately (flick) and drop the hold
+	// state. The current selection is left untouched (it persists like the mouse cursor), so re-holding just
 	// resumes from where the selection already was.
 	if (StickValue.IsNearlyZero())
 	{
-		bSelectStickWasNeutral = true;
-		SelectRepeatTimer = 0.f;
+		ResetSelectRepeatState();
 		return;
 	}
 
-	// Flick (first frame away from neutral): select once immediately, then start throttling.
+	// Right stick mirrors the left stick's move cadence, but with its own tuning: a flick selects once
+	// immediately, then the stick must be held GamepadSelectHoldRepeatDelay before the selection starts
+	// auto-advancing, one step per GamepadSelectHoldRepeatInterval while held.
+	const float HoldDelay = DevSettings ? DevSettings->GamepadSelectHoldRepeatDelay : 0.3f;
+	const float RepeatInterval = DevSettings ? FMath::Max(DevSettings->GamepadSelectHoldRepeatInterval, 0.01f) : 0.1f;
+
+	// Flick (first frame away from neutral): select once immediately, then start the hold timer.
 	if (bSelectStickWasNeutral)
 	{
 		bSelectStickWasNeutral = false;
-		SelectRepeatTimer = 0.f;
 		UpdatePlantSelection(StickValue);
 		return;
 	}
 
-	// Held: only let the selection move again once per repeat interval, so sweeping the stick doesn't
-	// blast through every tile in a single frame. Reuses the movement hold-repeat interval (no initial
-	// hold delay here — selection is meant to feel responsive on the first push).
-	const float RepeatInterval = Settings ? FMath::Max(Settings->GetGamepadHoldRepeatInterval(), 0.01f) : 0.1f;
-	SelectRepeatTimer += DeltaTime;
-	if (SelectRepeatTimer < RepeatInterval) return;
+	// Stick held: wait out the initial delay before the selection starts auto-advancing to the next tile.
+	if (!bSelectAutoRepeatActive)
+	{
+		SelectStickHeldTime += DeltaTime;
+		if (SelectStickHeldTime < HoldDelay) return;
 
-	SelectRepeatTimer -= RepeatInterval;
-	UpdatePlantSelection(StickValue);
+		bSelectAutoRepeatActive = true;
+		UpdatePlantSelection(StickValue);
+		return;
+	}
+
+	// Auto-advance active: step the selection once per RepeatInterval while held.
+	SelectRepeatTimer += DeltaTime;
+	while (SelectRepeatTimer >= RepeatInterval)
+	{
+		SelectRepeatTimer -= RepeatInterval;
+		UpdatePlantSelection(StickValue);
+	}
 }
 
 void UML_GamepadInputHandler::OnPlantSelectReleased()
 {
 	// Selection itself is persistent (mirrors the mouse cursor staying on the last hovered tile), so we
-	// keep the selected tile. We only re-arm the flick so the next push selects immediately, and reset the
-	// hold-repeat timer — covers input backends that stop broadcasting axis events at neutral instead of
-	// sending a zero value.
-	bSelectStickWasNeutral = true;
-	SelectRepeatTimer = 0.f;
+	// keep the selected tile. We only reset the hold-repeat state so the next push selects immediately —
+	// covers input backends that stop broadcasting axis events at neutral instead of sending a zero value.
+	ResetSelectRepeatState();
 }
 
 void UML_GamepadInputHandler::UpdatePlantSelection(FVector2D StickValue)

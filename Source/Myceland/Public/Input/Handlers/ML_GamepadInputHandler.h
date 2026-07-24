@@ -6,7 +6,6 @@
 #include "Input/ML_InputHandlerBase.h"
 #include "ML_GamepadInputHandler.generated.h"
 
-class UML_GameUserSettings;
 class UML_MycelandDeveloperSettings;
 class AML_Tile;
 class AML_BoardSpawner;
@@ -19,11 +18,12 @@ class AML_BoardSpawner;
  *
  * Inside board  : LEFT STICK moves the player tile-by-tile — pushing the stick walks the character
  *                 to the neighbor tile most aligned with the direction; holding keeps stepping to the
- *                 next tile (GamepadHoldRepeatDelay / GamepadHoldRepeatInterval).
- *                 RIGHT STICK moves a selection cursor over the plantable tiles, stepping one tile at a
- *                 time from the currently selected tile toward the stick direction (throttled by
- *                 GamepadHoldRepeatInterval while held; a flick steps once). The cursor stays within
- *                 GamepadSelectRingDistance of the player and highlights like the mouse cursor hover. The
+ *                 next tile (GamepadMoveHoldRepeatDelay / GamepadMoveHoldRepeatInterval).
+ *                 RIGHT STICK moves a selection cursor over the tiles around the player, stepping one tile
+ *                 at a time from the currently selected tile toward the stick direction (a flick steps once,
+ *                 then holding auto-advances after GamepadSelectHoldRepeatDelay, one step per
+ *                 GamepadSelectHoldRepeatInterval). The cursor stays within GamepadSelectRingDistance of the
+ *                 player and highlights like the mouse cursor hover. The
  *                 plant button then plants the selected tile (classic turn-to-plant + propagation).
  *                 EXIT: there is no exit button — standing on an exit border tile, pushing the LEFT STICK
  *                 toward the exit plane walks the player straight out of the board. Mirrors the mouse exit
@@ -36,9 +36,6 @@ class MYCELAND_API UML_GamepadInputHandler : public UML_InputHandlerBase
 	GENERATED_BODY()
 
 private:
-	UPROPERTY()
-	UML_GameUserSettings* Settings = nullptr;
-
 	UPROPERTY()
 	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
 
@@ -79,8 +76,14 @@ private:
 	/** True while the right stick has been in the neutral zone since the last selection update. */
 	bool bSelectStickWasNeutral = true;
 
-	/** Accumulator gating held re-selection to one update per GamepadHoldRepeatInterval. */
+	/** Seconds the right stick has been held away from neutral since the last selection step. */
+	float SelectStickHeldTime = 0.f;
+
+	/** Accumulator counting up to the repeat interval while selection auto-advance is active. */
 	float SelectRepeatTimer = 0.f;
+
+	/** True once the hold delay elapsed and the selection auto-advances to the next tile while held. */
+	bool bSelectAutoRepeatActive = false;
 
 	// ==================== Plant selection (right stick) ====================
 
@@ -89,6 +92,9 @@ private:
 	 * HoverPreviewComponent (which owns the selection + all board visuals). Selection state lives there.
 	 */
 	void UpdatePlantSelection(FVector2D StickValue);
+
+	/** Resets the right-stick hold/repeat state so the next push selects immediately and re-arms the delay. */
+	void ResetSelectRepeatState();
 
 	// ==================== Helpers ====================
 
