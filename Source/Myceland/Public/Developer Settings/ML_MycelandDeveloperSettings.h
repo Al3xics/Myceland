@@ -12,6 +12,20 @@
 class AML_Collectible;
 class UML_PropagationWaves;
 
+USTRUCT(BlueprintType)
+struct FML_LevelAmbiencePuzzleCount
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ambience", meta=(Categories="Level"))
+	FGameplayTag Level;
+
+	// Total number of puzzle wins needed for this level to reach 100% living ambience.
+	// Include the central hub as the final puzzle when the level uses one.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ambience", meta=(ClampMin="1"))
+	int32 PuzzleCount = 1;
+};
+
 UCLASS(config=Game, defaultconfig, meta=(DisplayName="Myceland"))
 class MYCELAND_API UML_MycelandDeveloperSettings : public UDeveloperSettings
 {
@@ -123,6 +137,27 @@ public:
 
 	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
 	FString VoiceFMODVCAPath = TEXT("vca:/Voice");
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|Ambience Enviro")
+	TArray<FString> LivingAmbienceEventPaths;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|Ambience Enviro")
+	TArray<FString> DeadAmbienceEventPaths;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|Ambience Enviro", meta=(ClampMin="0.0"))
+	float AmbienceMinDelay = 3.0f;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|Ambience Enviro", meta=(ClampMin="0.0"))
+	float AmbienceMaxDelay = 5.0f;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|Ambience Enviro")
+	bool bAutoStartAmbienceEnviro = true;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|Ambience Enviro")
+	bool bFallbackToBoardSpawnerCount = true;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Audio|Ambience Enviro", meta=(TitleProperty="Level"))
+	TArray<FML_LevelAmbiencePuzzleCount> AmbiencePuzzleCounts;
 	
 	
 	
