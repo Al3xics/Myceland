@@ -26,7 +26,7 @@ public:
     EML_WaterState WaterState = EML_WaterState::Dead;
 
     UFUNCTION(BlueprintCallable, Category="Myceland Water")
-    void SetWaterState(EML_WaterState NewState);
+    void SetWaterState(EML_WaterState NewState, float Value, FName ParameterName = TEXT("CoastLineColor"));
 
     UFUNCTION(BlueprintImplementableEvent, Category="Myceland Water")
     void OnWaterStateChanged(EML_WaterState NewState);

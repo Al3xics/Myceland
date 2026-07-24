@@ -2,6 +2,8 @@
 
 #include "Tiles/TileBase/ML_TileWater.h"
 
+#include <rapidjson/document.h>
+
 // Sets default values
 AML_TileWater::AML_TileWater()
 {
@@ -39,7 +41,7 @@ void AML_TileWater::Tick(float DeltaTime)
 	}
 }
 
-void AML_TileWater::SetWaterState(EML_WaterState NewState)
+void AML_TileWater::SetWaterState(EML_WaterState NewState, float Value, FName ParameterName)
 {
 	if (WaterState == NewState)
 	{
@@ -50,10 +52,9 @@ void AML_TileWater::SetWaterState(EML_WaterState NewState)
 
 	if (WaterMaterialRef)
 	{
-		const bool bToAlive = (NewState == EML_WaterState::Alive);
-		WaterMaterialRef->SetVectorParameterValue(
-			TEXT("CoastLineColor"),
-			bToAlive ? AliveCoastLineColor : DeadCoastLineColor);
+		WaterMaterialRef->SetScalarParameterValue(
+			ParameterName,
+			Value);
 	}
 
 	StartTransition(NewState == EML_WaterState::Alive);
