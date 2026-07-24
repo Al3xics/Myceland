@@ -44,8 +44,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> HighlightedPlantables;
 
-	// Gamepad only: the single plantable tile currently selected (cursor glow). Owned here so the board
-	// visuals (plantable set + selection) live in one place. The gamepad handler only sets/reads it.
+	// Gamepad only: the single tile currently selected (cursor glow) — plantable or not, the right stick can
+	// hover any tile around the player. Owned here so the board visuals (plantable set + selection) live in one
+	// place. The gamepad handler only sets/reads it; the plant button rejects it if it is not plantable.
 	UPROPERTY(Transient)
 	AML_Tile* GamepadSelectedTile = nullptr;
 
@@ -92,7 +93,7 @@ private:
 	/** Clears the gamepad plant selection and its cursor glow. */
 	void ClearGamepadSelection();
 
-	/** Validates / auto-selects the gamepad plant selection (default = a plantable neighbor when stopped). */
+	/** Validates / auto-selects the gamepad selection (default = a neighbor when stopped, plantable preferred). */
 	void UpdateGamepadSelection();
 
 	/** Recomputes the whole gamepad board visual: selection, plantable glow, and exit-plane availability. */
@@ -104,11 +105,12 @@ private:
 	/** Broadcasts "unavailable" for the currently highlighted exit plane, if any, and forgets it. */
 	void ClearExitHighlight();
 
-	/** Returns the first plantable neighbor of the player's tile (direction-agnostic), or nullptr. */
-	AML_Tile* FindDefaultPlantableNeighbor() const;
+	/** Returns a default neighbor of the player's tile (direction-agnostic): a plantable one if any exists,
+	 *  otherwise any neighbor so the cursor always rests on a tile around the player. Nullptr if no neighbor. */
+	AML_Tile* FindDefaultSelectableNeighbor() const;
 
-	/** True if Tile is a plantable neighbor of the player's current tile. */
-	bool IsPlantableNeighborOfPlayer(const AML_Tile* Tile) const;
+	/** True if Tile is a neighbor of the player's current tile (plantable or not). */
+	bool IsSelectableNeighborOfPlayer(const AML_Tile* Tile) const;
 
 	UFUNCTION()
 	void HandleBoardActivityStateChanged(bool bIsMoving);

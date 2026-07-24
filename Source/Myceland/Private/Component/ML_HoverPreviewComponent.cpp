@@ -253,11 +253,15 @@ void UML_HoverPreviewComponent::UpdateGamepadSelection()
 		return;
 	}
 
-	// Keep a still-valid selection (e.g. one the player aimed with the right stick).
-	if (IsValid(GamepadSelectedTile) && IsPlantableNeighborOfPlayer(GamepadSelectedTile))
+	// Keep a still-valid selection (e.g. one the player aimed with the right stick) — plantable or not, so a
+	// non-plantable tile the player deliberately hovered survives a refresh (mouse-parity stickiness).
+	if (IsValid(GamepadSelectedTile) && IsSelectableNeighborOfPlayer(GamepadSelectedTile))
 		return;
 
-	if (AML_Tile* Default = FindDefaultPlantableNeighbor())
+	// Nothing valid selected: rest on a tile around the player. A plantable neighbor is preferred (the plant
+	// button is then immediately useful), but when none exists we still fall back to any neighbor so the
+	// cursor always hovers a tile at rest instead of clearing.
+	if (AML_Tile* Default = FindDefaultSelectableNeighbor())
 		SetGamepadSelectedTile(Default);
 	else
 		ClearGamepadSelection();
@@ -306,7 +310,7 @@ void UML_HoverPreviewComponent::ClearExitHighlight()
 	CurrentExitPlane = nullptr;
 }
 
-AML_Tile* UML_HoverPreviewComponent::FindDefaultPlantableNeighbor() const
+AML_Tile* UML_HoverPreviewComponent::FindDefaultSelectableNeighbor() const
 {
 	if (!IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return nullptr;
 
@@ -316,15 +320,21 @@ AML_Tile* UML_HoverPreviewComponent::FindDefaultPlantableNeighbor() const
 	FML_TileNeighbors Neighbors;
 	Board->GetNeighbors(PlayerCharacter->CurrentTileOn, Neighbors);
 
-	// Any plantable neighbor works — direction-agnostic (the player may face an obstacle).
+	// Prefer any plantable neighbor (direction-agnostic — the player may face an obstacle). If none is
+	// plantable, fall back to the first valid neighbor so the cursor still rests on a tile around the player.
+	AML_Tile* FirstNeighbor = nullptr;
 	for (AML_Tile* Neighbor : Neighbors)
-		if (IsValid(Neighbor) && UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
+	{
+		if (!IsValid(Neighbor)) continue;
+		if (UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
 			return Neighbor;
+		if (!FirstNeighbor) FirstNeighbor = Neighbor;
+	}
 
-	return nullptr;
+	return FirstNeighbor;
 }
 
-bool UML_HoverPreviewComponent::IsPlantableNeighborOfPlayer(const AML_Tile* Tile) const
+bool UML_HoverPreviewComponent::IsSelectableNeighborOfPlayer(const AML_Tile* Tile) const
 {
 	if (!IsValid(Tile) || !IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return false;
 
@@ -333,7 +343,7 @@ bool UML_HoverPreviewComponent::IsPlantableNeighborOfPlayer(const AML_Tile* Tile
 
 	FML_TileNeighbors Neighbors;
 	Board->GetNeighbors(PlayerCharacter->CurrentTileOn, Neighbors);
-	return Neighbors.Contains(Tile) && UML_TileTypeTraits::CanPlayerPlant(Tile->GetCurrentType());
+	return Neighbors.Contains(Tile);
 }
 
 void UML_HoverPreviewComponent::RefreshPlantableHighlight()
