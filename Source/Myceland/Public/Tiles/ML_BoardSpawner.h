@@ -252,6 +252,12 @@ public:
 	// to highlight when the player stands on an exit tile, and to resolve the exit target on confirm.
 	const FML_BoardExit* FindExitForTile(const AML_Tile* PlayerTile) const;
 
+	// Single source of truth for "is there a usable gamepad exit for PlayerTile?". Returns the exit plane only
+	// when it exists AND is currently enabled — a designer disables a ground exit via SetActorEnableCollision(false),
+	// the same signal that makes the mouse ground-trace ignore it. Both gamepad consumers (walk-out + highlight)
+	// go through this so the glow and the actual exit can never disagree. Returns nullptr otherwise.
+	AActor* GetActiveExitPlaneForTile(const AML_Tile* PlayerTile) const;
+
 	// ==================== ML- Puzzle Generator ====================
 
 	UPROPERTY(EditAnywhere, Category="ML- Puzzle Generator")

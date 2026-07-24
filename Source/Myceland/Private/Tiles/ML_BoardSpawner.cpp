@@ -71,6 +71,20 @@ const FML_BoardExit* AML_BoardSpawner::FindExitForTile(const AML_Tile* PlayerTil
 	return nullptr;
 }
 
+AActor* AML_BoardSpawner::GetActiveExitPlaneForTile(const AML_Tile* PlayerTile) const
+{
+	const FML_BoardExit* Exit = FindExitForTile(PlayerTile);
+	if (!Exit || !IsValid(Exit->ExitPlane))
+		return nullptr;
+
+	// Disabled by the designer via SetActorEnableCollision(false) — mirrors how the mouse ground-trace stops
+	// detecting it. The ground exit is the only way to leave a board, so a disabled one is unusable everywhere.
+	if (!Exit->ExitPlane->GetActorEnableCollision())
+		return nullptr;
+
+	return Exit->ExitPlane;
+}
+
 #if WITH_EDITOR
 void AML_BoardSpawner::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {

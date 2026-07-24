@@ -288,10 +288,12 @@ bool UML_GamepadInputHandler::EvaluateStickExit(FVector2D StickValue, float& Out
 	AML_BoardSpawner* Board = Character->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return false;
 
-	const FML_BoardExit* Exit = Board->FindExitForTile(Character->CurrentTileOn);
-	if (!Exit || !IsValid(Exit->ExitPlane)) return false;
+	// GetActiveExitPlaneForTile returns null for a missing OR disabled exit, so the stick can't walk out
+	// through a ground exit the player couldn't otherwise take (same rule as the mouse and the highlight).
+	AActor* ExitPlane = Board->GetActiveExitPlaneForTile(Character->CurrentTileOn);
+	if (!IsValid(ExitPlane)) return false;
 
-	OutExitTarget = Exit->ExitPlane->GetActorLocation();
+	OutExitTarget = ExitPlane->GetActorLocation();
 	const FVector StickWorldDir = StickToWorldDirection(StickValue);
 	const FVector ToExit = (OutExitTarget - Character->CurrentTileOn->GetActorLocation()).GetSafeNormal2D();
 	OutExitDot = FVector::DotProduct(StickWorldDir, ToExit);

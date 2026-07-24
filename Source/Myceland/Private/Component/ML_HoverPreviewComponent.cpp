@@ -288,8 +288,9 @@ void UML_HoverPreviewComponent::UpdateExitHighlight()
 		IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn))
 	{
 		if (AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile())
-			if (const FML_BoardExit* Exit = Board->FindExitForTile(PlayerCharacter->CurrentTileOn))
-				NewPlane = Exit->ExitPlane;
+			// Only highlight a usable exit — GetActiveExitPlaneForTile also filters out disabled ones, so the
+			// glow can never show for an exit the player can't actually take.
+			NewPlane = Board->GetActiveExitPlaneForTile(PlayerCharacter->CurrentTileOn);
 	}
 
 	if (NewPlane == CurrentExitPlane) return;
