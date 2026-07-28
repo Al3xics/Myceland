@@ -2,10 +2,20 @@
 
 #include "Save System/ML_SaveSubsystem.h"
 #include "Save System/ML_GameSave.h"
+#include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 
 const FString UML_SaveSubsystem::SlotName  = TEXT("MycelandSave");
 const int32   UML_SaveSubsystem::UserIndex = 0;
+
+#if WITH_EDITOR
+static TAutoConsoleVariable<bool> CVarResetNarrativeTriggersInEditor(
+	TEXT("ml.ResetNarrativeTriggersInEditor"),
+	true,
+	TEXT("Editor only: clear the saved narrative-trigger flags when the save subsystem starts, ")
+	TEXT("so play-once cinematics replay on every session. Set to 0 to keep them persisted."),
+	ECVF_Default);
+#endif
 
 void UML_SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -20,6 +30,16 @@ void UML_SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		SaveObject = Cast<UML_GameSave>(UGameplayStatics::CreateSaveGameObject(UML_GameSave::StaticClass()));
 	}
+
+#if WITH_EDITOR
+	// Narrative triggers are the one piece of progression we deliberately drop when playing
+	// from the editor: a play-once cinematic would otherwise never be seen again once it fired.
+	// The whole block is compiled out of cooked builds (WITH_EDITOR == 0), so a player's
+	// triggers always persist. In-memory only — the disk file is left untouched until the
+	// next regular save.
+	if (CVarResetNarrativeTriggersInEditor.GetValueOnGameThread())
+		ClearAllNarrativeTriggersPlayed(/*bWriteToDisk=*/false);
+#endif
 }
 
 void UML_SaveSubsystem::SaveToDisk()
@@ -221,4 +241,17 @@ bool UML_SaveSubsystem::IsNarrativeTriggerPlayed(FName TriggerID) const
 {
 	if (!SaveObject || TriggerID.IsNone()) return false;
 	return SaveObject->PlayedNarrativeTriggers.Contains(TriggerID);
+}
+
+void UML_SaveSubsystem::ClearAllNarrativeTriggersPlayed(bool bWriteToDisk)
+{
+	if (!SaveObject || SaveObject->PlayedNarrativeTriggers.IsEmpty()) return;
+
+	UE_LOG(LogTemp, Log, TEXT("[Save] Cleared %d played narrative trigger(s)."),
+		SaveObject->PlayedNarrativeTriggers.Num());
+
+	SaveObject->PlayedNarrativeTriggers.Empty();
+
+	if (bWriteToDisk)
+		SaveToDisk();
 }
