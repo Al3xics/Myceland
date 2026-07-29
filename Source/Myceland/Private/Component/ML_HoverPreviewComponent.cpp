@@ -164,15 +164,31 @@ void UML_HoverPreviewComponent::UpdateHoverPreview()
 	TickCursorHoverPreview();
 }
 
+AML_Tile* UML_HoverPreviewComponent::ResolveHoveredTile() const
+{
+	if (!IsValid(OwningController))
+		return nullptr;
+
+	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
+	AML_Tile* Tile = ForcedHoverTile
+		? ForcedHoverTile
+		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
+
+	// A non-interactable tile reads as empty space: no glow, no path preview, no hover broadcast.
+	// Filtered here rather than at each call site so both inputs are covered at once — the gamepad
+	// selection arrives through ForcedHoverTile, which bypasses the cursor trace entirely.
+	if (IsValid(Tile) && !Tile->IsInteractable())
+		return nullptr;
+
+	return Tile;
+}
+
 void UML_HoverPreviewComponent::TickCursorHoverPreview()
 {
 	if (!IsValid(OwningController))
 		return;
 
-	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
-	AML_Tile* CursorHoveredTile = ForcedHoverTile
-		? ForcedHoverTile
-		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
+	AML_Tile* CursorHoveredTile = ResolveHoveredTile();
 
 	if (CursorHoveredTile == LastCursorHoveredTile)
 		return;
@@ -327,6 +343,8 @@ AML_Tile* UML_HoverPreviewComponent::FindDefaultSelectableNeighbor() const
 	for (AML_Tile* Neighbor : Neighbors)
 	{
 		if (!IsValid(Neighbor)) continue;
+		// Never rest the cursor on a tile the player can't interact with (obstacle ring around the board).
+		if (!Neighbor->IsInteractable()) continue;
 		if (UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
 			return Neighbor;
 		if (!FirstNeighbor) FirstNeighbor = Neighbor;
@@ -338,6 +356,9 @@ AML_Tile* UML_HoverPreviewComponent::FindDefaultSelectableNeighbor() const
 bool UML_HoverPreviewComponent::IsSelectableNeighborOfPlayer(const AML_Tile* Tile) const
 {
 	if (!IsValid(Tile) || !IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return false;
+
+	// Also the "is this selection still valid?" test, so a tile that became non-interactable is dropped.
+	if (!Tile->IsInteractable()) return false;
 
 	AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return false;
@@ -366,7 +387,7 @@ void UML_HoverPreviewComponent::RefreshPlantableHighlight()
 		// and both glows write the same tile color, so they would otherwise fight over it.
 		if (Neighbor == ForcedHoverTile) continue;
 
-		if (IsValid(Neighbor) && UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
+		if (IsValid(Neighbor) && Neighbor->IsInteractable() && UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
 		{
 			Neighbor->GlowPlantableAvailable();
 			HighlightedPlantables.Add(Neighbor);
@@ -438,10 +459,7 @@ void UML_HoverPreviewComponent::TickPathHoverPreview()
 	if (!IsValid(OwningController))
         return;
 
-	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
-	AML_Tile* HoveredTile = ForcedHoverTile
-		? ForcedHoverTile
-		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
+	AML_Tile* HoveredTile = ResolveHoveredTile();
 
     // Same tile as before → no update needed unless it became non-walkable.
     if (HoveredTile == LastPathHoveredTile)

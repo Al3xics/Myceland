@@ -213,6 +213,7 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
 	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return RejectPlantWithFeedback();
+	if (!TargetTile->IsInteractable()) return RejectPlantWithFeedback();
 	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return RejectPlantWithFeedback();
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
