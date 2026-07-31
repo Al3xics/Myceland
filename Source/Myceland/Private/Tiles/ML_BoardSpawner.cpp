@@ -15,6 +15,7 @@
 #include "Player/ML_PlayerController.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
 #include "Save System/ML_SaveSubsystem.h"
+#include "Subsystem/ML_CinematicSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
 
 
@@ -182,6 +183,17 @@ void AML_BoardSpawner::BeginPlay()
 				if (AML_WaterNavPath* NavPath = Cast<AML_WaterNavPath>(PathActor))
 					NavPath->Spawn();
 			}
+		});
+
+		// Replay the win cinematic. Its level sequence handles the rest of the environment
+		// revival (it calls Revive on the nature zones via its sequencer events), so nothing
+		// else needs restoring here. Deferred one tick like the water paths so every actor the
+		// sequence touches has finished its own BeginPlay before it plays.
+		TWeakObjectPtr<AML_BoardSpawner> WeakThisForCinematic(this);
+		GetWorld()->GetTimerManager().SetTimerForNextTick([WeakThisForCinematic]()
+		{
+			if (const AML_BoardSpawner* Board = WeakThisForCinematic.Get())
+				Board->PlayAssociatedWinCinematic();
 		});
 
 		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — solved state loaded (%d/%d tiles restored)."),
@@ -763,6 +775,28 @@ void AML_BoardSpawner::HandlePuzzleWon()
 	if (!SaveSys) return;
 
 	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid(), GetLevelKey());
+}
+
+void AML_BoardSpawner::PlayAssociatedWinCinematic() const
+{
+	if (!AssociatedWinCinematic) return;
+
+	if (UML_CinematicSubsystem* Cinematic = GetWorld()->GetSubsystem<UML_CinematicSubsystem>())
+	{
+		// On load we don't want the player to sit through the full win cinematic — fast-forward
+		// it hard so it resolves near-instantly while still firing all its Sequencer events.
+		// bQueueIfBusy: several already-solved boards each request this on the same load tick,
+		// and only one cinematic can play at a time, so they queue and drain one after another.
+		// bRecenterCameraWhenDone: once the whole queue finishes, snap the camera back onto the
+		// player's board camera (the fast-forwarded cinematics leave it parked elsewhere). Only the
+		// on-load path sets this, so a normal win cinematic finishing in-game never moves the camera.
+		constexpr float FastForwardRate = 50.f;
+		Cinematic->PlayCinematic(AssociatedWinCinematic,
+			/*BlendCamera=*/nullptr, /*BlendTime=*/0.f, /*ReturnBlendTime=*/0.f,
+			/*bWaitForBlendToFinish=*/true, /*PlayerController=*/nullptr,
+			/*PlayRate=*/FastForwardRate, /*bQueueIfBusy=*/true,
+			/*bRecenterCameraWhenDone=*/true);
+	}
 }
 
 void AML_BoardSpawner::RestoreToInitialState()

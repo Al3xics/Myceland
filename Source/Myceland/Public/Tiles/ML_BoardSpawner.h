@@ -302,4 +302,9 @@ private:
 	// Bound to UML_WinLoseSubsystem::OnWin; captures the solved grid and saves to disk.
 	UFUNCTION()
 	void HandlePuzzleWon();
+
+	// Plays this board's AssociatedWinCinematic through the cinematic subsystem, if one is set.
+	// Called on load for an already-solved board — the sequence replays the win moment and
+	// handles the rest of the environment revival (it calls Revive on the nature zones itself).
+	void PlayAssociatedWinCinematic() const;
 };

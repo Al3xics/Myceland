@@ -2,7 +2,11 @@
 
 #include "GameFramework/PlayerController.h"
 #include "LevelSequence.h"
+#include "Camera/CameraActor.h"
 #include "Player/ML_PlayerController.h"
+#include "Player/ML_PlayerCharacter.h"
+#include "Tiles/ML_BoardSpawner.h"
+#include "Tiles/ML_Tile.h"
 #include "LevelSequenceActor.h"
 #include "LevelSequencePlayer.h"
 #include "MovieSceneSequencePlayer.h"
@@ -14,7 +18,10 @@ bool UML_CinematicSubsystem::PlayCinematic(
 	float BlendTime,
 	float ReturnBlendTime,
 	bool bWaitForBlendToFinish,
-	APlayerController* PlayerController
+	APlayerController* PlayerController,
+	float PlayRate,
+	bool bQueueIfBusy,
+	bool bRecenterCameraWhenDone
 )
 {
 	if (!IsValid(LevelSequence))
@@ -30,7 +37,28 @@ bool UML_CinematicSubsystem::PlayCinematic(
 
 	if (bIsCinematicPlaying)
 	{
-		StopCurrentCinematic();
+		// Queue mode: don't interrupt the running cinematic — remember this request and play it
+		// once the current one finishes (see TryPlayNextQueued). Otherwise, keep the old behavior
+		// of stopping the current cinematic and starting this one immediately.
+		if (bQueueIfBusy)
+		{
+			FML_QueuedCinematic Queued;
+			Queued.LevelSequence         = LevelSequence;
+			Queued.BlendCamera           = BlendCamera;
+			Queued.PlayerController       = PlayerController;
+			Queued.BlendTime             = BlendTime;
+			Queued.ReturnBlendTime       = ReturnBlendTime;
+			Queued.bWaitForBlendToFinish = bWaitForBlendToFinish;
+			Queued.PlayRate              = PlayRate;
+			Queued.bRecenterCameraWhenDone = bRecenterCameraWhenDone;
+			CinematicQueue.Add(Queued);
+			return true;
+		}
+
+		// Interrupt the current cinematic but keep the queue intact — a non-queued cinematic
+		// takes over now, and the queue resumes when it finishes. (Only an explicit
+		// StopCurrentCinematic() cancels the queue.)
+		FinishCinematic(bIsCinematicPlaying);
 	}
 
 	APlayerController* TargetPlayerController = PlayerController ? PlayerController : World->GetFirstPlayerController();
@@ -44,6 +72,8 @@ bool UML_CinematicSubsystem::PlayCinematic(
 	CachedPlayerController = TargetPlayerController;
 	OriginalViewTarget = TargetPlayerController->GetViewTarget();
 	CachedReturnBlendTime = ReturnBlendTime;
+	CachedPlayRate = PlayRate;
+	bCachedRecenterCameraWhenDone = bRecenterCameraWhenDone;
 
 	DisablePlayerInput(TargetPlayerController);
 
@@ -85,6 +115,7 @@ void UML_CinematicSubsystem::StartPendingCinematic()
 	if (!World || !IsValid(PendingLevelSequence))
 	{
 		FinishCinematic(true);
+		TryPlayNextQueued(); // don't let a bad entry stall the queue
 		return;
 	}
 
@@ -105,6 +136,7 @@ void UML_CinematicSubsystem::StartPendingCinematic()
 	if (!IsValid(CurrentSequencePlayer))
 	{
 		FinishCinematic(true);
+		TryPlayNextQueued(); // don't let a bad entry stall the queue
 		return;
 	}
 
@@ -113,17 +145,100 @@ void UML_CinematicSubsystem::StartPendingCinematic()
 		&UML_CinematicSubsystem::HandleCinematicFinished
 	);
 
+	// Applied before Play() so the whole sequence (and every Sequencer event it fires,
+	// including the one that calls Revive) still runs in order — just fast-forwarded.
+	CurrentSequencePlayer->SetPlayRate(CachedPlayRate);
+
 	CurrentSequencePlayer->Play();
 }
 
 void UML_CinematicSubsystem::StopCurrentCinematic()
 {
+	// A deliberate stop cancels anything still queued too — otherwise a pending cinematic
+	// would surprise-play later. (Queue draining only happens on a natural finish.)
+	CinematicQueue.Empty();
 	FinishCinematic(bIsCinematicPlaying);
 }
 
 void UML_CinematicSubsystem::HandleCinematicFinished()
 {
+	// Capture before FinishCinematic() clears the cached flags.
+	const bool bShouldRecenter = bCachedRecenterCameraWhenDone;
+
 	FinishCinematic(true);
+
+	// A cinematic just ended on its own — start the next queued one, if any. When nothing else is
+	// queued the whole run is over; only then, and only if this run was an on-load replay that asked
+	// for it, pull the camera back onto the player's board. Normal win cinematics leave the flag
+	// false, so finishing one during gameplay never moves the camera.
+	if (!TryPlayNextQueued() && bShouldRecenter)
+	{
+		RecenterCameraOnPlayer();
+	}
+}
+
+bool UML_CinematicSubsystem::TryPlayNextQueued()
+{
+	if (bIsCinematicPlaying || CinematicQueue.Num() == 0)
+	{
+		return false;
+	}
+
+	FML_QueuedCinematic Next = CinematicQueue[0];
+	CinematicQueue.RemoveAt(0);
+
+	// bQueueIfBusy=false: nothing is playing now, so this one starts immediately.
+	PlayCinematic(
+		Next.LevelSequence,
+		Next.BlendCamera,
+		Next.BlendTime,
+		Next.ReturnBlendTime,
+		Next.bWaitForBlendToFinish,
+		Next.PlayerController,
+		Next.PlayRate,
+		/*bQueueIfBusy=*/false,
+		Next.bRecenterCameraWhenDone
+	);
+
+	return true;
+}
+
+void UML_CinematicSubsystem::RecenterCameraOnPlayer()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	AML_PlayerController* PlayerController = Cast<AML_PlayerController>(World->GetFirstPlayerController());
+	if (!IsValid(PlayerController))
+	{
+		return;
+	}
+
+	AML_PlayerCharacter* PlayerCharacter = PlayerController->GetMycelandCharacter();
+	if (!IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn))
+	{
+		return;
+	}
+
+	// On load the player is spawned onto a solved board, so grab that board's associated camera and
+	// switch the view straight to it — same as the controller's InsideBoard settle — instead of
+	// leaving the camera parked on a cine camera wherever the win cinematics ended.
+	const AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board))
+	{
+		return;
+	}
+
+	ACameraActor* BoardCamera = Board->GetAssociatedCamera();
+	if (!IsValid(BoardCamera))
+	{
+		return;
+	}
+
+	PlayerController->SetViewTarget(BoardCamera);
 }
 
 void UML_CinematicSubsystem::FinishCinematic(bool bBroadcastFinished)
@@ -204,4 +319,6 @@ void UML_CinematicSubsystem::ClearCinematicReferences()
 
 	bIsCinematicPlaying = false;
 	CachedReturnBlendTime = 0.75f;
+	CachedPlayRate = 1.0f;
+	bCachedRecenterCameraWhenDone = false;
 }
