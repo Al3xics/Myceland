@@ -73,6 +73,11 @@ private:
 	bool bCursorHoverEnabled = true;
 
 	void UpdateHoverPreview();
+
+	/** The tile the preview should currently treat as hovered (forced tile, else the cursor one), or
+	 *  nullptr. Single place where a tile is rejected as non-interactable, so both inputs are covered. */
+	AML_Tile* ResolveHoveredTile() const;
+
 	void TickPathHoverPreview();
 	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();

@@ -251,6 +251,11 @@ void UML_GamepadInputHandler::UpdatePlantSelection(FVector2D StickValue)
 	for (AML_Tile* Neighbor : Neighbors)
 	{
 		if (!IsValid(Neighbor)) continue;
+		// Non-interactable tiles (the obstacle ring framing the board) are dropped from the candidate set,
+		// mirroring the mouse, which cannot hover them either. This is a one-tile step, not a search: the
+		// cursor does NOT jump over a rejected tile to a farther one — it lands on the best remaining
+		// neighbor within the alignment threshold, or stays where it is.
+		if (!Neighbor->IsInteractable()) continue;
 		if (HexAxialDistance(Neighbor->GetAxialCoord(), PlayerAxial) > MaxRing) continue;
 
 		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();
@@ -388,7 +393,11 @@ AML_Tile* UML_GamepadInputHandler::FindNeighborInStickDirection(FVector2D StickV
 	for (AML_Tile* Neighbor : Candidates)
 	{
 		// Movement only walks onto walkable tiles; plant selection only picks plantable tiles.
-		const bool bCandidate = bPlantableOnly ? UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()) : UML_HexPathfinder::IsTileWalkable(Neighbor);
+		// IsTileWalkable already rejects non-interactable tiles, so only the plantable branch needs the
+		// explicit check (a Dirt tile flagged non-interactable must not be offered either).
+		const bool bCandidate = bPlantableOnly
+			? (Neighbor->IsInteractable() && UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
+			: UML_HexPathfinder::IsTileWalkable(Neighbor);
 		if (!bCandidate) continue;
 
 		const FVector ToNeighbor = (Neighbor->GetActorLocation() - OriginPos).GetSafeNormal2D();

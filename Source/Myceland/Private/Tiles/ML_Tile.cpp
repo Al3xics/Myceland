@@ -127,6 +127,13 @@ void AML_Tile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEven
 
 	if (bTypeChanged || bClassChanged)
 	{
+		// Obstacles frame the board and are off-limits to the player, so default them to non-interactable
+		// (no hover glow, no gamepad selection, not walkable). Only re-derived when the TYPE itself changes:
+		// picking a different tile Blueprint — or a board grid refresh, which also calls UpdateClassInEditor
+		// via Initialize() — must not silently wipe a designer's per-tile override.
+		if (bTypeChanged)
+			bIsInteractable = (CurrentType != EML_TileType::Obstacle);
+
 		UpdateClassInEditor(CurrentType);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AML_Tile, NavBlockerExtent))

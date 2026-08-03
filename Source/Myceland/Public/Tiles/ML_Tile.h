@@ -64,7 +64,17 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bIsBorderTile = false;
-	
+
+	// False on tiles that belong to the board but are off-limits to the player — typically the Obstacle
+	// ring that frames a board and separates it from the environment. Such a tile never glows on hover
+	// (mouse OR gamepad), can never be picked by the gamepad selection cursor, and is not walkable.
+	// This gates PLAYER INTERACTION only, never puzzle logic: waves keep propagating through these tiles
+	// (grass needs obstacles to travel around a lake — see UML_TileTypeTraits::CanGrassPropagateTo).
+	// Auto-set to false when a tile is switched to Obstacle in the editor; override it per tile if an
+	// obstacle must stay interactable.
+	UPROPERTY(EditAnywhere, Category="Myceland Tile")
+	bool bIsInteractable = true;
+
 	void SetBlocked(bool bNewBlocked);
 
 protected:
@@ -119,6 +129,13 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	bool IsBlocked() const { return bBlocked; }
+
+	// See bIsInteractable: false means no hover glow, no gamepad selection, not walkable.
+	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
+	bool IsInteractable() const { return bIsInteractable; }
+
+	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
+	void SetInteractable(const bool bNewValue) { bIsInteractable = bNewValue; }
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Getter & Setter")
 	void SetBorderTile(const bool Value) { bIsBorderTile = Value; }

@@ -11,6 +11,11 @@ bool UML_HexPathfinder::IsTileWalkable(const AML_Tile* Tile)
 {
 	if (!IsValid(Tile)) return false;
 
+	// Non-interactable tiles (the obstacle ring framing a board) are off-limits to the player even if their
+	// type would otherwise allow it — they are excluded here so every consumer (board moves, BFS traversal,
+	// gamepad stick, board entry/exit, nav bridge) rejects them from a single place.
+	if (!Tile->IsInteractable()) return false;
+
 	const EML_TileType Type = Tile->GetCurrentType();
 	return UML_TileTypeTraits::IsWalkable(Type) && !Tile->IsBlocked();
 }

@@ -91,6 +91,11 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Save")
 	bool IsNarrativeTriggerPlayed(FName TriggerID) const;
 
+	// Clears every narrative trigger's played flag so all play-once cinematics can fire again.
+	// Done automatically at startup in the editor (see Initialize); never in a cooked build.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save")
+	void ClearAllNarrativeTriggersPlayed(bool bWriteToDisk = true);
+
 private:
 	UPROPERTY()
 	UML_GameSave* SaveObject = nullptr;
