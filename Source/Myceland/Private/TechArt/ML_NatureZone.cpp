@@ -20,33 +20,9 @@ AML_NatureZone::AML_NatureZone()
 	DetectionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	DetectionBox->SetCollisionResponseToAllChannels(ECR_Overlap);
 }
-
 void AML_NatureZone::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-
-	if (!bIsGrowing)
-	{
-		return;
-	}
-
-	GrowthElapsed += DeltaSeconds;
-
-	const float SafeDuration = FMath::Max(GrowthDuration, 0.01f);
-	float Alpha = FMath::Clamp(GrowthElapsed / SafeDuration, 0.0f, 1.0f);
-
-	if (bUseSmoothStepGrowth)
-	{
-		Alpha = FMath::SmoothStep(0.0f, 1.0f, Alpha);
-	}
-
-	ApplyGrowthAlpha(Alpha);
-
-	if (GrowthElapsed >= SafeDuration)
-	{
-		bIsGrowing = false;
-		ApplyGrowthAlpha(1.0f);
-	}
 }
 
 TArray<FML_NatureInstanceReference> AML_NatureZone::GetFoliageInstancesInsideBox() const
@@ -310,6 +286,11 @@ int32 AML_NatureZone::CacheFoliageInstancesInsideBox()
 		Cached.InstanceRef = Ref;
 		Cached.OriginalScale = Ref.WorldTransform.GetScale3D();
 
+		Cached.GrowthDelay = FMath::FRandRange(
+			MinGrowthDelay,
+			MaxGrowthDelay
+		);
+
 		CachedInstances.Add(Cached);
 	}
 
@@ -381,31 +362,117 @@ int32 AML_NatureZone::HideCachedFoliage()
 	return ChangedCount;
 }
 
-void AML_NatureZone::StartGrowCachedFoliage()
+void AML_NatureZone::StartGrowCachedFoliage(float Alpha)
 {
 	if (CachedInstances.IsEmpty())
 	{
 		CacheAndHideFoliageInstancesInsideBox();
 	}
 
-	GrowthElapsed = 0.0f;
-	bIsGrowing = true;
+	if (!GetWorld())
+	{
+		return;
+	}
 
-	ApplyGrowthAlpha(0.0f);
+	const float CurrentTime = GetWorld()->GetTimeSeconds();
+
+	// Detect a new growth animation.
+	if (GrowthStartTime < 0.0f)
+	{
+		GrowthStartTime = CurrentTime;
+		GrowthAlphaHistory.Empty();
+	}
+
+	// Store exactly what Blueprint gives us.
+	// This preserves your custom Timeline curve, including values > 1.
+	FML_GrowthAlphaSample Sample;
+	Sample.Time = CurrentTime;
+	Sample.Alpha = Alpha;
+
+	GrowthAlphaHistory.Add(Sample);
+
+	// We only need a small amount of recent history.
+	const float MaxHistoryAge = FMath::Max(MaxGrowthDelay + 0.25f, 0.5f);
+
+	while (
+		GrowthAlphaHistory.Num() > 1 &&
+		CurrentTime - GrowthAlphaHistory[0].Time > MaxHistoryAge
+	)
+	{
+		GrowthAlphaHistory.RemoveAt(0);
+	}
+
+	ApplyGrowthAlpha(Alpha);
 }
+float AML_NatureZone::GetDelayedGrowthAlpha(
+	float CurrentTime,
+	float Delay
+) const
+{
+	if (GrowthAlphaHistory.IsEmpty())
+	{
+		return 0.0f;
+	}
 
+	const float TargetTime = CurrentTime - Delay;
+
+	// This plant's delay hasn't elapsed yet.
+	if (TargetTime < GrowthStartTime)
+	{
+		return 0.0f;
+	}
+
+	// Find the two Blueprint Alpha samples surrounding
+	// the delayed point in time.
+	for (int32 i = 1; i < GrowthAlphaHistory.Num(); ++i)
+	{
+		const FML_GrowthAlphaSample& Previous =
+			GrowthAlphaHistory[i - 1];
+
+		const FML_GrowthAlphaSample& Next =
+			GrowthAlphaHistory[i];
+
+		if (TargetTime <= Next.Time)
+		{
+			const float TimeRange =
+				FMath::Max(Next.Time - Previous.Time, KINDA_SMALL_NUMBER);
+
+			const float T =
+				(TargetTime - Previous.Time) / TimeRange;
+
+			return FMath::Lerp(
+				Previous.Alpha,
+				Next.Alpha,
+				FMath::Clamp(T, 0.0f, 1.0f)
+			);
+		}
+	}
+
+	// We've passed the newest recorded sample.
+	return GrowthAlphaHistory.Last().Alpha;
+}
 void AML_NatureZone::ClearCachedFoliage()
 {
 	CachedInstances.Empty();
-	bIsGrowing = false;
-	GrowthElapsed = 0.0f;
+	GrowthAlphaHistory.Empty();
+	GrowthStartTime = -1.0f;
 }
-
 void AML_NatureZone::ApplyGrowthAlpha(float Alpha)
 {
 	TSet<TObjectPtr<UInstancedStaticMeshComponent>> DirtyComponents;
 
-	const FVector StartScale(HiddenScale, HiddenScale, HiddenScale);
+	const FVector StartScale(
+		HiddenScale,
+		HiddenScale,
+		HiddenScale
+	);
+
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	const float CurrentTime = GetWorld()->GetTimeSeconds();
 
 	for (const FML_NatureCachedInstance& Cached : CachedInstances)
 	{
@@ -416,7 +483,8 @@ void AML_NatureZone::ApplyGrowthAlpha(float Alpha)
 			continue;
 		}
 
-		UInstancedStaticMeshComponent* ISM = Ref.Component.Get();
+		UInstancedStaticMeshComponent* ISM =
+			Ref.Component.Get();
 
 		if (!IsValid(ISM))
 		{
@@ -425,23 +493,39 @@ void AML_NatureZone::ApplyGrowthAlpha(float Alpha)
 
 		FTransform WorldTransform;
 
-		if (!ISM->GetInstanceTransform(Ref.InstanceIndex, WorldTransform, true))
+		if (!ISM->GetInstanceTransform(
+			Ref.InstanceIndex,
+			WorldTransform,
+			true))
 		{
 			continue;
 		}
 
+		// Same exact Blueprint Timeline curve,
+		// shifted slightly in time for this foliage instance.
+		const float InstanceAlpha =
+			GetDelayedGrowthAlpha(
+				CurrentTime,
+				Cached.GrowthDelay
+			);
+
 		const FVector NewScale =
-			FMath::Lerp(StartScale, Cached.OriginalScale, Alpha);
+			FMath::Lerp(
+				StartScale,
+				Cached.OriginalScale,
+				InstanceAlpha
+			);
 
 		WorldTransform.SetScale3D(NewScale);
 
-		const bool bUpdated = ISM->UpdateInstanceTransform(
-			Ref.InstanceIndex,
-			WorldTransform,
-			true,
-			false,
-			true
-		);
+		const bool bUpdated =
+			ISM->UpdateInstanceTransform(
+				Ref.InstanceIndex,
+				WorldTransform,
+				true,
+				false,
+				true
+			);
 
 		if (bUpdated)
 		{
