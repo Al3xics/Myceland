@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+
 
 AML_SplineMeshActor::AML_SplineMeshActor()
 {
@@ -20,11 +22,60 @@ AML_SplineMeshActor::AML_SplineMeshActor()
 	Spline->bDrawDebug = true;
 }
 
+
 void AML_SplineMeshActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+
 	RebuildMeshes();
 }
+
+
+void AML_SplineMeshActor::BeginPlay()
+{
+	Super::BeginPlay();
+
+	/*
+	 * The components generated during construction can survive into the
+	 * runtime actor while our transient array doesn't.
+	 *
+	 * Rebuild the array from the actual components that exist.
+	 */
+	RefreshGeneratedMeshReferences();
+
+	/*
+	 * Now create runtime MIDs for every generated mesh.
+	 */
+	InitializeDynamicMaterials();
+}
+
+
+void AML_SplineMeshActor::RefreshGeneratedMeshReferences()
+{
+	GeneratedMeshes.Reset();
+
+	TArray<UStaticMeshComponent*> StaticMeshComponents;
+	GetComponents<UStaticMeshComponent>(StaticMeshComponents);
+
+	for (UStaticMeshComponent* MeshComponent : StaticMeshComponents)
+	{
+		if (!IsValid(MeshComponent))
+		{
+			continue;
+		}
+
+		/*
+		 * Generated meshes are attached directly to the spline.
+		 *
+		 * No tag needed.
+		 */
+		if (MeshComponent->GetAttachParent() == Spline)
+		{
+			GeneratedMeshes.Add(MeshComponent);
+		}
+	}
+}
+
 
 void AML_SplineMeshActor::RebuildMeshes()
 {
@@ -51,12 +102,14 @@ void AML_SplineMeshActor::RebuildMeshes()
 
 	const float SplineLength = Spline->GetSplineLength();
 
-	for (int32 SegmentIndex = 0; SegmentIndex < SegmentCount; SegmentIndex++)
+	for (int32 SegmentIndex = 0; SegmentIndex < SegmentCount; ++SegmentIndex)
 	{
 		const int32 StartPointIndex = SegmentIndex;
 		const int32 EndPointIndex = (SegmentIndex + 1) % PointCount;
 
-		float StartDistance = Spline->GetDistanceAlongSplineAtSplinePoint(StartPointIndex);
+		const float StartDistance =
+			Spline->GetDistanceAlongSplineAtSplinePoint(StartPointIndex);
+
 		float EndDistance;
 
 		if (EndPointIndex == 0 && Spline->IsClosedLoop())
@@ -65,15 +118,30 @@ void AML_SplineMeshActor::RebuildMeshes()
 		}
 		else
 		{
-			EndDistance = Spline->GetDistanceAlongSplineAtSplinePoint(EndPointIndex);
+			EndDistance =
+				Spline->GetDistanceAlongSplineAtSplinePoint(EndPointIndex);
 		}
 
-		GenerateSegment(SegmentIndex, StartDistance, EndDistance);
+		GenerateSegment(
+			SegmentIndex,
+			StartDistance,
+			EndDistance
+		);
 	}
 }
 
+
 void AML_SplineMeshActor::ClearMeshes()
 {
+	/*
+	 * Important:
+	 * GeneratedMeshes might be empty even though the generated components
+	 * actually exist, especially after construction/reconstruction.
+	 *
+	 * Recover them first.
+	 */
+	RefreshGeneratedMeshReferences();
+
 	for (UStaticMeshComponent* MeshComponent : GeneratedMeshes)
 	{
 		if (IsValid(MeshComponent))
@@ -83,9 +151,15 @@ void AML_SplineMeshActor::ClearMeshes()
 	}
 
 	GeneratedMeshes.Reset();
+	GeneratedDynamicMaterials.Reset();
 }
 
-void AML_SplineMeshActor::GenerateSegment(int32 SegmentIndex, float StartDistance, float EndDistance)
+
+void AML_SplineMeshActor::GenerateSegment(
+	int32 SegmentIndex,
+	float StartDistance,
+	float EndDistance
+)
 {
 	const int32 MeshCount = GetMeshCountForSegment(SegmentIndex);
 
@@ -95,23 +169,31 @@ void AML_SplineMeshActor::GenerateSegment(int32 SegmentIndex, float StartDistanc
 	}
 
 	const float SegmentLength = EndDistance - StartDistance;
-	const float UsableLength = SegmentLength - StartPadding - EndPadding;
+
+	const float UsableLength =
+		SegmentLength - StartPadding - EndPadding;
 
 	if (UsableLength <= KINDA_SMALL_NUMBER)
 	{
 		return;
 	}
 
-	const float PaddedStartDistance = StartDistance + StartPadding;
-	const float PaddedEndDistance = EndDistance - EndPadding;
+	const float PaddedStartDistance =
+		StartDistance + StartPadding;
 
-	for (int32 MeshIndex = 0; MeshIndex < MeshCount; MeshIndex++)
+	const float PaddedEndDistance =
+		EndDistance - EndPadding;
+
+
+	for (int32 MeshIndex = 0; MeshIndex < MeshCount; ++MeshIndex)
 	{
 		float Alpha;
 
 		if (bCenterMeshesInsideSegment)
 		{
-			Alpha = (static_cast<float>(MeshIndex) + 0.5f) / static_cast<float>(MeshCount);
+			Alpha =
+				(static_cast<float>(MeshIndex) + 0.5f)
+				/ static_cast<float>(MeshCount);
 		}
 		else if (MeshCount == 1)
 		{
@@ -119,139 +201,346 @@ void AML_SplineMeshActor::GenerateSegment(int32 SegmentIndex, float StartDistanc
 		}
 		else
 		{
-			Alpha = static_cast<float>(MeshIndex) / static_cast<float>(MeshCount - 1);
+			Alpha =
+				static_cast<float>(MeshIndex)
+				/ static_cast<float>(MeshCount - 1);
 		}
 
-		const float Distance = FMath::Lerp(PaddedStartDistance, PaddedEndDistance, Alpha);
 
-		const FTransform SplineTransform = Spline->GetTransformAtDistanceAlongSpline(
-			Distance,
-			ESplineCoordinateSpace::Local,
-			true
-		);
+		const float Distance =
+			FMath::Lerp(
+				PaddedStartDistance,
+				PaddedEndDistance,
+				Alpha
+			);
 
-		UStaticMeshComponent* MeshComponent = CreateMeshComponent(SegmentIndex, MeshIndex);
+
+		const FTransform SplineTransform =
+			Spline->GetTransformAtDistanceAlongSpline(
+				Distance,
+				ESplineCoordinateSpace::Local,
+				true
+			);
+
+
+		UStaticMeshComponent* MeshComponent =
+			CreateMeshComponent(
+				SegmentIndex,
+				MeshIndex
+			);
 
 		if (!IsValid(MeshComponent))
 		{
 			continue;
 		}
 
-		FQuat FinalRotation = GetForwardAxisCorrection() * RotationOffset.Quaternion();
+
+		FQuat FinalRotation =
+			GetForwardAxisCorrection()
+			* RotationOffset.Quaternion();
+
 
 		if (bAlignMeshToSpline)
 		{
-			FinalRotation = SplineTransform.GetRotation() * FinalRotation;
+			FinalRotation =
+				SplineTransform.GetRotation()
+				* FinalRotation;
 		}
+
 
 		FVector FinalScale = MeshScale;
 
 		if (bUseSplinePointScale)
 		{
-			FinalScale *= SplineTransform.GetScale3D();
+			FinalScale *=
+				SplineTransform.GetScale3D();
 		}
 
-		const FVector RotatedLocationOffset = FinalRotation.RotateVector(LocationOffset);
-		const FVector FinalLocation = SplineTransform.GetLocation() + RotatedLocationOffset;
 
-		MeshComponent->SetRelativeLocation(FinalLocation);
-		MeshComponent->SetRelativeRotation(FinalRotation);
-		MeshComponent->SetRelativeScale3D(FinalScale);
+		const FVector RotatedLocationOffset =
+			FinalRotation.RotateVector(
+				LocationOffset
+			);
+
+
+		const FVector FinalLocation =
+			SplineTransform.GetLocation()
+			+ RotatedLocationOffset;
+
+
+		MeshComponent->SetRelativeLocation(
+			FinalLocation
+		);
+
+		MeshComponent->SetRelativeRotation(
+			FinalRotation
+		);
+
+		MeshComponent->SetRelativeScale3D(
+			FinalScale
+		);
 	}
 }
 
-UStaticMeshComponent* AML_SplineMeshActor::CreateMeshComponent(int32 SegmentIndex, int32 MeshIndex)
+
+UStaticMeshComponent* AML_SplineMeshActor::CreateMeshComponent(
+	int32 SegmentIndex,
+	int32 MeshIndex
+)
 {
 	if (!IsValid(Spline) || !IsValid(StaticMesh))
 	{
 		return nullptr;
 	}
 
-	const FName ComponentName = MakeUniqueObjectName(
-		this,
-		UStaticMeshComponent::StaticClass(),
-		*FString::Printf(TEXT("GeneratedMesh_%03d_%03d"), SegmentIndex, MeshIndex)
-	);
 
-	UStaticMeshComponent* MeshComponent = NewObject<UStaticMeshComponent>(
-		this,
-		UStaticMeshComponent::StaticClass(),
-		ComponentName,
-		RF_Transactional
-	);
+	const FName ComponentName =
+		MakeUniqueObjectName(
+			this,
+			UStaticMeshComponent::StaticClass(),
+			*FString::Printf(
+				TEXT("GeneratedMesh_%03d_%03d"),
+				SegmentIndex,
+				MeshIndex
+			)
+		);
+
+
+	UStaticMeshComponent* MeshComponent =
+		NewObject<UStaticMeshComponent>(
+			this,
+			UStaticMeshComponent::StaticClass(),
+			ComponentName,
+			RF_Transactional
+		);
+
 
 	if (!IsValid(MeshComponent))
 	{
 		return nullptr;
 	}
 
-	MeshComponent->CreationMethod = EComponentCreationMethod::UserConstructionScript;
-	MeshComponent->SetMobility(MeshMobility);
-	MeshComponent->SetupAttachment(Spline);
-	MeshComponent->SetStaticMesh(StaticMesh);
-	MeshComponent->SetCastShadow(bCastShadow);
-	MeshComponent->SetVisibility(bVisible);
+
+	MeshComponent->CreationMethod =
+		EComponentCreationMethod::UserConstructionScript;
+
+	MeshComponent->SetMobility(
+		MeshMobility
+	);
+
+	MeshComponent->SetupAttachment(
+		Spline
+	);
+
+	MeshComponent->SetStaticMesh(
+		StaticMesh
+	);
+
+	MeshComponent->SetCastShadow(
+		bCastShadow
+	);
+
+	MeshComponent->SetVisibility(
+		bVisible
+	);
+
 
 	if (IsValid(MaterialOverride))
 	{
-		MeshComponent->SetMaterial(MaterialIndex, MaterialOverride);
+		MeshComponent->SetMaterial(
+			MaterialIndex,
+			MaterialOverride
+		);
 	}
+
 
 	if (bEnableCollision)
 	{
-		MeshComponent->SetCollisionProfileName(CollisionProfile);
-		MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		MeshComponent->SetCollisionProfileName(
+			CollisionProfile
+		);
+
+		MeshComponent->SetCollisionEnabled(
+			ECollisionEnabled::QueryAndPhysics
+		);
 	}
 	else
 	{
-		MeshComponent->SetCollisionProfileName(TEXT("NoCollision"));
-		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		MeshComponent->SetCollisionProfileName(
+			TEXT("NoCollision")
+		);
+
+		MeshComponent->SetCollisionEnabled(
+			ECollisionEnabled::NoCollision
+		);
 	}
+
 
 	MeshComponent->RegisterComponent();
 
-	GeneratedMeshes.Add(MeshComponent);
+
+	/*
+	 * Keep reference while we're generating.
+	 *
+	 * We DO NOT create dynamic materials here.
+	 *
+	 * Dynamic materials are created once at BeginPlay.
+	 */
+	GeneratedMeshes.Add(
+		MeshComponent
+	);
+
 
 	return MeshComponent;
 }
 
-int32 AML_SplineMeshActor::GetMeshCountForSegment(int32 SegmentIndex) const
+
+void AML_SplineMeshActor::InitializeDynamicMaterials()
+{
+	GeneratedDynamicMaterials.Reset();
+
+
+	for (UStaticMeshComponent* MeshComponent : GeneratedMeshes)
+	{
+		if (!IsValid(MeshComponent))
+		{
+			continue;
+		}
+
+
+		const int32 MaterialCount =
+			MeshComponent->GetNumMaterials();
+
+
+		for (
+			int32 MaterialSlot = 0;
+			MaterialSlot < MaterialCount;
+			++MaterialSlot
+		)
+		{
+			/*
+			 * Unreal creates the MID AND automatically
+			 * assigns it to this material slot.
+			 */
+			UMaterialInstanceDynamic* DynamicMaterial =
+				MeshComponent->CreateDynamicMaterialInstance(
+					MaterialSlot
+				);
+
+
+			if (!IsValid(DynamicMaterial))
+			{
+				continue;
+			}
+
+
+			GeneratedDynamicMaterials.Add(
+				DynamicMaterial
+			);
+		}
+	}
+}
+
+
+int32 AML_SplineMeshActor::GetMeshCountForSegment(
+	int32 SegmentIndex
+) const
 {
 	if (MeshCountPerSegment.IsValidIndex(SegmentIndex))
 	{
-		return FMath::Max(0, MeshCountPerSegment[SegmentIndex]);
+		return FMath::Max(
+			0,
+			MeshCountPerSegment[SegmentIndex]
+		);
 	}
 
-	return FMath::Max(0, DefaultMeshCountPerSegment);
+	return FMath::Max(
+		0,
+		DefaultMeshCountPerSegment
+	);
 }
+
 
 FQuat AML_SplineMeshActor::GetForwardAxisCorrection() const
 {
 	switch (MeshForwardAxis)
 	{
 		case EMLMeshForwardAxis::Y:
-			return FRotator(0.0f, -90.0f, 0.0f).Quaternion();
+		{
+			return FRotator(
+				0.0f,
+				-90.0f,
+				0.0f
+			).Quaternion();
+		}
 
 		case EMLMeshForwardAxis::Z:
-			return FRotator(90.0f, 0.0f, 0.0f).Quaternion();
+		{
+			return FRotator(
+				90.0f,
+				0.0f,
+				0.0f
+			).Quaternion();
+		}
 
 		case EMLMeshForwardAxis::X:
 		default:
+		{
 			return FQuat::Identity;
+		}
 	}
 }
+
 
 int32 AML_SplineMeshActor::GetGeneratedMeshCount() const
 {
 	int32 Count = 0;
 
-	for (const UStaticMeshComponent* MeshComponent : GeneratedMeshes)
+	TArray<UStaticMeshComponent*> StaticMeshComponents;
+	GetComponents<UStaticMeshComponent>(
+		StaticMeshComponents
+	);
+
+	for (UStaticMeshComponent* MeshComponent : StaticMeshComponents)
 	{
-		if (IsValid(MeshComponent))
+		if (!IsValid(MeshComponent))
 		{
-			Count++;
+			continue;
+		}
+
+		if (MeshComponent->GetAttachParent() == Spline)
+		{
+			++Count;
 		}
 	}
 
 	return Count;
+}
+
+
+TArray<UMaterialInstanceDynamic*>
+AML_SplineMeshActor::GetGeneratedMeshMaterials() const
+{
+	TArray<UMaterialInstanceDynamic*> Result;
+
+	Result.Reserve(
+		GeneratedDynamicMaterials.Num()
+	);
+
+
+	for (
+		UMaterialInstanceDynamic* DynamicMaterial :
+		GeneratedDynamicMaterials
+	)
+	{
+		if (IsValid(DynamicMaterial))
+		{
+			Result.Add(
+				DynamicMaterial
+			);
+		}
+	}
+
+
+	return Result;
 }
