@@ -15,6 +15,7 @@
 #include "Tiles/ML_Tile.h"
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Waves/ML_PropagationWaves.h"
+#include "Tiles/TileBase/ML_TileParasite.h"
 #include "Waves/ChildWaves/ML_WaveCollectible.h"
 
 void UML_WavePropagationSubsystem::Tick(float DeltaTime)
@@ -255,6 +256,27 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 			Tile->UpdateClassAtRuntime(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
 		else
 			Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
+		
+		// Parasite propagation visual/event
+		if (OldType == EML_TileType::Grass
+			&& Change.TargetType == EML_TileType::Parasite
+			&& IsValid(Change.SourcePropagationTile)
+			&& Change.PropagationNeighborIndex != INDEX_NONE
+			&& (!RollBackSubsystem || !RollBackSubsystem->IsUndoInProgress()))
+		{
+			AML_TileParasite* SourceParasite = Cast<AML_TileParasite>(
+				Change.SourcePropagationTile->GetTileChildActor()->GetChildActor());
+
+			AML_TileParasite* NewParasite = Cast<AML_TileParasite>(
+				Tile->GetTileChildActor()->GetChildActor());
+
+			if (IsValid(SourceParasite) && IsValid(NewParasite))
+			{
+				SourceParasite->Propagate(
+					Change.PropagationNeighborIndex,
+					NewParasite);
+			}
+		}
 
 		const bool bIsUndo = RollBackSubsystem && RollBackSubsystem->IsUndoInProgress();
 		const bool bTileChanged = OldType != Change.TargetType;

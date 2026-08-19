@@ -182,6 +182,12 @@ struct FML_WaveChange
 	UPROPERTY()
 	int32 DistanceFromOrigin = 0;
 	
+	UPROPERTY()
+    AML_Tile* SourcePropagationTile = nullptr;
+    
+    UPROPERTY()
+    int32 PropagationNeighborIndex = INDEX_NONE;
+	
 	FML_WaveChange() = default;
 	FML_WaveChange(AML_Tile* InTile, const EML_TileType InType, const int32 InDistance) : Tile(InTile), TargetType(InType), DistanceFromOrigin(InDistance) {}
 	FML_WaveChange(const FVector& InLocation, const TSubclassOf<AML_Collectible> Class, const int32 InDistance) : SpawnLocation(InLocation), CollectibleClass(Class), DistanceFromOrigin(InDistance)  {}

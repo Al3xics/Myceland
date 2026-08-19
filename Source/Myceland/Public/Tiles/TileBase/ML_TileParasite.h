@@ -15,6 +15,9 @@ class MYCELAND_API AML_TileParasite : public AML_TileBase
 
 public:
 	AML_TileParasite();
+	
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Parasite|Propagation")
+	void Propagate(int32 NeighborIndex, AML_TileParasite* NewParasite);
 
 protected:
 	virtual void BeginPlay() override;
