@@ -369,6 +369,13 @@ void UML_BoardTransitionComponent::StartTurnTowardTile(AML_Tile* Target)
 	BoardActionState       = EML_PlayerBoardActionState::TurningToPlant;
 	OnBoardActivityStateChanged.Broadcast(true);
 
+	// Tell Blueprint that the planting sequence has started.
+	// Character begins rotating at the same time.
+	if (IsValid(OwningController))
+	{
+		OwningController->NotifyGrassPlantStarted(Target);
+	}
+
 	if (!TurnTowardTileTimerHandle.IsValid())
 	{
 		GetWorld()->GetTimerManager().SetTimer(

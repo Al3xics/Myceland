@@ -16,6 +16,9 @@ class MYCELAND_API AML_TileGrass : public AML_TileBase
 
 public:
 	AML_TileGrass();
+	
+	UFUNCTION(BlueprintImplementableEvent, Category = "Grass")
+	void StartTransition();
 
 protected:
 	virtual void BeginPlay() override;
@@ -28,6 +31,7 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Grass")
 	void SwitchAlive();
 
+	
 private:
 	AML_Tile* ResolveOwnerTile() const;
 

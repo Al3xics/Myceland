@@ -16,6 +16,7 @@
 #include "Data Asset/ML_BiomeTileSet.h"
 #include "Waves/ML_PropagationWaves.h"
 #include "Tiles/TileBase/ML_TileParasite.h"
+#include "Tiles/TileBase/ML_TileGrass.h"
 #include "Waves/ChildWaves/ML_WaveCollectible.h"
 
 void UML_WavePropagationSubsystem::Tick(float DeltaTime)
@@ -251,34 +252,136 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 
 		const UML_BiomeTileSet* TileSet = Tile->GetBoardSpawnerFromTile()->GetBiomeTileSet();
 		if (!TileSet) return;
+		const bool bIsUndo =
+			RollBackSubsystem && RollBackSubsystem->IsUndoInProgress();
+		if (!bIsUndo)
+	{
+	    // ---------------------------------------------------------
+	    // GRASS -> PARASITE
+	    // Start the Grass transition immediately,
+	    // wait, then actually replace Grass with Parasite.
+	    // ---------------------------------------------------------
+	    if (OldType == EML_TileType::Grass &&
+	        Change.TargetType == EML_TileType::Parasite)
+	    {
+	        // Tell the existing Grass Blueprint to start its transition.
+	        if (UChildActorComponent* ChildComponent = Tile->GetTileChildActor())
+	        {
+	            if (AML_TileGrass* GrassActor =
+	                Cast<AML_TileGrass>(ChildComponent->GetChildActor()))
+	            {
+	                GrassActor->StartTransition();
+	            }
+	        }
+	    	// The parasite that caused this Grass transition
+	    	// starts its propagation effect immediately.
+	    	if (IsValid(Change.SourcePropagationTile) &&
+				Change.PropagationNeighborIndex != INDEX_NONE)
+	    	{
+	    		if (AML_TileParasite* SourceParasite =
+					Cast<AML_TileParasite>(
+						Change.SourcePropagationTile
+							->GetTileChildActor()
+							->GetChildActor()))
+	    		{
+	    			SourceParasite->Propagate(
+						Change.PropagationNeighborIndex,
+						Tile
+					);
+	    		}
+	    	}
+	        // IMPORTANT:
+	        // Register this immediately so the collectible wave knows
+	        // that this Parasite consumed Grass, even though the visual
+	        // switch happens later.
+	        if (!ParasitesThatAteGrass.Contains(Tile))
+	        {
+	            ParasitesThatAteGrass.Add(Tile);
+	        }
 
-		if (!RollBackSubsystem || !RollBackSubsystem->IsUndoInProgress())
-			Tile->UpdateClassAtRuntime(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
-		else
-			Tile->UpdateClassAtRuntime_Silent(Change.TargetType, TileSet->GetClassFromTileType(Change.TargetType));
+	        TWeakObjectPtr<AML_Tile> WeakTile = Tile;
+	   
+
+	 
+
+	        const TSubclassOf<AML_TileBase> ParasiteClass =
+	            TileSet->GetClassFromTileType(EML_TileType::Parasite);
+
+	        FTimerHandle ParasiteDelayHandle;
+
+	    	GetWorld()->GetTimerManager().SetTimer(
+			 ParasiteDelayHandle,
+			 [WeakTile, ParasiteClass]()
+			 {
+				 if (!WeakTile.IsValid())
+		 			return;
+
+				 if (WeakTile->GetCurrentType() != EML_TileType::Grass)
+		 			return;
+
+				 WeakTile->UpdateClassAtRuntime(
+					 EML_TileType::Parasite,
+					 ParasiteClass
+				 );
+
+				 WeakTile->bConsumedGrass = false;
+			 },
+			 DevSettings->GrassToParasiteDelay,
+			 false
+		 );
+	    }
+
+    // ---------------------------------------------------------
+    // ANYTHING -> GRASS
+    // ---------------------------------------------------------
+    else if (Change.TargetType == EML_TileType::Grass)
+    {
+        TWeakObjectPtr<AML_Tile> WeakTile = Tile;
+
+        const TSubclassOf<AML_TileBase> GrassClass =
+            TileSet->GetClassFromTileType(EML_TileType::Grass);
+
+        FTimerHandle GrassDelayHandle;
+
+        GetWorld()->GetTimerManager().SetTimer(
+            GrassDelayHandle,
+            [WeakTile, GrassClass]()
+            {
+                if (WeakTile.IsValid())
+                {
+                    WeakTile->UpdateClassAtRuntime(
+                        EML_TileType::Grass,
+                        GrassClass
+                    );
+                }
+            },
+            DevSettings->GrassSpawnDelay,
+            false
+        );
+    }
+
+    // ---------------------------------------------------------
+    // EVERYTHING ELSE
+    // ---------------------------------------------------------
+    else
+    {
+        Tile->UpdateClassAtRuntime(
+            Change.TargetType,
+            TileSet->GetClassFromTileType(Change.TargetType)
+        );
+    }
+}
+else
+{
+    // Undo remains immediate.
+    Tile->UpdateClassAtRuntime_Silent(
+        Change.TargetType,
+        TileSet->GetClassFromTileType(Change.TargetType)
+    );
+}
+
 		
-		// Parasite propagation visual/event
-		if (OldType == EML_TileType::Grass
-			&& Change.TargetType == EML_TileType::Parasite
-			&& IsValid(Change.SourcePropagationTile)
-			&& Change.PropagationNeighborIndex != INDEX_NONE
-			&& (!RollBackSubsystem || !RollBackSubsystem->IsUndoInProgress()))
-		{
-			AML_TileParasite* SourceParasite = Cast<AML_TileParasite>(
-				Change.SourcePropagationTile->GetTileChildActor()->GetChildActor());
 
-			AML_TileParasite* NewParasite = Cast<AML_TileParasite>(
-				Tile->GetTileChildActor()->GetChildActor());
-
-			if (IsValid(SourceParasite) && IsValid(NewParasite))
-			{
-				SourceParasite->Propagate(
-					Change.PropagationNeighborIndex,
-					NewParasite);
-			}
-		}
-
-		const bool bIsUndo = RollBackSubsystem && RollBackSubsystem->IsUndoInProgress();
 		const bool bTileChanged = OldType != Change.TargetType;
 		if (bTileChanged && !bIsUndo)
 		{
