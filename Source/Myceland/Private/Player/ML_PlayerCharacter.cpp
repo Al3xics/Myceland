@@ -120,34 +120,57 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
+	// ---- Step 1: teleport onto the last solved board's first exit tile and sync CurrentTileOn ----
+	// bPlaced gates the cinematic replay below: if we never land on a valid tile, CurrentTileOn stays
+	// null and replaying the win cinematics would reproduce the very "Accessed None ... CurrentTileOn"
+	// error we're preventing (BP_ProgressionManager reads it on OnCinematicFinished), so we skip them.
+	bool bPlaced = false;
 	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
 	{
 		AML_BoardSpawner* Board = *It;
 		if (!IsValid(Board)) continue;
 		if (Board->PuzzleID.GetTagName() != LastPuzzle) continue;
 
-		// Found the board — use the exit tile of its first water path as the spawn point.
-		if (Board->WaterPaths.IsEmpty())
+		// Found the board — spawn on the first tile of its first board exit.
+		if (Board->BoardExits.IsEmpty() || Board->BoardExits[0].ExitTiles.IsEmpty())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' has no WaterPaths — skipping spawn restore."), *LastPuzzle.ToString());
+			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' has no BoardExits/ExitTiles — skipping spawn restore."), *LastPuzzle.ToString());
 			break;
 		}
 
-		const AML_Tile* ExitTile = Board->WaterPaths[0].ExitTile.Get();
-		if (!IsValid(ExitTile))
+		const AML_Tile* SpawnTile = Board->BoardExits[0].ExitTiles[0].Get();
+		if (!IsValid(SpawnTile))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' exit tile is invalid — skipping spawn restore."), *LastPuzzle.ToString());
+			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' first exit tile is invalid — skipping spawn restore."), *LastPuzzle.ToString());
 			break;
 		}
 
-		// Place the player just above the exit tile so the character controller
-		// settles onto the surface naturally.
-		float CapsuleHalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		const FVector SpawnLocation = ExitTile->GetActorLocation() + FVector(0.f, 0.f, CapsuleHalfHeight + 10.f);
+		// Place the player just above the tile so the character controller settles onto the surface.
+		const float CapsuleHalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		const FVector SpawnLocation = SpawnTile->GetActorLocation() + FVector(0.f, 0.f, CapsuleHalfHeight + 10.f);
 		TeleportTo(SpawnLocation, GetActorRotation());
 
-		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] Restored spawn to exit tile of puzzle '%s'."), *LastPuzzle.ToString());
+		// Force the tile lookup NOW (synchronously) instead of waiting for the movement-based check
+		// in Tick, so CurrentTileOn points at the tile we just landed on before any cinematic plays.
+		UpdateCurrentTile();
+		bPlaced = true;
+
+		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] Restored spawn to first exit tile of puzzle '%s'."), *LastPuzzle.ToString());
 		break;
+	}
+
+	// ---- Step 2: only now replay the win cinematics for every solved board ----
+	// Driven here (not in each board's BeginPlay) so the player is placed and CurrentTileOn is valid
+	// before any cinematic — and its OnCinematicFinished handler — runs. The cinematic subsystem
+	// queues them, so they still play one after another.
+	if (bPlaced)
+	{
+		for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
+		{
+			AML_BoardSpawner* Board = *It;
+			if (IsValid(Board) && Board->bIsPuzzleSolved)
+				Board->PlayAssociatedWinCinematic();
+		}
 	}
 }
 

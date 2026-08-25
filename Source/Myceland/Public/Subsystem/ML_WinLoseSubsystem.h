@@ -55,6 +55,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
 
+	// DEBUG: Force-wins Board without requiring it to actually be solved. Runs the exact same
+	// win pipeline as a real solve (OnWin → link glow → OnWinPathSettled → save + win cinematic),
+	// only skipping the goal-connection check. Body compiles out in shipping. Fired by the board's
+	// "Debug Auto Win" button (AML_BoardSpawner::DebugAutoWin).
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose|Debug")
+	void ForceWinBoard(AML_BoardSpawner* Board);
+
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool CheckPlayerKilled(AML_Tile* CurrentTileOn);
 
@@ -152,6 +159,15 @@ private:
 	 * and as a fallback from CheckWinLose when no new tiles need to be animated.
 	 */
 	void FireWinSequence();
+
+	/**
+	 * Kicks off the win sequence for the already-set CurrentBoardSpawner: sets the pending flag,
+	 * runs the connected-goal link animation, and schedules FireWinSequence (either via the drain
+	 * timer or a next-tick fallback when there's nothing to animate). Assumes the caller has already
+	 * set CurrentBoardSpawner and marked it solved. Shared by CheckWinLose (real win) and
+	 * ForceWinBoard (debug win) so both take the identical path.
+	 */
+	void KickOffWinSequence();
 
 	UPROPERTY()
 	TSet<AML_Tile*> PreviousConnectedPathTiles;

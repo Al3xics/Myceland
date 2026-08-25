@@ -167,7 +167,7 @@ public:
 	TSubclassOf<AML_TileBase> WaterChangeTile;
 
 	UPROPERTY(BlueprintReadWrite)
-    bool bIsPuzzleSolved;
+    bool bIsPuzzleSolved = false;
 
 	UFUNCTION(CallInEditor, Category="ML- Hex Grid", meta=(DisplayName="Update Current Grid"))
 	void UpdateCurrentGridEditor();
@@ -269,15 +269,34 @@ public:
 	UPROPERTY(EditAnywhere, Category="ML- Puzzle Generator")
 	FML_PuzzleGenerationSettings PuzzleGenerationSettings;
 
-	UFUNCTION(CallInEditor, Category="ML- Puzzle Generator")
-	void AnalyzeCurrentPuzzle();
-	
-	
 	// Restores this board's tiles to their authored initial state and re-enables the
 	// obstacle. Does NOT write to the save — call ReplayPuzzle (or ResetPuzzle on the
 	// subsystem) to commit the change. Used directly for cascade resets.
 	UFUNCTION(BlueprintCallable, Category="Myceland Hex Grid")
 	virtual void RestoreToInitialState();
+
+	// Plays this board's AssociatedWinCinematic through the cinematic subsystem, if one is set.
+	// Driven on load by AML_PlayerCharacter::ApplySavedSpawnPosition AFTER the player has been
+	// teleported onto its board and CurrentTileOn is valid, so the OnCinematicFinished handlers
+	// that read CurrentTileOn (e.g. BP_ProgressionManager) never fire before the player is on a tile.
+	void PlayAssociatedWinCinematic() const;
+
+	// ==================== ML- Debug ====================
+
+	// Force-wins this board without solving it. Click during PIE with the board selected (or call
+	// from Blueprint) to instantly fire the full win pipeline — OnWin, link glow, OnWinPathSettled,
+	// save, and the win cinematic. Body compiles out in shipping.
+	UFUNCTION(CallInEditor, BlueprintCallable, Category="ML- Debug", meta=(DisplayName="Debug Auto Win"))
+	void DebugAutoWin();
+
+	// Analyzes the current authored grid against the puzzle-generation settings (editor diagnostics).
+	UFUNCTION(CallInEditor, Category="ML- Debug")
+	void AnalyzeCurrentPuzzle();
+
+	// Resets this puzzle (and every puzzle solved after it in this level) back to its initial state
+	// and updates the save. Intended for editor and Blueprint use.
+	UFUNCTION(CallInEditor, BlueprintCallable, Category="ML- Debug", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
+	void ReplayPuzzle();
 
 protected:
 
@@ -300,17 +319,7 @@ protected:
 
 private:
 
-	// Resets this puzzle (and every puzzle solved after it) back to its initial state
-	// and updates the save. Intended for editor and Blueprint use.
-	UFUNCTION(CallInEditor, BlueprintCallable, Category="Myceland Hex Grid", meta=(DisplayName="Replay Puzzle (Reset to Initial State)"))
-	void ReplayPuzzle();
-
 	// Bound to UML_WinLoseSubsystem::OnWin; captures the solved grid and saves to disk.
 	UFUNCTION()
 	void HandlePuzzleWon();
-
-	// Plays this board's AssociatedWinCinematic through the cinematic subsystem, if one is set.
-	// Called on load for an already-solved board — the sequence replays the win moment and
-	// handles the rest of the environment revival (it calls Revive on the nature zones itself).
-	void PlayAssociatedWinCinematic() const;
 };

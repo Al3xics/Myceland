@@ -136,17 +136,25 @@ void AML_BoardSpawner::BeginPlay()
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
 	if (!SaveSys) return;
 
-	// Capture the authored tile layout and store it the first time this puzzle is seen.
-	const TArray<FML_TileSaveEntry> Snapshot = SnapshotGrid();
-	SaveSys->EnsureInitialGridSaved(PuzzleID.GetTagName(), Snapshot);
+	// Look up the saved record once (pointer into the save object — no copy of the grids).
+	const FName PuzzleName = PuzzleID.GetTagName();
+	const FML_PuzzleSaveRecord* Record = SaveSys->FindPuzzleRecord(PuzzleName);
+
+	// First time this puzzle is ever seen: capture the authored tile layout as its initial grid.
+	// Only snapshot when there's no record yet — EnsureInitialGridSaved never overwrites an
+	// existing one, so building the snapshot on every subsequent load was wasted work.
+	if (!Record)
+	{
+		SaveSys->EnsureInitialGridSaved(PuzzleName, SnapshotGrid());
+		Record = SaveSys->FindPuzzleRecord(PuzzleName);
+	}
 
 	// If this puzzle was already solved, restore the solved grid so the player sees it.
 	// Subclasses that own their own restore (e.g. the hub) opt out via ShouldAutoRestoreSolvedGrid().
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
-	if (ShouldAutoRestoreSolvedGrid() && Record.bIsSolved && Record.SolvedGrid.Num() > 0)
+	if (ShouldAutoRestoreSolvedGrid() && Record && Record->bIsSolved && Record->SolvedGrid.Num() > 0)
 	{
 		int32 Applied = 0;
-		for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)
+		for (const FML_TileSaveEntry& Entry : Record->SolvedGrid)
 		{
 			if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
 			{
@@ -185,19 +193,15 @@ void AML_BoardSpawner::BeginPlay()
 			}
 		});
 
-		// Replay the win cinematic. Its level sequence handles the rest of the environment
-		// revival (it calls Revive on the nature zones via its sequencer events), so nothing
-		// else needs restoring here. Deferred one tick like the water paths so every actor the
-		// sequence touches has finished its own BeginPlay before it plays.
-		TWeakObjectPtr<AML_BoardSpawner> WeakThisForCinematic(this);
-		GetWorld()->GetTimerManager().SetTimerForNextTick([WeakThisForCinematic]()
-		{
-			if (const AML_BoardSpawner* Board = WeakThisForCinematic.Get())
-				Board->PlayAssociatedWinCinematic();
-		});
+		// NOTE: the win cinematic is NOT replayed here. Playing it in BeginPlay raced the player
+		// teleport (both deferred one tick), so the fast-forwarded sequence could finish — firing
+		// OnCinematicFinished, which BP_ProgressionManager handles by reading the player's
+		// CurrentTileOn — before the player was ever placed, giving "Accessed None ... CurrentTileOn".
+		// The replay is now driven from AML_PlayerCharacter::ApplySavedSpawnPosition, AFTER the
+		// player is teleported onto its board and CurrentTileOn is updated. See PlayAssociatedWinCinematic.
 
 		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — solved state loaded (%d/%d tiles restored)."),
-			*PuzzleID.ToString(), Applied, Record.SolvedGrid.Num());
+			*PuzzleID.ToString(), Applied, Record->SolvedGrid.Num());
 	}
 	else
 	{
@@ -777,6 +781,21 @@ void AML_BoardSpawner::HandlePuzzleWon()
 	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid(), GetLevelKey());
 }
 
+void AML_BoardSpawner::DebugAutoWin()
+{
+#if WITH_EDITOR
+	UWorld* World = GetWorld();
+	if (!World || !World->IsGameWorld())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Debug] Debug Auto Win only works during Play (PIE)."));
+		return;
+	}
+
+	if (UML_WinLoseSubsystem* WinLose = World->GetSubsystem<UML_WinLoseSubsystem>())
+		WinLose->ForceWinBoard(this);
+#endif
+}
+
 void AML_BoardSpawner::PlayAssociatedWinCinematic() const
 {
 	if (!AssociatedWinCinematic) return;
@@ -806,10 +825,10 @@ void AML_BoardSpawner::RestoreToInitialState()
 
 	// InitialGrid is preserved by ResetPuzzle (only bIsSolved and SolvedGrid are cleared),
 	// so it is always safe to read here whether called before or after the save cascade.
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
-	if (Record.InitialGrid.IsEmpty()) return;
+	const FML_PuzzleSaveRecord* Record = SaveSys->FindPuzzleRecord(PuzzleID.GetTagName());
+	if (!Record || Record->InitialGrid.IsEmpty()) return;
 
-	for (const FML_TileSaveEntry& Entry : Record.InitialGrid)
+	for (const FML_TileSaveEntry& Entry : Record->InitialGrid)
 	{
 		if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
 		{

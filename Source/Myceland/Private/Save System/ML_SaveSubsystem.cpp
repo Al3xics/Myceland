@@ -64,14 +64,16 @@ void UML_SaveSubsystem::SetSettings(const FML_GameSaveData& NewSettings)
 
 // ==================== Puzzle State ====================
 
+const FML_PuzzleSaveRecord* UML_SaveSubsystem::FindPuzzleRecord(FName PuzzleID) const
+{
+	if (!SaveObject || PuzzleID.IsNone()) return nullptr;
+	return SaveObject->PuzzleRecords.Find(PuzzleID);
+}
+
 FML_PuzzleSaveRecord UML_SaveSubsystem::GetPuzzleRecord(FName PuzzleID) const
 {
-	if (!SaveObject || PuzzleID.IsNone()) return FML_PuzzleSaveRecord{};
-	if (const FML_PuzzleSaveRecord* Record = SaveObject->PuzzleRecords.Find(PuzzleID))
-	{
-		return *Record;
-	}
-	return FML_PuzzleSaveRecord{};
+	const FML_PuzzleSaveRecord* Record = FindPuzzleRecord(PuzzleID);
+	return Record ? *Record : FML_PuzzleSaveRecord{};
 }
 
 void UML_SaveSubsystem::EnsureInitialGridSaved(FName PuzzleID, const TArray<FML_TileSaveEntry>& InitialEntries)
@@ -188,12 +190,8 @@ TArray<FName> UML_SaveSubsystem::ResetPuzzle(FName PuzzleID, FName LevelName)
 
 bool UML_SaveSubsystem::IsPuzzleSolved(FName PuzzleID) const
 {
-	if (!SaveObject || PuzzleID.IsNone()) return false;
-	if (const FML_PuzzleSaveRecord* Record = SaveObject->PuzzleRecords.Find(PuzzleID))
-	{
-		return Record->bIsSolved;
-	}
-	return false;
+	const FML_PuzzleSaveRecord* Record = FindPuzzleRecord(PuzzleID);
+	return Record && Record->bIsSolved;
 }
 
 FName UML_SaveSubsystem::GetLastSolvedPuzzleID() const

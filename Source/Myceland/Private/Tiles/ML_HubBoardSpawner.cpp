@@ -395,11 +395,11 @@ bool AML_HubBoardSpawner::RestoreSavedHubGrid()
 	UML_BiomeTileSet* Biome = GetBiomeTileSet();
 	if (!SaveSys || !Biome) return false;
 
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
-	if (Record.SolvedGrid.Num() == 0) return false;
+	const FML_PuzzleSaveRecord* Record = SaveSys->FindPuzzleRecord(PuzzleID.GetTagName());
+	if (!Record || Record->SolvedGrid.Num() == 0) return false;
 
 	const TMap<FIntPoint, AML_Tile*>& Grid = GetGridMapRef();
-	for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)
+	for (const FML_TileSaveEntry& Entry : Record->SolvedGrid)
 	{
 		if (AML_Tile* Tile = Grid.FindRef(Entry.Axial))
 			Tile->UpdateClassAtRuntime_Silent(Entry.TileType, Biome->GetClassFromTileType(Entry.TileType));

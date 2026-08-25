@@ -33,8 +33,15 @@ public:
 	// ==================== Puzzle State ====================
 
 	// Returns the saved record for a puzzle (default-constructed if never seen before).
+	// Copies the record (incl. its grids); Blueprint-facing. C++ hot paths that only read the
+	// record should prefer FindPuzzleRecord() to avoid the copy.
 	UFUNCTION(BlueprintPure, Category="Myceland Save")
 	FML_PuzzleSaveRecord GetPuzzleRecord(FName PuzzleID) const;
+
+	// C++-only fast path: pointer to the stored record, or nullptr if this puzzle has none.
+	// Avoids copying the record's grids on the load/reset hot paths. The returned pointer is
+	// only valid until the next mutation of the save object.
+	const FML_PuzzleSaveRecord* FindPuzzleRecord(FName PuzzleID) const;
 
 	// If no record exists yet for this puzzle, stores InitialEntries as the authored state.
 	// No-op (and no save) when a record already exists. Called from BoardSpawner::BeginPlay.

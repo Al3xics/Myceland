@@ -47,35 +47,68 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 	{
 		GameResult.Result = EML_WinLose::Win;
 		CurrentBoardSpawner->bIsPuzzleSolved = true;
-		bPendingClearWinPath = true;
-
-		// Kick off (or re-sync) the link-animation sequence.
-		// OnWin fires inside BroadcastNextConnectedGoalPathTile once the queue drains.
-		// Calling this here guarantees the flag is set BEFORE the queue is populated,
-		// regardless of the order the Blueprint calls CheckWinLose / TriggerFindConnectedGoalCheck.
-		TriggerFindConnectedGoalCheck();
-
-		// Fallback: if the winning state produced no new path tiles to animate
-		// (all tiles already resided in PreviousConnectedPathTiles), the queue is
-		// empty and no repeating timer is running — nothing will drain the queue
-		// and fire OnWin.  Schedule the win sequence for the next tick so the
-		// call stack has fully unwound before delegates broadcast.
-		const bool bQueueHasWork = QueueReadIndex < PendingConnectedGoalPathQueue.Num();
-		if (!bQueueHasWork
-			&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
-		{
-			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
-			{
-				if (bPendingClearWinPath)
-				{
-					OnConnectedGoalPathComplete.Broadcast();
-					FireWinSequence();
-				}
-			});
-		}
+		KickOffWinSequence();
 	}
 
 	return GameResult;
+}
+
+void UML_WinLoseSubsystem::KickOffWinSequence()
+{
+	bPendingClearWinPath = true;
+
+	// Kick off (or re-sync) the link-animation sequence.
+	// OnWin fires inside BroadcastNextConnectedGoalPathTile once the queue drains.
+	// Calling this here guarantees the flag is set BEFORE the queue is populated,
+	// regardless of the order the Blueprint calls CheckWinLose / TriggerFindConnectedGoalCheck.
+	TriggerFindConnectedGoalCheck();
+
+	// Fallback: if the winning state produced no new path tiles to animate
+	// (all tiles already resided in PreviousConnectedPathTiles), the queue is
+	// empty and no repeating timer is running — nothing will drain the queue
+	// and fire OnWin.  Schedule the win sequence for the next tick so the
+	// call stack has fully unwound before delegates broadcast.
+	const bool bQueueHasWork = QueueReadIndex < PendingConnectedGoalPathQueue.Num();
+	if (!bQueueHasWork
+		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+		{
+			if (bPendingClearWinPath)
+			{
+				OnConnectedGoalPathComplete.Broadcast();
+				FireWinSequence();
+			}
+		});
+	}
+}
+
+void UML_WinLoseSubsystem::ForceWinBoard(AML_BoardSpawner* Board)
+{
+#if !UE_BUILD_SHIPPING
+	if (!IsValid(Board))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Debug] ForceWinBoard called with an invalid board."));
+		return;
+	}
+
+	if (Board->bIsPuzzleSolved)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Debug] ForceWinBoard: '%s' is already solved — ignoring."),
+			*Board->PuzzleID.ToString());
+		return;
+	}
+
+	// Make this the active board so every downstream listener keys off it — in particular
+	// AML_BoardSpawner::HandlePuzzleWon bails unless CurrentBoardSpawner == itself.
+	CurrentBoardSpawner = Board;
+	Board->bIsPuzzleSolved = true;
+
+	// Same pipeline as a genuine win; only the goal-connection check was skipped to get here.
+	KickOffWinSequence();
+
+	UE_LOG(LogTemp, Log, TEXT("[Debug] ForceWinBoard: forced win on '%s'."), *Board->PuzzleID.ToString());
+#endif
 }
 
 bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
