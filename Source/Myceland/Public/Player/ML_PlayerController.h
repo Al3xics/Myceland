@@ -25,7 +25,7 @@ class AML_BoardSpawner;
 class AML_Tile;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlanted, AML_Tile*, PlantedTile);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrassPlantStarted, AML_Tile*, TargetTile);
 // Single, controller-wide broadcast for gamepad board-exit availability. Boards only hold their exit
 // config; the gamepad handler resolves the plane for the player's tile and broadcasts here so exit
 // plane actors have ONE place to subscribe (Get Player Controller → Cast → bind this event) instead
@@ -238,6 +238,10 @@ public:
 
 	// ==================== Delegates ====================
 
+	// Called when the player starts turning toward a tile to plant
+	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
+	FOnGrassPlantStarted OnGrassPlantStarted;
+	
 	// Called when grass is successfully planted on a tile
 	UPROPERTY(BlueprintAssignable, Category = "Myceland Controller|Plant")
 	FOnGrassPlanted OnGrassPlanted;
@@ -268,6 +272,8 @@ public:
 	/** Called by TransitionComponent when turn-toward-tile completes. */
 	void ConfirmTurn(AML_Tile* HitTile);
 
+	void NotifyGrassPlantStarted(AML_Tile* TargetTile);
+	
 	void UpdateCursorVisibility(const bool bVisible);
 	void NotifyCinematicModeChanged(const bool bInCinematicMode);
 

@@ -800,6 +800,11 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 
 // ==================== Callbacks & State Management ====================
 
+void AML_PlayerController::NotifyGrassPlantStarted(AML_Tile* TargetTile)
+{
+	OnGrassPlantStarted.Broadcast(TargetTile);
+}
+
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
 	ExecutePlant(HitTile);

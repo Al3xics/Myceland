@@ -9,6 +9,7 @@ class USplineComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 class UMaterialInterface;
+class UMaterialInstanceDynamic;
 
 UENUM(BlueprintType)
 enum class EMLMeshForwardAxis : uint8
@@ -27,6 +28,7 @@ public:
 	AML_SplineMeshActor();
 
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void BeginPlay() override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spline")
 	TObjectPtr<USceneComponent> Root;
@@ -103,12 +105,34 @@ public:
 	UFUNCTION(BlueprintPure, Category="Spline Mesh")
 	int32 GetGeneratedMeshCount() const;
 
+	UFUNCTION(BlueprintPure, Category="Spline Mesh")
+	TArray<UMaterialInstanceDynamic*> GetGeneratedMeshMaterials() const;
+
+	UFUNCTION(BlueprintCallable, Category="Spline Mesh")
+	void InitializeDynamicMaterials();
+
 protected:
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> GeneratedMeshes;
 
-	void GenerateSegment(int32 SegmentIndex, float StartDistance, float EndDistance);
-	UStaticMeshComponent* CreateMeshComponent(int32 SegmentIndex, int32 MeshIndex);
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> GeneratedDynamicMaterials;
+
+	void RefreshGeneratedMeshReferences();
+
+	void GenerateSegment(
+		int32 SegmentIndex,
+		float StartDistance,
+		float EndDistance
+	);
+
+	UStaticMeshComponent* CreateMeshComponent(
+		int32 SegmentIndex,
+		int32 MeshIndex
+	);
+
 	int32 GetMeshCountForSegment(int32 SegmentIndex) const;
+
 	FQuat GetForwardAxisCorrection() const;
 };

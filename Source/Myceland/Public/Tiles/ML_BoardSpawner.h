@@ -157,6 +157,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TArray<AML_CameraRail*> AssociatedCameraRails;
 
+	UPROPERTY(EditInstanceOnly, Category="ML- Runtime")
+	TArray<AActor*> ExitGrounds;
+	
 	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TArray<FML_WaterPath> WaterPaths;
 
@@ -199,6 +202,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="ML- Hex Grid")
 	AML_CameraRail* GetClosestCameraRail(const FVector& WorldLocation) const;
 
+	UFUNCTION(BlueprintPure, Category="ML- Runtime")
+	TArray<AActor*> GetExitGrounds() const { return ExitGrounds; }
+	
 	UFUNCTION(BlueprintPure, Category="ML- Runtime")
 	int32 GetEnergyForPuzzle() const { return EnergyForPuzzle; }
 
