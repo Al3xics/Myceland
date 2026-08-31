@@ -205,7 +205,7 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each global waves (grass, DELAY, parasite, DELAY, water, DELAY, etc..."))
 	float InterWaveDelay = 1.f;
 	
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation",
@@ -263,7 +263,14 @@ public:
 	
 	
 	// ==================== Helper ====================
-	
+	UFUNCTION(BlueprintCallable, Category="Myceland Settings")
+	static void SetIntraWaveDelay(float NewDelay)
+	{
+		UML_MycelandDeveloperSettings* Settings =
+			GetMutableDefault<UML_MycelandDeveloperSettings>();
+
+		Settings->IntraWaveDelay = NewDelay;
+	}
 	UFUNCTION(BlueprintPure, Category="Myceland Settings")
 	static const UML_MycelandDeveloperSettings* GetMycelandDeveloperSettings()
 	{
