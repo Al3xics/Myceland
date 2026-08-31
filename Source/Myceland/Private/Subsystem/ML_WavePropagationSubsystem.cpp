@@ -298,7 +298,7 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 	        {
 	            ParasitesThatAteGrass.Add(Tile);
 	        }
-
+			Tile->bConsumedGrass = true;
 	        TWeakObjectPtr<AML_Tile> WeakTile = Tile;
 	   
 
@@ -324,7 +324,7 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 					 ParasiteClass
 				 );
 
-				 WeakTile->bConsumedGrass = false;
+				
 			 },
 			 DevSettings->GrassToParasiteDelay,
 			 false
@@ -447,7 +447,10 @@ else
 
 		if (Change.Tile == WinLoseSubsystem->GetPlayerCurrentTile())
 		{
-			WinLoseSubsystem->CheckPlayerKilled(Change.Tile);
+			WinLoseSubsystem->CheckPlayerKilledByType(
+				Change.Tile,
+				Change.TargetType
+			);
 		}
 
 		if (OldType != Change.TargetType)
