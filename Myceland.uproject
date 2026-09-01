@@ -33,14 +33,19 @@
 			"Name": "PCG",
 			"Enabled": true
 		},
-        {
-            "Name": "GeometryScripting",
-            "Enabled": true
-        },
+		{
+			"Name": "GeometryScripting",
+			"Enabled": true
+		},
 		{
 			"Name": "WindowsDualsense_ds5w",
 			"Enabled": true,
 			"Optional": true
+		},
+		{
+			"Name": "HBAOPlus",
+			"Enabled": true,
+			"MarketplaceURL": "https://www.fab.com/listings/3344056f-10c8-48bd-9005-e319fd615dec"
 		}
 	]
 }

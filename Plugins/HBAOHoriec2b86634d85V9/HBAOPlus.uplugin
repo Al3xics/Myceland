@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.1",
+	"FriendlyName": "HBAOPlus",
+	"Description": "Horizon-Based Ambient Occlusion Plus Plugin",
+	"Category": "Rendering",
+	"CreatedBy": "matiasgql",
+	"CreatedByURL": "",
+	"DocsURL": "https://matiasgql.mintlify.app/",
+	"MarketplaceURL": "https://www.fab.com/listings/3344056f-10c8-48bd-9005-e319fd615dec",
+	"SupportURL": "https://discord.gg/SQna4DZEfQ",
+	"EngineVersion": "5.6.0",
+	"CanContainContent": false,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "HBAOPlus",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
+		}
+	]
+}

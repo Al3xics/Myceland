@@ -1,0 +1,375 @@
+// Copyright 2026 matiasgql. All Rights Reserved.
+#include "/Engine/Private/Common.ush"
+#include "HBAOPlus_Common.ush"
+
+Texture2D HBAO_Input;
+SamplerState HBAO_InputSampler;
+
+Texture2D HBAO_AO;
+SamplerState HBAO_AOSampler;
+
+Texture2D HBAO_SceneColor;
+SamplerState HBAO_SceneColorSampler;
+
+float HBAO_Radius;
+float HBAO_Intensity;
+float HBAO_Bias;
+float HBAO_BlurSharpness;
+float HBAO_NormalSharpness;
+float HBAO_DistanceFadeStart;
+float HBAO_DistanceFadeEnd;
+float HBAO_MaxPixelRadius;
+float HBAO_MipFactor;
+
+int2 HBAO_OutputExtent;
+int2 HBAO_ViewRectMin;
+int2 HBAO_ViewRectSize;
+
+int HBAO_Quality;
+int HBAO_DebugMode;
+int HBAO_HalfRes;
+int HBAO_TemporalEnabled;
+int HBAO_FrameIndex;
+
+float2 HBAO_BlurDirection;
+
+RWTexture2D<float> HBAO_Output;
+
+#ifndef THREADGROUP_SIZE_X
+#define THREADGROUP_SIZE_X 1
+#define THREADGROUP_SIZE_Y 1
+#endif
+
+[numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, 1)]
+void HBAOPlusMainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint2 OutputPixel = DispatchThreadId.xy;
+	
+	// Boundary check relative to the AO buffer area we want to fill
+	uint2 DispatchSize = uint2(HBAO_ViewRectSize) / (HBAO_HalfRes ? 2 : 1);
+	if (OutputPixel.x >= DispatchSize.x || OutputPixel.y >= DispatchSize.y)
+	{
+		return;
+	}
+
+	// Absolute pixel coordinate in the buffer
+	// We add a +0.5/1.0 offset in half-res to sample the center of the 2x2 block for better stability
+	uint2 BufferPixel = uint2(HBAO_ViewRectMin) + OutputPixel * (HBAO_HalfRes != 0 ? 2 : 1);
+	if (HBAO_HalfRes) BufferPixel += 1; 
+
+	float2 BufferUV = HBAO_OutputPixelToBufferUV(BufferPixel);
+	float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(BufferPixel, 0)).r;
+	
+	// Simple output pixel for writing to AO texture (no viewport offset needed in the texture itself)
+	uint2 WritePixel = OutputPixel;
+
+	if (DeviceZ <= 0.000001f)
+	{
+		HBAO_Output[WritePixel] = 1.0f;
+		return;
+	}
+
+	float SceneDepth = ConvertFromDeviceZ(DeviceZ);
+
+	// Use HBAO_GetMaterialData which already handles Substrate/GBuffer correctly
+	FHBAOMaterialData MatData = HBAO_GetMaterialData(BufferPixel);
+	float3 WorldNormal = MatData.WorldNormal;
+
+	float3 WorldPos = HBAO_ReconstructWorldPos(BufferPixel, DeviceZ, View.SVPositionToTranslatedWorld);
+	WorldNormal = normalize(WorldNormal);
+
+	float AO = HBAO_ComputeScreenSpaceAO(
+		BufferUV,
+		WorldPos,
+		WorldNormal,
+		SceneDepth,
+		BufferPixel,
+		OutputPixel
+	);
+
+	HBAO_Output[WritePixel] = AO;
+}
+
+
+#define BLUR_GROUP_SIZE 64
+#define BLUR_RADIUS 4
+#define BLUR_CACHE_SIZE (BLUR_GROUP_SIZE + BLUR_RADIUS * 2)
+
+groupshared float  gs_AO   [BLUR_CACHE_SIZE];
+groupshared float  gs_Depth[BLUR_CACHE_SIZE];
+groupshared float3 gs_Normal[BLUR_CACHE_SIZE];
+
+[numthreads(BLUR_GROUP_SIZE, 1, 1)]
+void HBAOBlurCS(
+    uint3 GroupId       : SV_GroupID,
+    uint3 GroupThreadId : SV_GroupThreadID,
+    uint3 DispatchId    : SV_DispatchThreadID)
+{
+    const int LocalIdx = (int)GroupThreadId.x;
+
+#if BLUR_DIRECTION_X
+    int2 BasePixel = int2((int)GroupId.x * BLUR_GROUP_SIZE - BLUR_RADIUS, (int)GroupId.y);
+#else
+    int2 BasePixel = int2((int)GroupId.x, (int)GroupId.y * BLUR_GROUP_SIZE - BLUR_RADIUS);
+#endif
+
+    // --- Fase 1: Prefetch de texturas en crudo sin decodificar ---
+    float RawAO[2];
+    float RawDeviceZ[2];
+#if SUBSTRATE_ENABLED && SUBSTRATE_GBUFFER_FORMAT == 1
+    FLumenMaterialData RawLumen[2];
+#else
+    float4 RawGBufferA[2];
+#endif
+
+    int IterCount = 0;
+    for (int i = LocalIdx; i < BLUR_CACHE_SIZE; i += BLUR_GROUP_SIZE)
+    {
+        int2 SamplePixel = BasePixel;
+#if BLUR_DIRECTION_X
+        SamplePixel.x += i;
+#else
+        SamplePixel.y += i;
+#endif
+        SamplePixel = clamp(SamplePixel, int2(0,0), int2(HBAO_OutputExtent) - 1);
+
+    	float2 SampleUV = (float2(SamplePixel) + 0.5f) / float2(HBAO_OutputExtent);
+    	
+    	int2 ScenePixel = HBAO_HalfRes
+			? SamplePixel * 2 + HBAO_ViewRectMin + 1
+			: SamplePixel + HBAO_ViewRectMin;
+
+    	RawAO[IterCount]      = Texture2DSampleLevel(HBAO_Input, HBAO_InputSampler, SampleUV, 0).r;
+    	RawDeviceZ[IterCount] = SceneTexturesStruct.SceneDepthTexture.Load(int3(ScenePixel, 0)).r;
+
+#if SUBSTRATE_ENABLED && SUBSTRATE_GBUFFER_FORMAT == 1
+        RawLumen[IterCount] = ReadMaterialData(ScenePixel);
+#else
+        RawGBufferA[IterCount] = SceneTexturesStruct.GBufferATexture.Load(int3(ScenePixel, 0));
+#endif
+        IterCount++;
+    }
+
+    // --- Fase 2: Procesamiento y escritura a memoria groupshared ---
+    IterCount = 0;
+    for (int i = LocalIdx; i < BLUR_CACHE_SIZE; i += BLUR_GROUP_SIZE)
+    {
+        gs_AO[i]    = RawAO[IterCount];
+        gs_Depth[i] = ConvertFromDeviceZ(RawDeviceZ[IterCount]);
+
+#if SUBSTRATE_ENABLED && SUBSTRATE_GBUFFER_FORMAT == 1
+        gs_Normal[i] = normalize(RawLumen[IterCount].WorldNormal);
+#else
+        float3 NormalRaw = RawGBufferA[IterCount].xyz * 2.0f - 1.0f;
+        float NormalLenSq = dot(NormalRaw, NormalRaw);
+        gs_Normal[i] = NormalRaw * rsqrt(max(NormalLenSq, 0.0001f));
+#endif
+        IterCount++;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+#if BLUR_DIRECTION_X
+    int2 OutPixel = int2((int)GroupId.x * BLUR_GROUP_SIZE + LocalIdx, (int)GroupId.y);
+#else
+    int2 OutPixel = int2((int)GroupId.x, (int)GroupId.y * BLUR_GROUP_SIZE + LocalIdx);
+#endif
+
+    if (any(OutPixel >= int2(HBAO_OutputExtent))) return;
+
+    const int CenterCache = LocalIdx + BLUR_RADIUS;
+    float CenterAO      = gs_AO[CenterCache];
+    float CenterDepth   = gs_Depth[CenterCache];
+    float3 CenterNormal = gs_Normal[CenterCache];
+
+    float SumAO = 0.0f;
+    float SumWeight = 0.0f;
+
+    [unroll]
+    for (int i = -BLUR_RADIUS; i <= BLUR_RADIUS; ++i)
+    {
+        if (i == 0) continue;
+
+        int CacheIdx = CenterCache + i;
+        float SampleAO      = gs_AO[CacheIdx];
+        float SampleDepth   = gs_Depth[CacheIdx];
+        float3 SampleNormal = gs_Normal[CacheIdx];
+
+        float DepthDelta  = abs(SampleDepth - CenterDepth) / max(CenterDepth, 1.0f);
+        float DepthWeight = saturate(1.0f - DepthDelta * HBAO_BlurSharpness);
+
+        float NormalWeight = pow(saturate(dot(CenterNormal, SampleNormal)), HBAO_NormalSharpness);
+
+        float SpatialWeight = exp(-(float(i) * float(i)) * 0.25f);
+
+        float Weight = DepthWeight * NormalWeight * SpatialWeight;
+        SumAO     += SampleAO * Weight;
+        SumWeight += Weight;
+    }
+
+    float BlurredAO = SumWeight > 0.0001f ? SumAO / SumWeight : CenterAO;
+
+    HBAO_Output[OutPixel] = BlurredAO;
+}
+
+void HBAOPlusCompositePS(
+	FScreenVertexOutput Input,
+	out float4 OutColor : SV_Target0)
+{
+	uint2 PixelCoord = uint2(Input.Position.xy);
+	// Use Input.UV (generated by AddDrawScreenPass) to sample SceneColor.
+	// This is correct regardless of whether HBAO_SceneColor is the engine's original buffer
+	// or the output of another plugin pass (like GTVBAO), which may have a different extent/ViewRect.
+	// BufferUV (pixel / bufferExtent) would break in the latter case, causing a "shrunk image" artifact.
+	float3 SceneColor = Texture2DSampleLevel(HBAO_SceneColor, HBAO_SceneColorSampler, Input.UV, 0).rgb;
+	
+	// Normalized UV maps 0..1 across the actual rendered view rect
+	float2 AO_UV = (float2(PixelCoord - HBAO_ViewRectMin) + 0.5f) / float2(HBAO_ViewRectSize);
+	float AO = Texture2DSampleLevel(HBAO_AO, HBAO_AOSampler, AO_UV, 0).r;
+
+	// Map back to true render pixel coordinates for GBuffer/Depth sampling
+	uint2 RenderPixelCoord = uint2(AO_UV * View.ViewSizeAndInvSize.xy + View.ViewRectMin.xy);
+	float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(RenderPixelCoord, 0)).r;
+
+	if (DeviceZ <= 0.000001f)
+	{
+		OutColor = float4(SceneColor, 1.0f);
+		return;
+	}
+
+	// Use HBAO_GetMaterialData which handles both Substrate and GBuffer paths
+	FHBAOMaterialData MatData = HBAO_GetMaterialData(RenderPixelCoord);
+	float3 WorldNormal = MatData.WorldNormal;
+	float SceneDepth = MatData.LinearDepth;
+
+#if !UE_BUILD_SHIPPING
+	if (HBAO_DebugMode == 1)
+	{
+		OutColor = float4(saturate(AO).xxx, 1.0f);
+		return;
+	}
+#endif
+
+	// Depth-aware upsampling for Half-Res
+	if (HBAO_HalfRes)
+	{
+		float2 TexelSize = View.ViewSizeAndInvSize.zw * 2.0f; // Half-res texel
+		float2 UV00 = AO_UV + float2(-0.5f, -0.5f) * TexelSize;
+		float2 UV10 = AO_UV + float2( 0.5f, -0.5f) * TexelSize;
+		float2 UV01 = AO_UV + float2(-0.5f,  0.5f) * TexelSize;
+		float2 UV11 = AO_UV + float2( 0.5f,  0.5f) * TexelSize;
+
+		float AO00 = Texture2DSampleLevel(HBAO_AO, HBAO_AOSampler, UV00, 0).r;
+		float AO10 = Texture2DSampleLevel(HBAO_AO, HBAO_AOSampler, UV10, 0).r;
+		float AO01 = Texture2DSampleLevel(HBAO_AO, HBAO_AOSampler, UV01, 0).r;
+		float AO11 = Texture2DSampleLevel(HBAO_AO, HBAO_AOSampler, UV11, 0).r;
+
+		// Convert to depth (simple approximation, could sample half-res depth buffer but full-res scene depth is better here)
+		float Depth00 = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(uint2(UV00 * View.BufferSizeAndInvSize.xy), 0)).r);
+		float Depth10 = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(uint2(UV10 * View.BufferSizeAndInvSize.xy), 0)).r);
+		float Depth01 = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(uint2(UV01 * View.BufferSizeAndInvSize.xy), 0)).r);
+		float Depth11 = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(uint2(UV11 * View.BufferSizeAndInvSize.xy), 0)).r);
+		float W00 = exp(-abs(Depth00 - SceneDepth) * 0.1f);
+		float W10 = exp(-abs(Depth10 - SceneDepth) * 0.1f);
+		float W01 = exp(-abs(Depth01 - SceneDepth) * 0.1f);
+		float W11 = exp(-abs(Depth11 - SceneDepth) * 0.1f);
+
+		float SumW = W00 + W10 + W01 + W11;
+		if (SumW > 0.001f)
+		{
+			AO = (AO00 * W00 + AO10 * W10 + AO01 * W01 + AO11 * W11) / SumW;
+		}
+	}
+
+AO = saturate(AO);
+
+uint CustomStencil =
+    SceneTexturesStruct.CustomStencilTexture.Load(
+        int3(RenderPixelCoord, 0)
+    ) STENCIL_COMPONENT_SWIZZLE;
+
+bool bIgnoreHBAO =
+    (CustomStencil == 1u);
+
+float3 FinalColor =
+    bIgnoreHBAO
+    ? SceneColor
+    : SceneColor * AO;
+
+OutColor = float4(FinalColor, 1.0f);
+}
+
+Texture2D HBAO_CurrentAO;
+SamplerState HBAO_CurrentAOSampler;
+Texture2D HBAO_HistoryAO;
+SamplerState HBAO_HistoryAOSampler;
+float HBAO_TemporalBlend;
+
+void HBAOPlusTemporalPS(FScreenVertexOutput Input, out float4 OutColor : SV_Target0)
+{
+	uint2 AOPixel = uint2(Input.Position.xy);
+	float2 AOUV = Input.UV;
+
+	uint2 ScenePixel = (HBAO_HalfRes != 0)
+		? AOPixel * 2u + uint2(HBAO_ViewRectMin)
+		: AOPixel + uint2(HBAO_ViewRectMin);
+	float2 SceneUV = (float2(ScenePixel) + 0.5f) * View.BufferSizeAndInvSize.zw;
+
+	float CurrentAO = HBAO_CurrentAO.SampleLevel(HBAO_CurrentAOSampler, AOUV, 0).r;
+
+	float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(ScenePixel, 0)).r;
+	if (DeviceZ <= 0.000001f)
+	{
+		OutColor = float4(CurrentAO.xxx, 1.0f);
+		return;
+	}
+
+	float4 SvPos = float4(float2(ScenePixel) + 0.5f, DeviceZ, 1.0f);
+	float4 TranslatedWorldPos = mul(SvPos, View.SVPositionToTranslatedWorld);
+	TranslatedWorldPos.xyz /= TranslatedWorldPos.w;
+	float4 PrevClipPos = mul(float4(TranslatedWorldPos.xyz, 1.0f), View.PrevTranslatedWorldToClip);
+	PrevClipPos.xyz /= PrevClipPos.w;
+	float2 PrevSceneUV = PrevClipPos.xy * float2(0.5f, -0.5f) + 0.5f;
+
+	float4 RawVel = SceneTexturesStruct.GBufferVelocityTexture.Load(int3(ScenePixel, 0));
+	float2 VelocityNDC = DecodeVelocityFromTexture(RawVel).xy;
+	if (dot(VelocityNDC, VelocityNDC) > 0.000001f)
+	{
+		PrevSceneUV = SceneUV - VelocityNDC * float2(0.5f, -0.5f);
+	}
+
+	float2 AOSize = HBAO_HalfRes ? float2(HBAO_ViewRectSize) * 0.5f : float2(HBAO_ViewRectSize);
+	float2 PrevViewPixel = PrevSceneUV * View.BufferSizeAndInvSize.xy - float2(HBAO_ViewRectMin);
+	float2 PrevAOPixel = HBAO_HalfRes ? PrevViewPixel * 0.5f : PrevViewPixel;
+	float2 PrevAOUV = PrevAOPixel / max(AOSize, 1.0f);
+
+	if (any(PrevAOUV < 0.0f) || any(PrevAOUV > 1.0f))
+	{
+		OutColor = float4(CurrentAO.xxx, 1.0f);
+		return;
+	}
+
+	float HistoryAO = HBAO_HistoryAO.SampleLevel(HBAO_HistoryAOSampler, PrevAOUV, 0).r;
+
+	float AOMin = CurrentAO, AOMax = CurrentAO;
+	[unroll]
+	for (int dy = -1; dy <= 1; dy++)
+	{
+		[unroll]
+		for (int dx = -1; dx <= 1; dx++)
+		{
+			if (dx == 0 && dy == 0) continue;
+			float S = HBAO_CurrentAO.SampleLevel(HBAO_CurrentAOSampler, AOUV, 0, int2(dx, dy)).r;
+			AOMin = min(AOMin, S);
+			AOMax = max(AOMax, S);
+		}
+	}
+	HistoryAO = clamp(HistoryAO, AOMin, AOMax);
+
+	float VelMag = length(VelocityNDC * View.ViewSizeAndInvSize.xy * 0.5f);
+	// HBAO_TemporalBlend=0.95 means 95% history, 5% current frame.
+	// Higher velocity = less history (more current frame) to avoid ghosting.
+	float HistoryWeight = saturate(HBAO_TemporalBlend - VelMag * 0.05f);
+
+	OutColor = float4(lerp(CurrentAO, HistoryAO, HistoryWeight).xxx, 1.0f);
+}

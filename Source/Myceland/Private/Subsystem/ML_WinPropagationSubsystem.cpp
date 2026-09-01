@@ -49,6 +49,20 @@ double UML_WinPropagationSubsystem::MakeWinSliceDeadline() const
 
 void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 {
+	if (!GetWorld()) return;
+
+	FTimerHandle TimerHandle;
+
+	GetWorld()->GetTimerManager().SetTimer(
+		TimerHandle,
+		this,
+		&UML_WinPropagationSubsystem::StartWinPropagation,
+		1.5f,
+		false
+	);
+}
+void UML_WinPropagationSubsystem::StartWinPropagation()
+{
 	if (!WinLoseSubsystem || !WinLoseSubsystem->CurrentBoardSpawner) return;
 
 	AML_BoardSpawner* Board = WinLoseSubsystem->CurrentBoardSpawner;
@@ -67,11 +81,13 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 	for (AML_Tile* Tree : TreeTiles)
 	{
 		if (!IsValid(Tree)) continue;
+
 		Visited.Add(Tree);
 		Queue.Enqueue({ Tree, 0 });
 	}
 
 	FML_TileNeighbors Neighbors;
+
 	while (!Queue.IsEmpty())
 	{
 		TPair<AML_Tile*, int32> Current;
@@ -80,31 +96,44 @@ void UML_WinPropagationSubsystem::HandleBoardPropagationOnWin()
 		const int32 NextDistance = Current.Value + 1;
 
 		Board->GetNeighbors(Current.Key, Neighbors);
+
 		for (AML_Tile* Neighbor : Neighbors)
 		{
-			if (!IsValid(Neighbor) || Visited.Contains(Neighbor)) continue;
+			if (!IsValid(Neighbor) || Visited.Contains(Neighbor))
+				continue;
+
 			Visited.Add(Neighbor);
 
 			const EML_TileType Type = Neighbor->GetCurrentType();
 
-			// Dirt and Parasite are converted to Grass; all other types are passed through unchanged.
-			const EML_TileType TargetType = UML_TileTypeTraits::IsWinPropagationConvertible(Type)
-				? EML_TileType::Grass
-				: Type;
+			// Dirt and Parasite are converted to Grass;
+			// all other types stay unchanged.
+			const EML_TileType TargetType =
+				UML_TileTypeTraits::IsWinPropagationConvertible(Type)
+					? EML_TileType::Grass
+					: Type;
 
-			WinWaveEntries.Add(FML_WaveChange(Neighbor, TargetType, NextDistance));
+			WinWaveEntries.Add(
+				FML_WaveChange(
+					Neighbor,
+					TargetType,
+					NextDistance
+				)
+			);
+
 			Queue.Enqueue({ Neighbor, NextDistance });
 		}
 	}
 
-	WinWaveEntries.StableSort([](const FML_WaveChange& A, const FML_WaveChange& B)
-	{
-		return A.DistanceFromOrigin < B.DistanceFromOrigin;
-	});
+	WinWaveEntries.StableSort(
+		[](const FML_WaveChange& A, const FML_WaveChange& B)
+		{
+			return A.DistanceFromOrigin < B.DistanceFromOrigin;
+		}
+	);
 
 	RunWinWave();
 }
-
 void UML_WinPropagationSubsystem::RunWinWave()
 {
 	if (WinWaveIndex >= WinWaveEntries.Num() || !GetWorld() || !DevSettings) return;

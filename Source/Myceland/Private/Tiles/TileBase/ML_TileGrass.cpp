@@ -96,5 +96,12 @@ void AML_TileGrass::HandleWin()
 		return;
 	}
 
-	SwitchAlive();
+	 FTimerHandle TimerHandle;
+        GetWorldTimerManager().SetTimer(
+            TimerHandle,
+            this,
+            &AML_TileGrass::SwitchAlive,
+            1.5f,
+            false
+        );
 }
