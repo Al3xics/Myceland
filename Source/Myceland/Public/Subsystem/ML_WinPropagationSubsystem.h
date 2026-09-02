@@ -59,7 +59,8 @@ private:
 
 	UFUNCTION()
 	void HandleBoardPropagationOnWin();
-
+	UFUNCTION()
+	void StartWinPropagation();
 	void RunWinWave();
 	void ProcessWinRingSlice(double Deadline);
 	double MakeWinSliceDeadline() const;

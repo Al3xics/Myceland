@@ -1,0 +1,323 @@
+// Copyright 2026 matiasgql. All Rights Reserved.
+#pragma once
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/DeferredShadingCommon.ush"
+#if ENGINE_MINOR_VERSION >= 1
+#include "/Engine/Private/Lumen/LumenMaterial.ush"
+#endif
+
+#ifndef PI
+#define PI 3.14159265359f
+#endif
+
+// HZB parameters for far-tap depth sampling.
+Texture2D HBAO_HZBTexture;
+SamplerState HBAO_HZBSampler;
+float4 HBAO_HZBUvFactorAndInvFactor;
+uint HBAO_bIsHZBValid;
+
+struct FHBAOMaterialData
+{
+	float3 WorldNormal;
+	float  LinearDepth;
+	float  DeviceZ;
+	bool   bIsValid;
+};
+
+float2 HBAO_OutputPixelToBufferUV(uint2 OutputPixel)
+{
+	return (float2(OutputPixel) + 0.5f) * View.BufferSizeAndInvSize.zw;
+}
+
+float3 HBAO_ReconstructWorldPos(uint2 PixelCoord, float DeviceZ, float4x4 SVPosToWorld)
+{
+	float4 SvPosition = float4(float2(PixelCoord) + 0.5f, DeviceZ, 1.0f);
+	float4 TranslatedWorldPos = mul(SvPosition, SVPosToWorld);
+	return TranslatedWorldPos.xyz / TranslatedWorldPos.w;
+}
+
+float3 HBAO_ReconstructWorldPosUV(float2 PixelUV, float DeviceZ, float4x4 SVPosToWorld)
+{
+	float4 SvPosition = float4(PixelUV * View.BufferSizeAndInvSize.xy, DeviceZ, 1.0f);
+	float4 TranslatedWorldPos = mul(SvPosition, SVPosToWorld);
+	return TranslatedWorldPos.xyz / TranslatedWorldPos.w;
+}
+
+#if SUBSTRATE_ENABLED
+#define SubstratePublicStruct Substrate
+#include "/Engine/Public/SubstratePublic.ush"
+#endif
+
+#ifndef SUBSTRATE_GBUFFER_FORMAT
+// In older UE versions (<= 5.6), Substrate always required TopLayer unpack.
+#define SUBSTRATE_GBUFFER_FORMAT 1
+#endif
+
+FHBAOMaterialData HBAO_GetMaterialData(int2 PixelCoord)
+{
+	float  DeviceZRaw = SceneTexturesStruct.SceneDepthTexture.Load(int3(PixelCoord, 0)).r;
+
+	FHBAOMaterialData Out;
+	Out.DeviceZ     = DeviceZRaw;
+	Out.LinearDepth = ConvertFromDeviceZ(DeviceZRaw);
+
+#if SUBSTRATE_ENABLED && SUBSTRATE_GBUFFER_FORMAT == 1
+	float3 NormalRaw = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(int3(PixelCoord, 0))).WorldNormal;
+#else
+	// In traditional deferred or Substrate Blendable GBuffer mode (SUBSTRATE_GBUFFER_FORMAT == 0),
+	// the normal is packed in the standard GBuffer.
+	float3 NormalRaw = GetGBufferDataUint((uint2)PixelCoord).WorldNormal;
+#endif
+
+	float NormalLenSq = dot(NormalRaw, NormalRaw);
+	Out.WorldNormal = NormalRaw * rsqrt(max(NormalLenSq, 0.0001f));
+	Out.bIsValid    = (NormalLenSq > 0.01f) && (DeviceZRaw > 0.000001f);
+
+	return Out;
+}
+
+// Lightweight validity check for inner sample loops: uses engine's SceneTexturesStruct.SceneDepthTexture with automatic mipmaps.
+// Validity = DeviceZ > 0 (sky/background writes DeviceZ = 0 in deferred).
+bool HBAO_GetSampleValidity(float2 UV, float MipLevel, out half DeviceZ)
+{
+	float DZ = SceneTexturesStruct.SceneDepthTexture.SampleLevel(SceneDepthTextureSampler, UV, MipLevel).r;
+	DeviceZ = (half)DZ;
+	return DZ > 0.000001f;
+}
+
+float2 HBAO_GetStableNoise(uint2 PixelCoord)
+{
+	// Interleaved Gradient Noise is much easier for spatial blur and TAA to resolve
+	// compared to uncorrelated white noise hashes.
+	float FrameId = HBAO_TemporalEnabled ? float(HBAO_FrameIndex % 8) : 0.0f;
+	
+	// Rotation noise (IGN base)
+	float2 UV = float2(PixelCoord);
+	float NoiseX = InterleavedGradientNoise(UV, FrameId);
+	
+	// Step offset noise (IGN shifted)
+	float NoiseY = InterleavedGradientNoise(UV, FrameId + 13.0f);
+	
+	return float2(NoiseX, NoiseY);
+}
+
+float2 HBAO_Rotate2D(float2 V, float Angle)
+{
+	float S;
+	float C;
+	sincos(Angle, S, C);
+	return float2(V.x * C - V.y * S, V.x * S + V.y * C);
+}
+
+int HBAO_GetDirectionCount()
+{
+	if (HBAO_Quality <= 0) return 2;
+	if (HBAO_Quality == 1) return 3;
+	if (HBAO_Quality == 2) return 4;
+	return 4;
+}
+
+int HBAO_GetStepCount()
+{
+	if (HBAO_Quality <= 0) return 2;
+	if (HBAO_Quality == 1) return 3;
+	if (HBAO_Quality == 2) return 4;
+	return 5;
+}
+
+float HBAO_ComputeMipLevel(int TapIndex, int StepCount, float MipFactor)
+{
+	float SamplePos = (TapIndex + 0.5f) / (float)StepCount;
+	return max(log2(max(MipFactor * SamplePos, 1.0f)) - 2.0f, 0.0f);
+}
+
+float HBAO_WorldRadiusToPixelRadius(float RadiusWorld, float LinearDepth)
+{
+	float ProjectionScale = abs(View.ViewToClip[0][0]) * View.ViewSizeAndInvSize.x * 0.5f;
+	float PixelRadius = RadiusWorld * ProjectionScale / max(LinearDepth, 1.0f);
+	return clamp(PixelRadius, 1.0f, HBAO_MaxPixelRadius);
+}
+
+float HBAO_DistanceFade(float LinearDepth)
+{
+	return 1.0f - smoothstep(HBAO_DistanceFadeStart, HBAO_DistanceFadeEnd, LinearDepth);
+}
+
+float HBAO_ComputeScreenSpaceAO(
+	float2 CenterUV,
+	float3 CenterWorldPos,
+	float3 CenterNormal,
+	float CenterLinearDepth,
+	uint2 BufferPixel,
+	uint2 NoisePixel)
+{
+	float PixelRadius = HBAO_WorldRadiusToPixelRadius(HBAO_Radius, CenterLinearDepth);
+	float2 Noise = HBAO_GetStableNoise(NoisePixel);
+
+	int DirectionCount = HBAO_GetDirectionCount();
+	int StepCount = HBAO_GetStepCount();
+
+	float OcclusionSum = 0.0f;
+	float WeightSum = 0.0f;
+
+	half Rotation = Noise.x * 2.0f * PI;
+	half RadiusSqr = half(HBAO_Radius * HBAO_Radius);	// Precompute rotation sincos to avoid redundant cos/sin calls per direction
+		half RotCos, RotSin;
+		sincos(Rotation, RotSin, RotCos);
+
+	// Precompute FMA variables to reduce ALU load in loops
+	float InvStepCount = 1.0f / float(StepCount);
+	float StepNoise = Noise.y * 0.5f * InvStepCount; // (Noise.y * 0.5f) / StepCount
+
+	// Precompute mip levels once per pixel — identical across all direction iterations
+	half PrecomputedMip[4];
+	[unroll]
+	for (int p = 0; p < 4; ++p)
+	{
+		PrecomputedMip[p] = (p < StepCount) ? half(HBAO_ComputeMipLevel(p, StepCount, HBAO_MipFactor)) : half(0.0f);
+	}
+
+	[loop]
+	for (int DirectionIndex = 0; DirectionIndex < 12; ++DirectionIndex)
+	{
+		if (DirectionIndex >= DirectionCount)
+		{
+			break;
+		}
+
+		// Lookup table for base angles: precomputed cos/sin for direction counts 2,3,4
+		// HBAO uses (k+0.5)*2PI/n for k=0..n-1 (offset sampling)
+		// n=2: angles PI/4, 5PI/4 -> (0.707,0.707), (-0.707,-0.707)
+		// n=3: angles PI/6, PI/2, 5PI/6 -> (0.866,0.5), (0,1), (-0.866,0.5)
+		// n=4: angles PI/8, 3PI/8, 5PI/8, 7PI/8 -> (0.924,0.383), (0.383,0.924), (-0.383,0.924), (-0.924,0.383)
+		float2 BaseDir;
+		if (DirectionCount == 2)
+		{
+			if (DirectionIndex == 0) BaseDir = float2(0.7071068f, 0.7071068f);
+			else BaseDir = float2(-0.7071068f, -0.7071068f);
+		}
+		else if (DirectionCount == 3)
+		{
+			if (DirectionIndex == 0) BaseDir = float2(0.8660254f, 0.5f);
+			else if (DirectionIndex == 1) BaseDir = float2(0.0f, 1.0f);
+			else BaseDir = float2(-0.8660254f, 0.5f);
+		}
+		else // DirectionCount >= 4, use 4 directions
+		{
+			if (DirectionIndex == 0) BaseDir = float2(0.9238795f, 0.3826834f);
+			else if (DirectionIndex == 1) BaseDir = float2(0.3826834f, 0.9238795f);
+			else if (DirectionIndex == 2) BaseDir = float2(-0.3826834f, 0.9238795f);
+			else BaseDir = float2(-0.9238795f, 0.3826834f);
+		}
+		float2 Direction = float2(BaseDir.x * RotCos - BaseDir.y * RotSin, BaseDir.y * RotCos + BaseDir.x * RotSin);
+
+		float MaxHorizon = 0.0f;
+
+		// --- Fase 1: disparar todos los Loads de la dirección juntos ---
+		half   SampleDeviceZ[4];
+		bool   SampleValid[4];
+		float2 SampleUVs[4];  // UV normalizado del pixel sin clampear (para world pos reconstruction)
+
+		[unroll]
+		for (int s = 0; s < 4; ++s)
+		{
+			SampleValid[s]   = false;
+			SampleDeviceZ[s] = 0.0h;
+			SampleUVs[s]     = float2(0.0f, 0.0f);
+
+			if (s >= StepCount) break;
+
+			float StepT = float(s + 1) * InvStepCount + StepNoise;
+			float StepPixels = StepT * PixelRadius;
+			int2 SamplePixel = int2(float2(BufferPixel) + Direction * StepPixels);
+
+			// Store UV of actual (unclamped) pixel for world pos reconstruction in Phase 2
+			SampleUVs[s] = (float2(SamplePixel) + 0.5f) * View.BufferSizeAndInvSize.zw;
+
+			bool InRect = !(any(SamplePixel < (int2)HBAO_ViewRectMin) ||
+							any(SamplePixel >= (int2)(HBAO_ViewRectMin + HBAO_ViewRectSize)));
+int2 ClampedPixel = clamp(
+    SamplePixel,
+    (int2)HBAO_ViewRectMin,
+    (int2)(HBAO_ViewRectMin + HBAO_ViewRectSize) - 1
+);
+		uint SampleStencil =
+    SceneTexturesStruct.CustomStencilTexture.Load(
+        int3(ClampedPixel, 0)
+    ) STENCIL_COMPONENT_SWIZZLE;
+
+if (SampleStencil == 1u)
+{
+    SampleValid[s] = false;
+    continue;
+}
+
+			half SampleMip = PrecomputedMip[s];
+			// BufferUV computation for SceneDepth fallback and world-pos reconstruction
+			float2 SampleUV = (float2(ClampedPixel) + 0.5f) * View.BufferSizeAndInvSize.zw;
+
+			half DZ;
+			bool DepthValid;
+			if (HBAO_bIsHZBValid)
+			{
+#if ENGINE_MINOR_VERSION >= 6
+				float2 ViewportUV = (float2(ClampedPixel - (int2)HBAO_ViewRectMin) + 0.5f) / float2(HBAO_ViewRectSize);
+				float2 HZBuv = ViewportUV * float2(HBAO_HZBUvFactorAndInvFactor.x, HBAO_HZBUvFactorAndInvFactor.y);
+#else
+				// In UE <= 5.5, the HZB is aligned to the physical Buffer, not the ViewRect.
+				// C++ passes HZBUvFactor = ViewRectSize / (2 * HZBRes).
+				// To get Pixel / (2 * HZBRes) regardless of viewport resizing, we divide out ViewRectSize:
+				float2 Inv2HZBRes = float2(HBAO_HZBUvFactorAndInvFactor.x, HBAO_HZBUvFactorAndInvFactor.y) / float2(HBAO_ViewRectSize);
+				float2 HZBuv = (float2(ClampedPixel) + 0.5f) * Inv2HZBRes;
+#endif
+				float HZBDepth = HBAO_HZBTexture.SampleLevel(HBAO_HZBSampler, HZBuv, SampleMip).r;
+				DZ = (half)HZBDepth;
+				DepthValid = HZBDepth > 0.000001f;
+			}
+			else
+			{
+				DepthValid = HBAO_GetSampleValidity(SampleUV, SampleMip, DZ);
+			}
+			SampleDeviceZ[s] = DZ;
+			SampleValid[s]   = InRect && DepthValid;
+		}
+
+		// --- Fase 2: procesar con los datos ya cacheados, sin nuevos Loads ---
+		[unroll]
+		for (int s = 0; s < 4; ++s)
+		{
+			if (!SampleValid[s]) continue;
+
+			float3 SampleWorldPos = HBAO_ReconstructWorldPosUV(SampleUVs[s], float(SampleDeviceZ[s]), View.SVPositionToTranslatedWorld);
+			float3 ToSample = SampleWorldPos - CenterWorldPos;
+
+			float DistanceSqr = dot(ToSample, ToSample);
+			if (DistanceSqr > 0.0001f && DistanceSqr < RadiusSqr)
+			{
+				float3 SampleDirection = ToSample * rsqrt(DistanceSqr);
+				float NDotS = dot(CenterNormal, SampleDirection);
+				
+				// Mip bias: reducir NDotS levemente para taps lejanos (mayor mip = mayor incertidumbre)
+				float mip = (float)PrecomputedMip[s];
+				if (mip > 0.0f)
+				{
+					NDotS -= 0.02f * mip;
+				}
+
+				float AngleOcclusion = saturate(NDotS - HBAO_Bias);
+				float DistanceWeight = saturate(1.0f - DistanceSqr / RadiusSqr);
+				MaxHorizon = max(MaxHorizon, AngleOcclusion * DistanceWeight);
+			}
+		}
+
+		OcclusionSum += MaxHorizon;
+		WeightSum += 1.0f;
+	}
+
+	float Occlusion = WeightSum > 0.0f ? OcclusionSum / WeightSum : 0.0f;
+	Occlusion *= HBAO_DistanceFade(CenterLinearDepth);
+	Occlusion = saturate(Occlusion * HBAO_Intensity);
+
+	return saturate(1.0f - Occlusion);
+}

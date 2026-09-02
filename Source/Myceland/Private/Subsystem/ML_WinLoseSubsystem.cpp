@@ -113,23 +113,38 @@ void UML_WinLoseSubsystem::ForceWinBoard(AML_BoardSpawner* Board)
 
 bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
 {
+	if (!IsValid(CurrentTileOn))
+	{
+		return false;
+	}
+
+	return CheckPlayerKilledByType(
+		CurrentTileOn,
+		CurrentTileOn->GetCurrentType()
+	);
+}
+bool UML_WinLoseSubsystem::CheckPlayerKilledByType(
+	AML_Tile* CurrentTileOn,
+	EML_TileType TileType)
+{
 	if (bIsPlayerDead || !IsValid(CurrentTileOn))
 	{
 		return false;
 	}
 
-	const EML_TileType TileType = CurrentTileOn->GetCurrentType();
 	if (UML_TileTypeTraits::IsLethalTile(TileType))
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You died"));
 		bIsPlayerDead = true;
+
+		// Immediate event.
+		// Bind your death animation to this.
 		OnDeath.Broadcast();
+
 		return true;
 	}
 
 	return false;
 }
-
 bool UML_WinLoseSubsystem::AreAllGoalsConnected(
 	AML_BoardSpawner* Board,
 	EML_TileType GoalType,

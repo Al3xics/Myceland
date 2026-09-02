@@ -31,7 +31,8 @@ class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnWin OnWin;
-
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
+	bool CheckPlayerKilledByType(AML_Tile* CurrentTileOn, EML_TileType TileType);
 	// Broadcast one tick after OnWin, once the deferred Entry→Exit ClearWinPath
 	// pass has finished, so listeners see the fully-settled winning path.
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
