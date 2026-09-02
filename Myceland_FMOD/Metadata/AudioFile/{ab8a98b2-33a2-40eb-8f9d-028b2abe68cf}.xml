@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{ab8a98b2-33a2-40eb-8f9d-028b2abe68cf}">
+		<property name="assetPath">
+			<value>water_spread.mp3</value>
+		</property>
+		<property name="isStreaming">
+			<value>true</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>10.176</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{03b97852-04f0-4cb9-ae63-7dcd289cd534}</destination>
+		</relationship>
+	</object>
+</objects>

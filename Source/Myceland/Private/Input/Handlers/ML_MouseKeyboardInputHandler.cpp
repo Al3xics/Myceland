@@ -34,7 +34,7 @@ void UML_MouseKeyboardInputHandler::OnMoveActionTriggered(float DeltaTime)
 		return;
 
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit))
 		return;
 	if (!Controller->IsClickableGround(Hit))
 		return;
@@ -55,7 +55,7 @@ void UML_MouseKeyboardInputHandler::OnMoveActionReleased()
 	{
 		// Cursor is outside the board after releasing — clear the exit tile glow and path preview.
 		Controller->ClearForcedHoverTile();
-		Controller->ClearHoverPreview();
+		Controller->ClearPathHoverPreview();
 	}
 
 	if (bIgnoreCurrentClick)
@@ -99,10 +99,11 @@ void UML_MouseKeyboardInputHandler::HandleInsideBoardClick()
 		return;
 	}
 
-	// If arrives here, then the click is outside the board (wants to leave the board)
+	// If arrives here, then the click is outside the board (wants to leave the board).
+	// The exit is only allowed on a designated ground surface (Ground channel) — not decor,
+	// not arbitrary Cursor-blocking geometry.
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
-	if (!Controller->IsClickableGround(Hit)) return;
+	if (!Controller->GetGroundUnderCursor(Hit)) return;
 
 	AML_Tile* ExitGate = Controller->FindReachableExitBorderTile(Board, Hit.Location);
 	if (!IsValid(ExitGate)) return;
@@ -136,7 +137,7 @@ void UML_MouseKeyboardInputHandler::HandleFreeMovementClick()
 	// No board tile hit: free movement on open ground.
 	Controller->StopNavMeshMovement();
 	FHitResult Hit;
-	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit)) return;
+	if (!Controller->GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit)) return;
 	if (!Controller->IsClickableGround(Hit)) return;
 	HoldMoveCachedDestination = Hit.Location;
 }

@@ -41,8 +41,15 @@ struct FML_NatureCachedInstance
 
 	UPROPERTY(BlueprintReadOnly)
 	FVector OriginalScale = FVector::OneVector;
-};
 
+	UPROPERTY(BlueprintReadOnly)
+	float GrowthDelay = 0.0f;
+};
+struct FML_GrowthAlphaSample
+{
+	float Time = 0.0f;
+	float Alpha = 0.0f;
+};
 UCLASS()
 class MYCELAND_API AML_NatureZone : public AActor
 {
@@ -52,7 +59,18 @@ public:
 	AML_NatureZone();
 
 	virtual void Tick(float DeltaSeconds) override;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Growth")
+	float MinGrowthDelay = 0.01f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Growth")
+	float MaxGrowthDelay = 0.1f;
+
+	TArray<FML_GrowthAlphaSample> GrowthAlphaHistory;
+
+	float GrowthStartTime = -1.0f;
+
+	float GetDelayedGrowthAlpha(float CurrentTime, float Delay) const;
 	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
 	TArray<FML_NatureInstanceReference> GetFoliageInstancesInsideBox() const;
 
@@ -75,7 +93,7 @@ public:
 	int32 HideCachedFoliage();
 
 	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
-	void StartGrowCachedFoliage();
+	void StartGrowCachedFoliage(float Alpha);
 
 	UFUNCTION(BlueprintCallable, Category="Nature Zone|Foliage")
 	void ClearCachedFoliage();

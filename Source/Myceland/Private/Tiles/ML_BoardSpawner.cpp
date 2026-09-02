@@ -1,16 +1,21 @@
-﻿// Copyright Myceland Team, All Rights Reserved.
+// Copyright Myceland Team, All Rights Reserved.
 
 
 #include "Tiles/ML_BoardSpawner.h"
 #include "Core/ML_TileTypeTraits.h"
 #include "Tiles/ML_Tile.h"
+#include "Data Asset/ML_BiomeTileSet.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
+#include "Actors/ML_WaterNavPath.h"
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Player/ML_HexPathfinder.h"
+#include "Player/ML_PlayerController.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
+#include "Save System/ML_SaveSubsystem.h"
+#include "Subsystem/ML_WinLoseSubsystem.h"
 
 
 AML_BoardSpawner::AML_BoardSpawner()
@@ -24,21 +29,201 @@ void AML_BoardSpawner::Destroyed()
 	Super::Destroyed();
 }
 
+void AML_BoardSpawner::SetGlowEnabled(bool bEnabled)
+{
+	if (bGlowEnabled == bEnabled) return;
+	bGlowEnabled = bEnabled;
+
+	// Turning OFF: the hover component's per-tick same-tile short-circuit would leave a stale
+	// glow on the currently hovered tile, so clear the active glow immediately.
+	if (!bGlowEnabled)
+		if (AML_PlayerController* PC = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()))
+			PC->ClearActiveGlow();
+}
+
+void AML_BoardSpawner::SetBoardTransitionEnabled(bool bEnabled)
+{
+	if (bBoardTransitionEnabled == bEnabled) return;
+	bBoardTransitionEnabled = bEnabled;
+
+	// Turning OFF while the player is inside this board: eject them back to free movement.
+	if (!bBoardTransitionEnabled)
+		if (AML_PlayerController* PC = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()))
+			PC->NotifyBoardTransitionDisabled(this);
+}
+
+// ==================== Myceland Board Exits (gamepad) ====================
+
+const FML_BoardExit* AML_BoardSpawner::FindExitForTile(const AML_Tile* PlayerTile) const
+{
+	if (!IsValid(PlayerTile))
+		return nullptr;
+
+	for (const FML_BoardExit& Exit : BoardExits)
+	{
+		for (const TObjectPtr<AML_Tile>& ExitTile : Exit.ExitTiles)
+		{
+			if (ExitTile == PlayerTile)
+				return &Exit;
+		}
+	}
+
+	return nullptr;
+}
+
+AActor* AML_BoardSpawner::GetActiveExitPlaneForTile(const AML_Tile* PlayerTile) const
+{
+	const FML_BoardExit* Exit = FindExitForTile(PlayerTile);
+	if (!Exit || !IsValid(Exit->ExitPlane))
+		return nullptr;
+
+	// Disabled by the designer via SetActorEnableCollision(false) — mirrors how the mouse ground-trace stops
+	// detecting it. The ground exit is the only way to leave a board, so a disabled one is unusable everywhere.
+	if (!Exit->ExitPlane->GetActorEnableCollision())
+		return nullptr;
+
+	return Exit->ExitPlane;
+}
+
+#if WITH_EDITOR
+void AML_BoardSpawner::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
+
+	// Only meaningful during PIE, where a live player controller exists to react to the toggle.
+	AML_PlayerController* PC = GetWorld() ? Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()) : nullptr;
+	if (!PC) return;
+
+	if (PropName == GET_MEMBER_NAME_CHECKED(AML_BoardSpawner, bGlowEnabled) && !bGlowEnabled)
+		PC->ClearActiveGlow();
+	else if (PropName == GET_MEMBER_NAME_CHECKED(AML_BoardSpawner, bBoardTransitionEnabled) && !bBoardTransitionEnabled)
+		PC->NotifyBoardTransitionDisabled(this);
+}
+#endif
+
 void AML_BoardSpawner::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	ensureMsgf(BiomeTileSet, TEXT("BiomeTileSet is not set for board : %s"), *GetName());
 	if (!BiomeTileSet) return;
-	
+
 	// At runtime, only initialize tiles that already exist in the level.
 	// Never spawn new ones — the designer may have intentionally deleted some tiles.
 	UpdateCurrentGrid(false);
+
+#if !UE_BUILD_SHIPPING
+	if (PuzzleID.IsValid())
+	{
+		for (TActorIterator<AML_BoardSpawner> It(GetWorld()); It; ++It)
+		{
+			if (*It != this && (*It)->PuzzleID == PuzzleID)
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("[BoardSpawner] Duplicate PuzzleID '%s' on '%s' and '%s' — save data will collide!"),
+					*PuzzleID.ToString(), *GetName(), *(*It)->GetName());
+			}
+		}
+	}
+#endif
+
+	// ---- Save / Load integration ----
+	if (!PuzzleID.IsValid()) return;
+
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	// Capture the authored tile layout and store it the first time this puzzle is seen.
+	const TArray<FML_TileSaveEntry> Snapshot = SnapshotGrid();
+	SaveSys->EnsureInitialGridSaved(PuzzleID.GetTagName(), Snapshot);
+
+	// If this puzzle was already solved, restore the solved grid so the player sees it.
+	// Subclasses that own their own restore (e.g. the hub) opt out via ShouldAutoRestoreSolvedGrid().
+	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
+	if (ShouldAutoRestoreSolvedGrid() && Record.bIsSolved && Record.SolvedGrid.Num() > 0)
+	{
+		int32 Applied = 0;
+		for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)
+		{
+			if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
+			{
+				Tile->UpdateClassAtRuntime_Silent(Entry.TileType,
+					BiomeTileSet->GetClassFromTileType(Entry.TileType));
+				++Applied;
+			}
+		}
+		bIsPuzzleSolved = true;
+
+		// A won puzzle has its entry/exit (tile-by-tile) system turned off so the player can't
+		// re-enter and replay it. That disable happened at win time but isn't part of the saved
+		// grid, so replay it here on load — otherwise a completed board loads back as enterable.
+		SetBoardTransitionEnabled(false);
+
+		// Likewise turn off the hover preview (cursor/path glow), which IsGlowEnabled() gates, so
+		// a completed board doesn't glow under the cursor on load.
+		SetGlowEnabled(false);
+
+		if (IsValid(AssociatedObstacle))
+		{
+			AssociatedObstacle->SetActorHiddenInGame(true);
+			AssociatedObstacle->SetActorEnableCollision(false);
+		}
+
+		// Replay the water-bridge activation that ran when the puzzle was won, so the
+		// bridges are visible/collidable again on load. Deferred one tick so every
+		// WaterNavPath actor has finished its own BeginPlay before we reveal it.
+		TArray<AActor*> PathsToSpawn = AssociatedWaterPaths;
+		GetWorld()->GetTimerManager().SetTimerForNextTick([PathsToSpawn]()
+		{
+			for (AActor* PathActor : PathsToSpawn)
+			{
+				if (AML_WaterNavPath* NavPath = Cast<AML_WaterNavPath>(PathActor))
+					NavPath->Spawn();
+			}
+		});
+
+		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — solved state loaded (%d/%d tiles restored)."),
+			*PuzzleID.ToString(), Applied, Record.SolvedGrid.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — not yet solved, loading fresh."),
+			*PuzzleID.ToString());
+	}
+
+	// Subscribe to the settled-path event (fires one tick after OnWin, once BOTH
+	// ClearWinPath passes have run) so the snapshot captures the fully-settled
+	// winning path — otherwise the deferred Entry→Exit tiles would still be Water.
+	if (UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
+	{
+		WinLose->OnWinPathSettled.AddDynamic(this, &AML_BoardSpawner::HandlePuzzleWon);
+
+		// Reveal the already-connected goals on load. Deferred one tick so the tile
+		// Blueprints that draw the links have finished BeginPlay and bound to
+		// OnConnectedGoalPathTile — a synchronous broadcast here would fire before they
+		// bind. bImmediate=true then broadcasts all at once instead of staggering through
+		// the shared queue/timer, which the player spawning (OnBoardChanged →
+		// ResetConnectedGoalPathState) would otherwise wipe mid-reveal — cutting off
+		// boards with many goals whose queues haven't drained yet.
+		TWeakObjectPtr<AML_BoardSpawner> WeakThis(this);
+		TWeakObjectPtr<UML_WinLoseSubsystem> WeakWinLose(WinLose);
+		GetWorld()->GetTimerManager().SetTimerForNextTick([WeakThis, WeakWinLose]()
+		{
+			AML_BoardSpawner* Board = WeakThis.Get();
+			UML_WinLoseSubsystem* WinLoseSys = WeakWinLose.Get();
+			if (Board && WinLoseSys)
+				WinLoseSys->TriggerConnectedGoalAnimationForBoard(Board, /*bImmediate=*/true);
+		});
+	}
 }
 
 void AML_BoardSpawner::UpdateCurrentGridEditor()
 {
-	UpdateCurrentGrid(true);
+	// Never spawn new tiles — the designer may have intentionally deleted some.
+	// Use "Clear & Rebuild Grid" to regenerate the full procedural shape.
+	UpdateCurrentGrid(false);
 }
 
 void AML_BoardSpawner::RebuildGrid()
@@ -254,28 +439,26 @@ void AML_BoardSpawner::DestroyStaleTiles() const
 	}
 }
 
-TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile)
+// Blueprint-only
+TArray<AML_Tile*> AML_BoardSpawner::GetNeighbors(AML_Tile* CenterTile) const
 {
-	if (!CenterTile) return TArray<AML_Tile*>();
+	FML_TileNeighbors Neighbors;
+	GetNeighbors(CenterTile, Neighbors);
+	return TArray<AML_Tile*>(Neighbors);
+}
+
+void AML_BoardSpawner::GetNeighbors(const AML_Tile* CenterTile, FML_TileNeighbors& OutNeighbors) const
+{
+	OutNeighbors.Reset();
+	if (!CenterTile) return;
 
 	const FIntPoint CenterAxial = CenterTile->GetAxialCoord();
-	TArray<AML_Tile*> Neighbors;
-	Neighbors.Reserve(6);
 
 	for (const FIntPoint& Dir : Directions)
 	{
-		const FIntPoint NeighborKey = CenterAxial + Dir;
-		if (const TObjectPtr<AML_Tile>* Found = GridMap.Find(NeighborKey))
-		{
-			Neighbors.Add(Found->Get());
-		}
-		else
-		{
-			Neighbors.Add(nullptr);
-		}
+		const TObjectPtr<AML_Tile>* Found = GridMap.Find(CenterAxial + Dir);
+		OutNeighbors.Add(Found ? Found->Get() : nullptr);
 	}
-
-	return Neighbors;
 }
 
 TMap<FIntPoint, AML_Tile*> AML_BoardSpawner::GetGridMap() const
@@ -348,39 +531,6 @@ AML_Tile* AML_BoardSpawner::FindClosestWalkableBorderTile(const FVector& WorldLo
 	}
 
 	return ClosestBorderTile;
-}
-
-AML_Tile* AML_BoardSpawner::FindClosestWaterPathTile(const AML_Tile* Tile)
-{
-	if (WaterPaths.Num() == 0) return nullptr;
-	
-	AML_Tile* ClosestPathTile = nullptr;
-	float ClosestDistance = FLT_MAX;
-    
-	for (const auto& [EntryTile, ExitTile] : WaterPaths)
-	{
-		if (IsValid(EntryTile))
-		{
-			float Distance = FVector::Dist(Tile->GetActorLocation(), EntryTile->GetActorLocation());
-			if (Distance < ClosestDistance)
-			{
-				ClosestDistance = Distance;
-				ClosestPathTile = EntryTile;
-			}
-		}
-        
-		if (IsValid(ExitTile))
-		{
-			float Distance = FVector::Dist(Tile->GetActorLocation(), ExitTile->GetActorLocation());
-			if (Distance < ClosestDistance)
-			{
-				ClosestDistance = Distance;
-				ClosestPathTile = ExitTile;
-			}
-		}
-	}
-	
-	return ClosestPathTile;
 }
 
 AML_CameraRail* AML_BoardSpawner::GetClosestCameraRail(const FVector& WorldLocation) const
@@ -565,6 +715,121 @@ void AML_BoardSpawner::SpawnRectangleWH()
 			Tile->SetAxialCoord(AxialQR);
 			GridMap.Add(AxialQR, Tile);
 		}
+	}
+}
+
+// ==================== Save / Load ====================
+
+TArray<FML_TileSaveEntry> AML_BoardSpawner::SnapshotGrid() const
+{
+	TArray<FML_TileSaveEntry> Entries;
+	Entries.Reserve(GridMap.Num());
+	for (const TPair<FIntPoint, TObjectPtr<AML_Tile>>& Pair : GridMap)
+	{
+		if (!Pair.Value) continue;
+		FML_TileSaveEntry Entry;
+		Entry.Axial    = Pair.Key;
+		Entry.TileType = Pair.Value->GetCurrentType();                                                                                                                                                                
+		Entries.Add(Entry);
+	}
+	return Entries;
+}
+
+UML_SaveSubsystem* AML_BoardSpawner::GetSaveSubsystem() const
+{
+	const UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	return GI ? GI->GetSubsystem<UML_SaveSubsystem>() : nullptr;
+}
+
+FName AML_BoardSpawner::GetLevelKey() const
+{
+	// Strip the "UEDPIE_N_" prefix that Unreal prepends in PIE so the key is identical
+	// whether the puzzle is solved in the editor or in a packaged build.
+	FString MapName = GetWorld()->GetMapName();
+	MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+	return FName(*MapName);
+}
+
+void AML_BoardSpawner::HandlePuzzleWon()
+{
+	// Only save for the board that actually triggered the win.
+	if (const UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
+	{
+		if (WinLose->CurrentBoardSpawner != this) return;
+	}
+
+	if (!PuzzleID.IsValid()) return;
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid(), GetLevelKey());
+}
+
+void AML_BoardSpawner::RestoreToInitialState()
+{
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys || !PuzzleID.IsValid()) return;
+
+	// InitialGrid is preserved by ResetPuzzle (only bIsSolved and SolvedGrid are cleared),
+	// so it is always safe to read here whether called before or after the save cascade.
+	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
+	if (Record.InitialGrid.IsEmpty()) return;
+
+	for (const FML_TileSaveEntry& Entry : Record.InitialGrid)
+	{
+		if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
+		{
+			Tile->UpdateClassAtRuntime_Silent(Entry.TileType,
+				BiomeTileSet->GetClassFromTileType(Entry.TileType));
+		}
+	}
+
+	bIsPuzzleSolved = false;
+	bGridMapCacheBuilt = false;
+
+	if (IsValid(AssociatedObstacle))
+	{
+		AssociatedObstacle->SetActorHiddenInGame(false);
+		AssociatedObstacle->SetActorEnableCollision(true);
+	}
+
+	// Undo the water-bridge activation so replaying the puzzle starts from a clean board.
+	for (AActor* PathActor : AssociatedWaterPaths)
+	{
+		if (AML_WaterNavPath* NavPath = Cast<AML_WaterNavPath>(PathActor))
+			NavPath->Despawn();
+	}
+
+	// Erase the revealed goal-link visuals — the board is blank again, so the connections
+	// shown on load (via TriggerConnectedGoalAnimationForBoard) must be cleared too.
+	if (UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>())
+		WinLose->ResetConnectedGoalAnimationForBoard(this);
+
+	RefreshTileCaches();
+}
+
+void AML_BoardSpawner::ReplayPuzzle()
+{
+	if (!PuzzleID.IsValid()) return;
+
+	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+	if (!SaveSys) return;
+
+	// Cascade the save reset within this level only. ResetPuzzle returns every puzzle ID
+	// that was cleared (this one + all solved after it in this level).
+	const TArray<FName> ResetIDs = SaveSys->ResetPuzzle(PuzzleID.GetTagName(), GetLevelKey());
+	if (ResetIDs.IsEmpty()) return;
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// Restore every affected board to its initial tile state.
+	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
+	{
+		AML_BoardSpawner* Board = *It;
+		if (!IsValid(Board) || !Board->PuzzleID.IsValid()) continue;
+		if (ResetIDs.Contains(Board->PuzzleID.GetTagName()))
+			Board->RestoreToInitialState();
 	}
 }
 

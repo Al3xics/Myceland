@@ -7,6 +7,7 @@
 #include "ML_TileParasite.generated.h"
 
 class USceneComponent;
+class AML_Tile;
 
 UCLASS()
 class MYCELAND_API AML_TileParasite : public AML_TileBase
@@ -15,6 +16,9 @@ class MYCELAND_API AML_TileParasite : public AML_TileBase
 
 public:
 	AML_TileParasite();
+	
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Parasite|Propagation")
+	void Propagate(int32 NeighborIndex, AML_Tile* TargetTile);
 
 protected:
 	virtual void BeginPlay() override;

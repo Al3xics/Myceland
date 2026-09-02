@@ -77,6 +77,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
 	FFMODEventInstance StartSoundAtLocation(UFMODEvent* Sound, const FTransform& Location, bool bAutoPlay = true);
 
+	/** Resolve an FMOD Studio event path (event:/...) and play it as a 2D sound. */
+	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
+	FFMODEventInstance StartSound2DByPath(const FString& EventPath, bool bAutoPlay = true);
+
+	/** Resolve an FMOD Studio event path (event:/...) and play it at a world location. */
+	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
+	FFMODEventInstance StartSoundAtLocationByPath(const FString& EventPath, const FTransform& Location, bool bAutoPlay = true);
+
 	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
 	UML_SoundPlaybackHandle* StartTrackedSound2D(UFMODEvent* Sound, FML_OnSoundFinished OnFinished, bool bAutoDestroy = true);
 

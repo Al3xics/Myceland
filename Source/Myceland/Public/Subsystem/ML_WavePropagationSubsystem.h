@@ -6,6 +6,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "ML_WavePropagationSubsystem.generated.h"
 
+class UML_CinematicSubsystem;
 struct FML_WaveChange;
 
 class UML_MycelandDeveloperSettings;
@@ -17,16 +18,27 @@ class AML_Tile;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUndoAnimating, bool, IsUndoAnimating);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnResetAnimating, bool, IsResetAnimating);
 
+// Broadcast once when a full tile-resolution action (plant + all wave propagation) has finished and
+// the board has reached its final state. Consumers that display board-dependent UI (e.g. the gamepad
+// plantable highlight) refresh here instead of reacting to every individual tile change mid-propagation.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWavePropagationFinished);
+
 UCLASS()
-class MYCELAND_API UML_WavePropagationSubsystem : public UWorldSubsystem
+class MYCELAND_API UML_WavePropagationSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	// Ticks only while a ring is being time-sliced across frames (see IsTickable).
+	virtual void Tick(float DeltaTime) override;
+	virtual bool IsTickable() const override;
+	virtual TStatId GetStatId() const override;
+
 	void EnsureInitialized();
 
 	UFUNCTION(BlueprintCallable, Category="Myceland Wave Propagation")
 	void BeginTileResolved(AML_Tile* HitTile);
+	void BeginTileResolvedWithoutAvatarSurprise(AML_Tile* HitTile);
 
 	void RecordTileForUndo(AML_Tile* Tile, int32 DistanceFromOrigin);
 
@@ -68,6 +80,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Reset")
 	FOnResetAnimating OnResetAnimating;
 
+	UPROPERTY(BlueprintAssignable, Category="Myceland Wave Propagation")
+	FOnWavePropagationFinished OnWavePropagationFinished;
+
 private:
 	// =========================================================================
 	// Core references / initialization
@@ -75,6 +90,9 @@ private:
 
 	UPROPERTY()
 	UML_WinLoseSubsystem* WinLoseSubsystem = nullptr;
+
+	UPROPERTY()
+	const UML_CinematicSubsystem* CinematicSubsystem = nullptr;
 
 	UPROPERTY()
 	AML_PlayerController* PlayerController = nullptr;
@@ -100,19 +118,49 @@ private:
 
 	bool bIsResolvingTiles = false;
 	bool bCycleHasChanges = false;
+
+	// True if anything changed on the board since BeginTileResolved. Unlike
+	// bCycleHasChanges (reset every cycle), it covers the whole action: used to
+	// skip the goal-path recompute in EndTileResolved when nothing changed.
+	bool bAnyChangeThisAction = false;
 	int32 CurrentWaveIndex = 0;
+	int32 CurrentNatureReactionCount = 0;
+	int32 CurrentParasiteReactionCount = 0;
+	int32 CurrentWaterReactionCount = 0;
+	int32 TotalReactionTileCount = 0;
+	bool bPlayAvatarSurpriseVocalThisAction = true;
+
+	// Read cursor into PendingChanges (consumed in place, no removal).
+	int32 PendingChangesIndex = 0;
+
+	// Time-slicing state: a ring (all changes at the same DistanceFromOrigin) is applied
+	// under a per-frame CPU budget (DevSettings->WavePropagationFrameBudgetMs). If the ring
+	// doesn't fit in one frame, the remainder continues in Tick on the following frames.
+	bool bRingInProgress = false;
+	int32 CurrentRingDistance = 0;
 
 	FTimerHandle IntraWaveTimerHandle;
 	FTimerHandle InterWaveTimerHandle;
 
 	void RunWave();
+	void ApplyChange(const FML_WaveChange& Change);
+	void ProcessRingSlice(double Deadline);
+	void FinishRing();
+	double MakeSliceDeadline() const;
 	void ScheduleNextPriority();
 	void ProcessNextWave();
 	void EndTileResolved();
+	void BeginTileResolvedInternal(AML_Tile* HitTile, bool bPlayAvatarSurpriseVocal);
 
 	// =========================================================================
-	// Touch wave: fires OnWaveTouched on every board tile, ring by ring,
-	// independently of PendingChanges (which only contains tiles that change).
+	// Touch wave — pure visual feedback, no gameplay effect.
+	//
+	// PendingChanges only contains the tiles whose TYPE changes, so if only 3
+	// tiles react, only 3 tiles would animate. The touch wave is what makes the
+	// whole board feel the wave passing: BuildTouchQueue BFS-walks the entire
+	// board from the clicked tile (sorted by distance), then FireNextTouchRing
+	// calls OnWaveTouched() — a BP feedback event on AML_Tile (e.g. the tile
+	// "hop") — on every tile, ring by ring, even those that don't change.
 	// =========================================================================
 
 	UPROPERTY(Transient)
@@ -121,8 +169,13 @@ private:
 	int32 TouchIndex = 0;
 	FTimerHandle TouchTimerHandle;
 
+	// Same time-slicing as the forward wave, for the touch rings.
+	bool bTouchRingInProgress = false;
+	int32 CurrentTouchDistance = 0;
+
 	void BuildTouchQueue(AML_Tile* OriginTile);
 	void FireNextTouchRing();
+	void ProcessTouchSlice(double Deadline);
 
 	// =========================================================================
 	// Deterministic ordering for recorded deltas during forward gameplay.

@@ -53,6 +53,11 @@ private:
 	 */
 	bool bGamepadConnectEventPending = false;
 
+	// Which devices have a gameplay IMC mapped (see SetAvailableDevices). The manager never switches to
+	// a device that is not available, so a single-IMC setup locks input to that device.
+	bool bMouseKeyboardAvailable = true;
+	bool bGamepadAvailable = true;
+
 
 public:
 	UML_InputDeviceManager();
@@ -63,6 +68,13 @@ public:
 
 	UML_InputHandlerBase* GetActiveHandler() const { return ActiveHandler; }
 	EML_InputDevice GetCurrentDevice() const { return CurrentDevice; }
+
+	/**
+	 * Declares which devices have a gameplay IMC mapped. The manager will refuse to switch to a device
+	 * that is not available (so an array with only one device's IMC keeps input locked to it), and
+	 * immediately switches away from the current device if it just became unavailable.
+	 */
+	void SetAvailableDevices(bool bMouseKeyboard, bool bGamepad);
 
 	/**
 	 * Call this from any gamepad-only input callback (analog axis, gamepad-exclusive button).

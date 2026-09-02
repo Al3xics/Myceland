@@ -2,6 +2,7 @@
 
 #include "Player/ML_PlayerController.h"
 
+#include "Audio/ML_FMODEvents.h"
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
 #include "Component/ML_EnergyComponent.h"
@@ -14,13 +15,13 @@
 #include "Camera/CameraActor.h"
 #include "Components/SplineComponent.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Input/ML_InputDeviceManager.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
-#include "FMODBlueprintStatics.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
 
@@ -49,16 +50,26 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 	if (!bIsMoving)
 		return;
 
-	// Handle nav mesh movement (FreeMovement and EnteringBoard modes)
-	if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::FreeMovement ||
-	    TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::EnteringBoard)
+	// Handle nav mesh movement (FreeMovement, EnteringBoard, and the ExitingBoard walk-out off the board)
+	const EML_PlayerMovementMode NavMode = TransitionComponent->GetMovementMode();
+	if (NavMode == EML_PlayerMovementMode::FreeMovement ||
+	    NavMode == EML_PlayerMovementMode::EnteringBoard ||
+	    NavMode == EML_PlayerMovementMode::ExitingBoard)
 	{
 		if (NavigationBridgeComponent && NavigationBridgeComponent->TickNavMeshMovement(DeltaTime))
 		{
 			SetIsMoving(false);
+
+			// Walk-out finished while still ExitingBoard: the player never crossed off the board footprint
+			// (e.g. the exit plane sits on a border tile), so HandleBoardStateChanged never flipped the mode.
+			// Force FreeMovement here so the player is never stuck unable to move.
+			if (TransitionComponent->GetMovementMode() == EML_PlayerMovementMode::ExitingBoard)
+			{
+				SetMovementMode(EML_PlayerMovementMode::FreeMovement);
+			}
 			// Never trigger board entry while a cinematic is running — the narrative subsystem
 			// owns player movement during that window.
-			if (TransitionComponent->IsPendingBoardEntry() && !bInCinematicMode)
+			else if (TransitionComponent->IsPendingBoardEntry() && !bInCinematicMode)
 			{
 				OnPathFinished();
 			}
@@ -125,8 +136,17 @@ void AML_PlayerController::TickMoveAlongPath(float DeltaTime)
 
 			CurrentPathWorld.Reset();
 			CurrentPathIndex = 0;
-			SetIsMoving(false);
+
+			// Stop the path tick WITHOUT broadcasting the "stopped" state yet: OnPathFinished settles the
+			// board action state to Idle (or starts a new move). We defer the notification so it reflects
+			// the FINAL settled state — otherwise consumers would see BoardActionState still == Moving at
+			// the moment of the broadcast (the source of the earlier auto-select / highlight timing traps).
+			bIsMoving = false;
 			OnPathFinished();
+
+			// If OnPathFinished didn't start a new move, notify the stop now that the state has settled.
+			if (!bIsMoving)
+				TransitionComponent->NotifyIsMoving(false);
 
 			return;
 		}
@@ -188,12 +208,13 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return false;
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
-	if (EnergyComponent->GetCurrentEnergy() <= 0) return false;
-	if (!IsValid(TargetTile)) return false;
+	if (EnergyComponent->GetCurrentEnergy() <= 0) return RejectPlantWithFeedback();
+	if (!IsValid(TargetTile)) return RejectPlantWithFeedback();
 
 	AML_BoardSpawner* Board = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
-	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return false;
-	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return false;
+	if (!IsValid(Board) || TargetTile->GetOwner() != Board) return RejectPlantWithFeedback();
+	if (!TargetTile->IsInteractable()) return RejectPlantWithFeedback();
+	if (!UML_TileTypeTraits::CanPlayerPlant(TargetTile->GetCurrentType())) return RejectPlantWithFeedback();
 
 	const TMap<FIntPoint, AML_Tile*> GridMap = Board->GetGridMap();
 	FIntPoint StartAxial = MycelandCharacter->CurrentTileOn->GetAxialCoord();
@@ -207,9 +228,10 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	}
 	const FIntPoint TargetAxial = TargetTile->GetAxialCoord();
 
-	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return false;
+	if (!GridMap.Contains(StartAxial) || !GridMap.Contains(TargetAxial)) return RejectPlantWithFeedback();
 
-	TArray<AML_Tile*> CurrentNeighbors = Board->GetNeighbors(MycelandCharacter->CurrentTileOn);
+	FML_TileNeighbors CurrentNeighbors;
+	Board->GetNeighbors(MycelandCharacter->CurrentTileOn, CurrentNeighbors);
 	if (!MoveRecordingComponent->IsMoveInProgress() && CurrentNeighbors.Contains(TargetTile))
 	{
 		TransitionComponent->StartTurnTowardTile(TargetTile);
@@ -217,15 +239,16 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 	}
 
 	TArray<FIntPoint> FullPath;
-	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return false;
-	if (FullPath.Num() < 2) return false;
+	if (!UML_HexPathfinder::BuildPath_AxialBFS(StartAxial, TargetAxial, GridMap, FullPath)) return RejectPlantWithFeedback();
+	if (FullPath.Num() < 2) return RejectPlantWithFeedback();
 
 	const FIntPoint StopAxial = FullPath[FullPath.Num() - 2];
-	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return false;
+	if (!GridMap.Contains(StopAxial) || !UML_HexPathfinder::IsTileWalkable(GridMap[StopAxial])) return RejectPlantWithFeedback();
 
 	AML_Tile* StopTile = GridMap[StopAxial];
-	TArray<AML_Tile*> StopNeighbors = Board->GetNeighbors(StopTile);
-	if (!StopNeighbors.Contains(TargetTile)) return false;
+	FML_TileNeighbors StopNeighbors;
+	Board->GetNeighbors(StopTile, StopNeighbors);
+	if (!StopNeighbors.Contains(TargetTile)) return RejectPlantWithFeedback();
 
 	TArray<FIntPoint> MovePath = FullPath;
 	MovePath.RemoveAt(MovePath.Num() - 1);
@@ -234,7 +257,22 @@ bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 		MovePath.Add(StartAxial);
 	}
 
-	return StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile);
+	if (!StartRecordedBoardMove(MovePath, GridMap, EML_PlayerBoardActionState::MovingToPlant, TargetTile))
+	{
+		return RejectPlantWithFeedback();
+	}
+
+	return true;
+}
+
+bool AML_PlayerController::RejectPlantWithFeedback()
+{
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		SoundSubsystem->StartSound2DByPath(MLFMODEvents::TilePlacementInvalid);
+	}
+
+	return false;
 }
 
 void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
@@ -245,8 +283,13 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 	{
 		OnGrassPlanted.Broadcast(HitTile);
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
-		//UFMODBlueprintStatics::PlayEventAtLocation(GetWorld(), TilePlantEvent, FTransform(HitTile->GetActorLocation()),true);
-		UML_SoundSubsystem::Get(this)->StartSoundAtLocation(TilePlantEvent,FTransform(HitTile->GetActorLocation()),true);
+		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+		{
+			SoundSubsystem->StartSound2DByPath(MLFMODEvents::TileNaturePlaceSuccess);
+			SoundSubsystem->StartSoundAtLocationByPath(
+				MLFMODEvents::TilePlant,
+				FTransform(HitTile->GetActorLocation()));
+		}
 	}
 }
 
@@ -372,11 +415,23 @@ void AML_PlayerController::ExtendMoveAlongPath(const TArray<FIntPoint>& FullMerg
 
 bool AML_PlayerController::IsClickableGround(const FHitResult& Hit) const
 {
-	if (!Hit.bBlockingHit || !Hit.Component.IsValid())
+	// Tracing on the Cursor channel (ECC_GameTraceChannel1) already guarantees that only intentional
+	// surfaces (tile GroundBase + walkable ground) respond Block, so any blocking hit is a valid target.
+	return Hit.bBlockingHit && Hit.Component.IsValid();
+}
+
+bool AML_PlayerController::GetGroundUnderCursor(FHitResult& OutHit) const
+{
+	// Trace on the dedicated Ground channel (ECC_GameTraceChannel2). Only designated ground
+	// surfaces respond Block on it; decor ignores it by default (channel default = Ignore).
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel2), false, OutHit))
 		return false;
-    // GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("IsClickableGround: %s"), *Hit.Component->GetName()));
-	ECollisionChannel ObjectType = Hit.Component->GetCollisionObjectType();
-	return ObjectType == ECC_GameTraceChannel1;
+	if (!OutHit.bBlockingHit || !IsValid(OutHit.GetActor()))
+		return false;
+
+	// Tile GroundBase blocks ALL channels (see ML_TileBase), so board tiles also stop this trace —
+	// a tile hit correctly reads as "cursor over the board", not over ground.
+	return ExtractTileFromHit(OutHit) == nullptr;
 }
 
 // ==================== Camera Queries ====================
@@ -425,7 +480,12 @@ void AML_PlayerController::HandleBoardStateChanged(const AML_Tile* OldTile, cons
 	const bool bShouldBeInBoard = IsValid(NewTile);
 	const bool bCurrentlyOutsideBoard = TransitionComponent->IsOutsideBoardMovementMode();
 
-	if (bShouldBeInBoard && bCurrentlyOutsideBoard)
+	// Per-board transition switch: if this board's transition is disabled, never auto-enter it —
+	// stay in free movement even while physically standing on its tiles.
+	const AML_BoardSpawner* NewBoard = NewTile ? NewTile->GetBoardSpawnerFromTile() : nullptr;
+	const bool bBoardTransitionOn = !IsValid(NewBoard) || NewBoard->IsBoardTransitionEnabled();
+
+	if (bShouldBeInBoard && bCurrentlyOutsideBoard && bBoardTransitionOn)
 	{
 		SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 
@@ -488,11 +548,37 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		GamepadHandler->Initialize(this);
 		InputDeviceManager->Initialize(MouseKeyboardHandler, GamepadHandler);
 		InputDeviceManager->OnInputDeviceChanged.AddDynamic(this, &AML_PlayerController::HandleInputDeviceChanged);
-		// Apply cursor visibility for the initial device (starts on MK).
+
+		// Tell the device manager which devices actually have a gameplay IMC, so it never switches to a
+		// device the designer intentionally left out of the array (single-IMC setups lock to one device).
+		bool bMKAvailable = false;
+		bool bGamepadAvailable = false;
+		if (DevSettings)
+		{
+			for (const FML_InputMappingEntry& Entry : DevSettings->GameplayInputMappingContexts)
+			{
+				switch (Entry.Device)
+				{
+					case EML_InputMappingDevice::MouseKeyboard: bMKAvailable = true; break;
+					case EML_InputMappingDevice::Gamepad:       bGamepadAvailable = true; break;
+					case EML_InputMappingDevice::Both:          bMKAvailable = true; bGamepadAvailable = true; break;
+				}
+			}
+		}
+		InputDeviceManager->SetAvailableDevices(bMKAvailable, bGamepadAvailable);
+
+		// Apply cursor visibility + map the gameplay IMCs (mouse/keyboard + gamepad).
 		UpdateCursorVisibility(InputDeviceManager->GetCurrentDevice() == EML_InputDevice::MouseKeyboard);
+		ApplyGameplayInputMappingContext();
 
 		MycelandCharacter->UpdateCurrentTile();
-		const EML_PlayerMovementMode InitialMode = MycelandCharacter->CurrentTileOn
+		// Start inside the board only if the player stands on one AND that board's transition is enabled;
+		// otherwise stay in free movement even while standing on board tiles.
+		const AML_BoardSpawner* StartBoard = MycelandCharacter->CurrentTileOn
+			? MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()
+			: nullptr;
+		const bool bStartInBoard = IsValid(StartBoard) && StartBoard->IsBoardTransitionEnabled();
+		const EML_PlayerMovementMode InitialMode = bStartInBoard
 			? EML_PlayerMovementMode::InsideBoard
 			: EML_PlayerMovementMode::FreeMovement;
 		TransitionComponent->SwitchToMode(InitialMode);
@@ -570,18 +656,11 @@ void AML_PlayerController::OnGamepadConfirmStarted()
 {
 	if (bInCinematicMode) return;
 	if (!InputDeviceManager) return;
+	// The gamepad IMC stays mapped even in MK mode, so this can fire while the MK handler is active:
+	// switch to gamepad first so the action routes to the gamepad handler.
 	InputDeviceManager->NotifyGamepadInput();
 	if (InputDeviceManager->GetActiveHandler())
-		InputDeviceManager->GetActiveHandler()->OnMoveActionStarted();
-}
-
-void AML_PlayerController::OnGamepadMoveAndPlantStarted()
-{
-	if (bInCinematicMode) return;
-	if (!InputDeviceManager) return;
-	InputDeviceManager->NotifyGamepadInput();
-	if (InputDeviceManager->GetActiveHandler())
-		InputDeviceManager->GetActiveHandler()->OnMoveAndPlantAction();
+		InputDeviceManager->GetActiveHandler()->OnMoveAndPlantAction(); // Confirm = plant the selected tile
 }
 
 void AML_PlayerController::OnGamepadMoveAxis(const FVector2D& Value)
@@ -603,6 +682,25 @@ void AML_PlayerController::OnGamepadMoveReleased()
 		InputDeviceManager->GetActiveHandler()->OnStickReleased();
 }
 
+void AML_PlayerController::OnGamepadSelectPlantAxis(const FVector2D& Value)
+{
+	if (bInCinematicMode) return;
+	if (!InputDeviceManager) return;
+
+	// Analog axes don't raise OnInputHardwareDeviceChanged, so switch device explicitly here.
+	InputDeviceManager->NotifyGamepadInput();
+
+	if (InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnPlantSelectAxis(Value, GetWorld()->GetDeltaSeconds());
+}
+
+void AML_PlayerController::OnGamepadSelectPlantReleased()
+{
+	if (bInCinematicMode) return;
+	if (InputDeviceManager && InputDeviceManager->GetActiveHandler())
+		InputDeviceManager->GetActiveHandler()->OnPlantSelectReleased();
+}
+
 void AML_PlayerController::OnSkipNarrativeLine()
 {
 	if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
@@ -611,7 +709,7 @@ void AML_PlayerController::OnSkipNarrativeLine()
 
 // ==================== Camera ====================
 
-void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendTime, EViewTargetBlendFunction BlendFunc)
+void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendTime, float BlendExp, EViewTargetBlendFunction BlendFunc)
 {
 	// Deactivate the tick of the old camera rail
 	if (AML_CameraRail* OldRail = Cast<AML_CameraRail>(GetViewTarget()))
@@ -621,7 +719,11 @@ void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendT
 	if (AML_CameraRail* NewRail = Cast<AML_CameraRail>(NewViewTarget))
 		NewRail->SetActorTickEnabled(true);
 
-	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc);
+	// bLockOutgoing: if a blend is interrupted (e.g. re-entering a board mid-blend towards the
+	// rail), start the new blend from the camera's current interpolated position instead of
+	// re-evaluating the outgoing view target — otherwise blending back to the outgoing target
+	// makes source == destination and the camera snaps instantly.
+	SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc, BlendExp, true);
 }
 
 // ==================== Movement Control ====================
@@ -698,6 +800,11 @@ void AML_PlayerController::SetMovementMode(EML_PlayerMovementMode NewMode)
 
 // ==================== Callbacks & State Management ====================
 
+void AML_PlayerController::NotifyGrassPlantStarted(AML_Tile* TargetTile)
+{
+	OnGrassPlantStarted.Broadcast(TargetTile);
+}
+
 void AML_PlayerController::ConfirmTurn(AML_Tile* HitTile)
 {
 	ExecutePlant(HitTile);
@@ -711,6 +818,35 @@ void AML_PlayerController::UpdateCursorVisibility(const bool bVisible)
 	bShowMouseCursor = bVisible;
 	bEnableClickEvents = bVisible;
 	bEnableMouseOverEvents = bVisible;
+}
+
+UEnhancedInputLocalPlayerSubsystem* AML_PlayerController::GetEnhancedInputSubsystem() const
+{
+	if (!IsLocalController()) return nullptr;
+	ULocalPlayer* LP = GetLocalPlayer();
+	return LP ? LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
+}
+
+void AML_PlayerController::ApplyGameplayInputMappingContext()
+{
+	UEnhancedInputLocalPlayerSubsystem* InputSub = GetEnhancedInputSubsystem();
+	if (!InputSub || !DevSettings) return;
+
+	// Map every configured gameplay IMC together (mouse/keyboard, gamepad, or both — any combination).
+	// Adding an already-mapped context is a no-op, so this is safe to call repeatedly.
+	for (const FML_InputMappingEntry& Entry : DevSettings->GameplayInputMappingContexts)
+		if (UInputMappingContext* IMC = Entry.Mapping.LoadSynchronous())
+			InputSub->AddMappingContext(IMC, Entry.Priority);
+}
+
+void AML_PlayerController::RemoveGameplayInputMappingContexts()
+{
+	UEnhancedInputLocalPlayerSubsystem* InputSub = GetEnhancedInputSubsystem();
+	if (!InputSub || !DevSettings) return;
+
+	for (const FML_InputMappingEntry& Entry : DevSettings->GameplayInputMappingContexts)
+		if (UInputMappingContext* IMC = Entry.Mapping.LoadSynchronous())
+			InputSub->RemoveMappingContext(IMC);
 }
 
 void AML_PlayerController::NotifyCinematicModeChanged(const bool bNewInCinematicMode)
@@ -760,8 +896,14 @@ void AML_PlayerController::HandleInputDeviceChanged(EML_InputDevice NewDevice)
 	bShowMouseCursor       = bIsMK;
 	bEnableMouseOverEvents = bIsMK;
 
+	// No IMC swap here: both device IMCs stay mapped (see ApplyGameplayInputMappingContext) so device
+	// detection keeps working. A device switch only changes cursor visibility / hover behavior.
+
 	if (HoverPreviewComponent)
 		HoverPreviewComponent->NotifyInputDeviceChanged(NewDevice);
+
+	if (TransitionComponent)
+		TransitionComponent->NotifyInputDeviceChanged(NewDevice);
 
 	// Force Slate to re-evaluate the cursor type immediately.
 	// Without this, the OS cursor only updates on the next mouse-move event (Standalone artifact).
@@ -881,9 +1023,42 @@ void AML_PlayerController::ClearForcedHoverTile()
 	if (HoverPreviewComponent) HoverPreviewComponent->ClearForcedHoverTile();
 }
 
-void AML_PlayerController::ClearHoverPreview()
+void AML_PlayerController::SetGamepadSelectedTile(AML_Tile* Tile)
 {
-	if (HoverPreviewComponent) HoverPreviewComponent->ClearHoverPreview();
+	if (HoverPreviewComponent) HoverPreviewComponent->SetGamepadSelectedTile(Tile);
+}
+
+AML_Tile* AML_PlayerController::GetGamepadSelectedTile() const
+{
+	return HoverPreviewComponent ? HoverPreviewComponent->GetGamepadSelectedTile() : nullptr;
+}
+
+void AML_PlayerController::ClearPathHoverPreview()
+{
+	if (HoverPreviewComponent) HoverPreviewComponent->ClearPathHoverPreview();
+}
+
+void AML_PlayerController::ClearActiveGlow()
+{
+	if (HoverPreviewComponent) HoverPreviewComponent->ClearActiveGlow();
+}
+
+void AML_PlayerController::NotifyBoardTransitionDisabled(const AML_BoardSpawner* Board)
+{
+	if (!TransitionComponent || !IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn))
+		return;
+
+	// Only act if the player is currently on THIS board and in a board movement mode.
+	if (MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile() != Board)
+		return;
+	if (TransitionComponent->IsOutsideBoardMovementMode())
+		return;
+
+	// Stop any in-progress tile-by-tile movement, then eject to free movement.
+	CurrentPathWorld.Reset();
+	CurrentPathIndex = 0;
+	SetIsMoving(false);
+	TransitionComponent->ForceFreeMovement();
 }
 
 // ==================== Tile Query ====================
@@ -891,12 +1066,16 @@ void AML_PlayerController::ClearHoverPreview()
 AML_Tile* AML_PlayerController::GetTileUnderCursor() const
 {
 	FHitResult Hit;
-	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), true, Hit))
+	// Trace on the dedicated Cursor channel (ECC_GameTraceChannel1) in SIMPLE collision.
+	// Only the tile GroundBase and the walkable ground respond Block to this channel; decorative
+	// meshes ignore it by default. bTraceComplex=false so tiles are picked via their simple collision
+	// (per-poly collision is often absent, e.g. water, which would otherwise let the trace fall through
+	// to the landscape and wrongly read as "no tile").
+	if (!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1), false, Hit))
 		return nullptr;
 
-	if (!IsClickableGround(Hit))
-		return nullptr;
-
+	// ExtractTileFromHit returns null when the hit is the open ground (not a tile) — that correctly
+	// reads as "cursor outside the board".
 	return ExtractTileFromHit(Hit);
 }
 

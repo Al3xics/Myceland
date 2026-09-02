@@ -331,7 +331,9 @@ bool AML_LakeFishManager::IsTileAliveWater(const AML_Tile* Tile) const
 	AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 	if (!IsValid(Board)) return false;
 
-	for (AML_Tile* Neighbor : Board->GetNeighbors(const_cast<AML_Tile*>(Tile)))
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(Tile, Neighbors);
+	for (AML_Tile* Neighbor : Neighbors)
 	{
 		if (IsGrassTile(Neighbor))
 		{
@@ -360,7 +362,9 @@ void AML_LakeFishManager::FloodFillWaterLake(AML_Tile* StartTile, TSet<AML_Tile*
 		AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) continue;
 
-		for (AML_Tile* Neighbor : Board->GetNeighbors(Tile))
+		FML_TileNeighbors Neighbors;
+		Board->GetNeighbors(Tile, Neighbors);
+		for (AML_Tile* Neighbor : Neighbors)
 		{
 			if (IsValid(Neighbor) && !Visited.Contains(Neighbor) && IsWaterTile(Neighbor))
 			{
@@ -384,7 +388,9 @@ bool AML_LakeFishManager::DoesLakeTouchGrass(const TArray<AML_Tile*>& LakeTiles)
 		AML_BoardSpawner* Board = Tile->GetBoardSpawnerFromTile();
 		if (!IsValid(Board)) continue;
 
-		for (AML_Tile* Neighbor : Board->GetNeighbors(Tile))
+		FML_TileNeighbors Neighbors;
+		Board->GetNeighbors(Tile, Neighbors);
+		for (AML_Tile* Neighbor : Neighbors)
 		{
 			if (IsTreeTile(Neighbor))
 			{
@@ -476,8 +482,12 @@ void AML_LakeFishManager::RebuildLakes()
 				AliveWaterTiles.Contains(Tile)
 				? EML_WaterState::Alive
 				: EML_WaterState::Dead;
+			const float CoastLineColorValue =
+				NewState == EML_WaterState::Alive
+				? 1.f
+				: 0.f;
 
-			Water->SetWaterState(NewState);
+			Water->SetWaterState(NewState, CoastLineColorValue);
 		}
 	}
 
@@ -553,7 +563,9 @@ void AML_LakeFishManager::BuildLakeSplines(FML_LakeRuntime& Lake)
 
 			AML_Tile* NextTile = nullptr;
 
-			for (AML_Tile* Neighbor : Board->GetNeighbors(CurrentTile))
+			FML_TileNeighbors Neighbors;
+			Board->GetNeighbors(CurrentTile, Neighbors);
+			for (AML_Tile* Neighbor : Neighbors)
 			{
 				if (!IsValid(Neighbor)) continue;
 				if (Neighbor == PreviousTile) continue;

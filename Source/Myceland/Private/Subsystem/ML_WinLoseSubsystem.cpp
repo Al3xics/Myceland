@@ -3,6 +3,7 @@
 #include "Subsystem/ML_WinLoseSubsystem.h"
 
 #include "Algo/Reverse.h"
+#include "Audio/ML_FMODEvents.h"
 #include "Containers/Deque.h"
 #include "Core/ML_CoreData.h"
 #include "Core/ML_TileTypeTraits.h"
@@ -10,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
+#include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 #include "Tiles/TileBase/ML_TileGrass.h"
@@ -78,23 +80,38 @@ FML_GameResult UML_WinLoseSubsystem::CheckWinLose()
 
 bool UML_WinLoseSubsystem::CheckPlayerKilled(AML_Tile* CurrentTileOn)
 {
+	if (!IsValid(CurrentTileOn))
+	{
+		return false;
+	}
+
+	return CheckPlayerKilledByType(
+		CurrentTileOn,
+		CurrentTileOn->GetCurrentType()
+	);
+}
+bool UML_WinLoseSubsystem::CheckPlayerKilledByType(
+	AML_Tile* CurrentTileOn,
+	EML_TileType TileType)
+{
 	if (bIsPlayerDead || !IsValid(CurrentTileOn))
 	{
 		return false;
 	}
 
-	const EML_TileType TileType = CurrentTileOn->GetCurrentType();
 	if (UML_TileTypeTraits::IsLethalTile(TileType))
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("You died"));
 		bIsPlayerDead = true;
+
+		// Immediate event.
+		// Bind your death animation to this.
 		OnDeath.Broadcast();
+
 		return true;
 	}
 
 	return false;
 }
-
 bool UML_WinLoseSubsystem::AreAllGoalsConnected(
 	AML_BoardSpawner* Board,
 	EML_TileType GoalType,
@@ -331,6 +348,14 @@ bool UML_WinLoseSubsystem::FindConnectedGoalGroups(
 
 void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 {
+	// Once the puzzle is solved the win path is final. Only the winning turn itself
+	// (bPendingClearWinPath still set) may recompute; anything later — e.g. hub tile
+	// changes running a wave while the player still stands on the solved board — must
+	// not, because FireWinSequence converts corridor Water tiles to WaterPath (not a
+	// win-path type), so a recompute would reroute the path and replay the link glow.
+	if (IsValid(CurrentBoardSpawner) && CurrentBoardSpawner->bIsPuzzleSolved && !bPendingClearWinPath)
+		return;
+
 	FindConnectedGoalGroups(
 		CurrentBoardSpawner,
 		EML_TileType::Tree,
@@ -345,8 +370,11 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 		{
 			if (IsValid(Tile))
 			{
-				CurrentConnectedPathTiles.Add(Tile);
-				if (!PreviousConnectedPathTiles.Contains(Tile))
+				// Later MST links reuse earlier corridors, so the same tile can appear
+				// in several groups: dedup against this call's set, not just the queue.
+				bool bAlreadyInSet = false;
+				CurrentConnectedPathTiles.Add(Tile, &bAlreadyInSet);
+				if (!bAlreadyInSet && !PreviousConnectedPathTiles.Contains(Tile))
 					PendingConnectedGoalPathQueue.Add(Tile);
 			}
 		}
@@ -379,13 +407,18 @@ void UML_WinLoseSubsystem::TriggerFindConnectedGoalCheck()
 		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
 	{
 		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
-			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, 0.1f, true);
+			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, DevSettings->WinTileDelay, true);
 	}
 }
 
-void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board)
+void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawner* Board, bool bImmediate)
 {
 	if (!IsValid(Board)) return;
+
+	// This can run before OnWorldBeginPlay (e.g. a hub revealing its solved connections
+	// during load), so make sure the allowed-path set is populated first.
+	if (CachedGoalPathAllowedSet.Num() == 0)
+		CachedGoalPathAllowedSet = UML_TileTypeTraits::GetWinPathTypes();
 
 	// Compute connected groups on the requested board — does NOT alter
 	// CurrentBoardSpawner or PreviousConnectedPathTiles, so the active
@@ -404,8 +437,18 @@ void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawne
 			if (PersistentAnimatedTiles.Contains(Tile)) continue;
 
 			PersistentAnimatedTiles.Add(Tile);
-			PendingConnectedGoalPathQueue.Add(Tile);
-			bAddedAny = true;
+
+			if (bImmediate)
+			{
+				// Reveal instantly (load): broadcast now so the shared queue/timer aren't
+				// involved and a board change can't cancel a partially-played reveal.
+				OnConnectedGoalPathTile.Broadcast(Tile);
+			}
+			else
+			{
+				PendingConnectedGoalPathQueue.Add(Tile);
+				bAddedAny = true;
+			}
 		}
 	}
 
@@ -413,8 +456,25 @@ void UML_WinLoseSubsystem::TriggerConnectedGoalAnimationForBoard(AML_BoardSpawne
 		&& !GetWorld()->GetTimerManager().IsTimerActive(ConnectedGoalPathTimerHandle))
 	{
 		GetWorld()->GetTimerManager().SetTimer(ConnectedGoalPathTimerHandle, this,
-			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, 0.1f, true);
+			&UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile, DevSettings->WinTileDelay, true);
 	}
+}
+
+void UML_WinLoseSubsystem::ResetConnectedGoalAnimationForBoard(AML_BoardSpawner* Board)
+{
+	if (!IsValid(Board)) return;
+
+	// Only this board's tiles are cleared — PersistentAnimatedTiles is a flat set shared
+	// across boards (incl. the hub), so scope by iterating the board's own grid.
+	TArray<AML_Tile*> Disconnected;
+	for (AML_Tile* Tile : Board->GetGridTiles())
+	{
+		if (IsValid(Tile) && PersistentAnimatedTiles.Remove(Tile) > 0)
+			Disconnected.Add(Tile);
+	}
+
+	if (Disconnected.Num() > 0)
+		OnDisconnectedGoalPathTile.Broadcast(Disconnected);
 }
 
 void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
@@ -433,6 +493,11 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 
 		if (bPendingClearWinPath)
 		{
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+			{
+				SoundSubsystem->StartSound2DByPath(MLFMODEvents::TreeLinkMotif);
+			}
+
 			OnConnectedGoalPathComplete.Broadcast();
 			GetWorld()->GetTimerManager().SetTimer(
 				ConnectedWinTimerHandle,
@@ -454,38 +519,66 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 void UML_WinLoseSubsystem::FireWinSequence()
 {
 	OnWin.Broadcast();
+	if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+	{
+		if (const AML_Tile* PlayerTile = GetPlayerCurrentTile())
+		{
+			const FTransform PlayerTransform(FRotator::ZeroRotator, PlayerTile->GetActorLocation());
+			SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::AvatarVictoryVocal, PlayerTransform);
+		}
+	}
+
 	bPendingClearWinPath = false;
 
 	if (!IsValid(CurrentBoardSpawner))
 		return;
 
-	// First pass: player position → exit tile (converts Water → WaterPath along the way).
+	// First pass: Entry → Exit (converts Water → WaterPath along the way).
 	for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
 	{
 		ClearWinPath(
 			CurrentBoardSpawner,
-			GetPlayerCurrentTile(),
+			WaterPath.EntryTile,
 			WaterPath.ExitTile,
-			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::Dirt}
+			{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
 		);
 	}
 
-	// Defer the Entry→Exit pass by one tick so UpdateClassAtRuntime changes
-	// from the first pass are fully applied before the second BFS runs.
+	// Defer the player pass by one tick so UpdateClassAtRuntime changes
+	// from the first pass are fully applied before the second BFS runs. With
+	// WaterPath allowed, this BFS rides the Entry→Exit trunk for free instead
+	// of carving a duplicate lily trail through open water.
 	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
 	{
-		if (IsValid(CurrentBoardSpawner))
+		if (!IsValid(CurrentBoardSpawner))
+			return;
+
+		AML_Tile* PlayerTile = GetPlayerCurrentTile();
+		if (!IsValid(PlayerTile))
+			return;
+
+		for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
 		{
-			for (const auto& WaterPath : CurrentBoardSpawner->WaterPaths)
+			// Entry/Exit can be authored in either order — target whichever
+			// endpoint is closest to the player; the trunk connects both.
+			const AML_Tile* Target = WaterPath.ExitTile;
+			if (IsValid(WaterPath.EntryTile)
+				&& (!IsValid(WaterPath.ExitTile)
+					|| FVector::DistSquared(PlayerTile->GetActorLocation(), WaterPath.EntryTile->GetActorLocation())
+						< FVector::DistSquared(PlayerTile->GetActorLocation(), WaterPath.ExitTile->GetActorLocation())))
 			{
-				ClearWinPath(
-					CurrentBoardSpawner,
-					WaterPath.EntryTile,
-					WaterPath.ExitTile,
-					{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
-				);
+				Target = WaterPath.EntryTile;
 			}
+
+			ClearWinPath(
+				CurrentBoardSpawner,
+				PlayerTile,
+				Target,
+				{EML_TileType::Grass, EML_TileType::Water, EML_TileType::WaterPath, EML_TileType::Dirt}
+			);
 		}
+
+		OnWinPathSettled.Broadcast();
 	});
 }
 
@@ -624,9 +717,18 @@ void UML_WinLoseSubsystem::ClearWinPath(
 			|| AllowedSet.Contains(Tile->GetCurrentType());
 	};
 
+	// Water costs 1, everything else 0: among all valid routes, this converts
+	// the fewest Water tiles into lilies (a plain BFS minimizes tile count and
+	// can cross open water even when an equal-length route stays dry).
+	auto GetCost = [](AML_Tile* Tile) -> int32
+	{
+		return UML_TileTypeTraits::IsWaterType(Tile->GetCurrentType()) ? 1 : 0;
+	};
+
 	TSet<FIntPoint> Visited;
 	TMap<FIntPoint, FIntPoint> Parent;
-	RunBFS(Grid, Start, CanTraverse, Visited, Parent);
+	TMap<FIntPoint, int32> Dist;
+	RunZeroOneBFS(Grid, Start, CanTraverse, GetCost, Visited, Parent, Dist);
 
 	if (Start != Goal && !Visited.Contains(Goal))
 	{
@@ -654,6 +756,12 @@ void UML_WinLoseSubsystem::ClearWinPath(
 		if (UML_TileTypeTraits::IsWaterType((*TilePtr)->GetCurrentType()))
 		{
 			(*TilePtr)->UpdateClassAtRuntime(EML_TileType::WaterPath, CurrentBoardSpawner->WaterChangeTile);
+
+			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+			{
+				const FTransform TileTransform(FRotator::ZeroRotator, (*TilePtr)->GetActorLocation());
+				SoundSubsystem->StartSoundAtLocationByPath(MLFMODEvents::TileBridgeGrow, TileTransform);
+			}
 		}
 	}
 }

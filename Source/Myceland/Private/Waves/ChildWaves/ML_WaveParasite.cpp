@@ -10,8 +10,6 @@
 
 void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-	GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, TEXT("Parasite Wave"));
-	
 	if (!OriginTile) return;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
@@ -39,6 +37,7 @@ void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>&
 		return;
 
 	// Chain propagation
+	FML_TileNeighbors Neighbors;
 	while (!Queue.IsEmpty())
 	{
 		TPair<AML_Tile*, int32> Current;
@@ -47,21 +46,29 @@ void UML_WaveParasite::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>&
 		AML_Tile* CurrentTile = Current.Key;
 		int32 Distance = Current.Value;
 
-		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(CurrentTile);
-		for (AML_Tile* Neighbor : Neighbors)
+		Board->GetNeighbors(CurrentTile, Neighbors);
+
+		for (int32 NeighborIndex = 0; NeighborIndex < Neighbors.Num(); ++NeighborIndex)
 		{
+			AML_Tile* Neighbor = Neighbors[NeighborIndex];
+
 			if (!Neighbor || Visited.Contains(Neighbor))
 				continue;
 
 			Visited.Add(Neighbor);
 
-			// A parasite eats only grass
 			if (UML_TileTypeTraits::CanParasitePropagateTo(Neighbor->GetCurrentType()))
 			{
-				OutChanges.Add(FML_WaveChange(Neighbor, EML_TileType::Parasite, Distance + 1));
+				FML_WaveChange Change(
+					Neighbor,
+					EML_TileType::Parasite,
+					Distance + 1);
 
-				// The transformed grass becomes a parasite
-				// therefore, it can continue to spread
+				Change.SourcePropagationTile = CurrentTile;
+				Change.PropagationNeighborIndex = NeighborIndex;
+
+				OutChanges.Add(Change);
+
 				Queue.Enqueue({ Neighbor, Distance + 1 });
 			}
 		}

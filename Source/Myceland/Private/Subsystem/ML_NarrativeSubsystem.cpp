@@ -5,14 +5,12 @@
 
 #include "Actors/ML_NarrativeTrigger.h"
 #include "Actors/ML_TalkingThing.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Camera/CameraComponent.h"
 #include "Data Asset/ML_NarrativeSequence.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "EnhancedInputSubsystems.h"
 #include "FMODAudioComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Navigation/PathFollowingComponent.h"
 #include "Player/ML_PlayerController.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 
@@ -112,15 +110,18 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 		return;
 	}
 
-	// Validate and set speaker talking
+	// Resolve the speaker (tags with no bound actor fall back to the player, see AML_NarrativeTrigger::GetSpeaker)
 	IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag);
-	if (Speaker)
-		Speaker->SetIsTalking(true);
-	else
+	if (!Speaker)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No speaker found for tag %d in line %d of trigger %s"), static_cast<int32>(Line.SpeakerTag), CurrentLineIndex, *CurrentNarrativeTrigger->GetName());
+		UE_LOG(LogTemp, Error, TEXT("No speaker found for tag %d in line %d of trigger %s, skipping line"), static_cast<int32>(Line.SpeakerTag), CurrentLineIndex, *GetNameSafe(CurrentNarrativeTrigger));
+		CurrentLineIndex++;
+		PlayNextLine();
 		return;
 	}
+
+	if (Line.bSpokenOutLoud)
+		Speaker->SetIsTalking(true);
 
 	bCurrentLineStarted = true;
 	OnDialogueLineStart.Broadcast(Line, Line.SpeakerTag);
@@ -227,22 +228,20 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 	// the player to enter the board mid-cinematic once the navmesh proximity check fires.
 	GetPlayerController()->CancelPendingNavigation();
 
-	// Swap IMCs: remove main (no movement/click) and add cinematic-only (skip only)
+	// Swap IMCs: remove all gameplay IMCs (no movement/click) and add cinematic-only (skip only).
+	// The detection IMC is intentionally left mapped so device switching still works during the cutscene.
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	GetPlayerController()->RemoveGameplayInputMappingContexts();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
-		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->RemoveMappingContext(MainIMC);
-
-		if (UInputMappingContext* CinematicIMC = DevSettings->CinematicInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->AddMappingContext(CinematicIMC, DevSettings->CinematicInputMappingContext.Priority);
+		int32 Priority = 0;
+		if (UInputMappingContext* CinematicIMC = DevSettings->GetInputMappingContext(EInputMappingType::Cinematic, Priority))
+			InputSub->AddMappingContext(CinematicIMC, Priority);
 	}
 
-	UAIBlueprintHelperLibrary::SimpleMoveToLocation(GetPlayerController(), CurrentNarrativeTrigger->TargetArrow->GetComponentLocation());
-
-	// Bind to the movement end to apply rotation
-	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
-		PFC->OnRequestFinished.AddUObject(this, &UML_NarrativeSubsystem::OnCinematicMoveFinished);
+	// Walk the player to the arrow with a steering arc; the trigger calls
+	// NotifyCinematicApproachFinished once arrived and aligned with the arrow.
+	CurrentNarrativeTrigger->StartCinematicApproach();
 
 	// Activate the camera component so CalcCamera finds it (bAutoActivate is false by default)
 	if (CurrentNarrativeTrigger && CurrentNarrativeTrigger->GetCinematicCamera())
@@ -252,7 +251,8 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 		GetPlayerController()->BlendToViewTarget(
 			CurrentNarrativeTrigger,
 			CurrentSequence->CameraBlendTime,
-			VTBlend_Linear
+			CurrentSequence->BlendExp,
+			CurrentSequence->BlendFunc
 		);
 
 		// Start timer for camera blend completion
@@ -269,22 +269,8 @@ void UML_NarrativeSubsystem::SetupCinematicMode()
 	}
 }
 
-void UML_NarrativeSubsystem::OnCinematicMoveFinished(FAIRequestID, const FPathFollowingResult&)
+void UML_NarrativeSubsystem::NotifyCinematicApproachFinished()
 {
-	// Unbind immediatly to not react to the next movements
-	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
-		PFC->OnRequestFinished.RemoveAll(this);
-
-	if (!CurrentNarrativeTrigger) return;
-
-	APawn* Pawn = GetPlayerController()->GetPawn();
-	if (!Pawn) return;
-
-	const FRotator CurrentRot = Pawn->GetActorRotation();
-	const float TargetYaw = CurrentNarrativeTrigger->TargetArrow->GetComponentRotation().Yaw;
-	Pawn->SetActorRotation(FRotator(CurrentRot.Pitch, TargetYaw, CurrentRot.Roll));
-
-	// Mark player movement as finished
 	bPlayerMovementFinished = true;
 	CheckCinematicSetupComplete();
 }
@@ -309,27 +295,29 @@ void UML_NarrativeSubsystem::CheckCinematicSetupComplete()
 
 void UML_NarrativeSubsystem::RestorePlayerControl() const
 {
-	// Unbind if the sequence ends before arriving
-	if (UPathFollowingComponent* PFC = GetPlayerController()->FindComponentByClass<UPathFollowingComponent>())
-		PFC->OnRequestFinished.RemoveAll(this);
+	// Interrupt the approach if the sequence ends before the player has arrived
+	if (CurrentNarrativeTrigger)
+		CurrentNarrativeTrigger->StopCinematicApproach();
 
-	// Swap IMCs back: remove cinematic, restore main
+	// Swap IMCs back: remove cinematic, then restore the IMC matching the device used before the
+	// cinematic (ApplyGameplayInputMappingContext reads the currently active device).
 	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	if (UEnhancedInputLocalPlayerSubsystem* InputSub = GetPlayerController()->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 	{
-		if (UInputMappingContext* CinematicIMC = DevSettings->CinematicInputMappingContext.Mapping.LoadSynchronous())
+		int32 Priority = 0;
+		if (UInputMappingContext* CinematicIMC = DevSettings->GetInputMappingContext(EInputMappingType::Cinematic, Priority))
 			InputSub->RemoveMappingContext(CinematicIMC);
-
-		if (UInputMappingContext* MainIMC = DevSettings->DefaultInputMappingContext.Mapping.LoadSynchronous())
-			InputSub->AddMappingContext(MainIMC, DevSettings->DefaultInputMappingContext.Priority);
 	}
+
+	GetPlayerController()->ApplyGameplayInputMappingContext();
 
 	GetPlayerController()->NotifyCinematicModeChanged(false); // false because cinematic ends
 
 	GetPlayerController()->BlendToViewTarget(
 		PreviousViewTarget,
 		CurrentSequence->CameraBlendTime,
-		VTBlend_Linear
+		CurrentSequence->BlendExp,
+		CurrentSequence->BlendFunc
 	);
 
 	// Deactivate the cinematic camera AFTER THE BLEND so it doesn't interfere with future view targets

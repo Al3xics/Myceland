@@ -2,9 +2,14 @@
 
 #include "Component/ML_HoverPreviewComponent.h"
 
+#include "Component/ML_BoardTransitionComponent.h"
+#include "Core/ML_TileTypeTraits.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
+#include "Engine/Engine.h"
 #include "Player/ML_PlayerController.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_HexPathfinder.h"
+#include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_BoardSpawner.h"
 
@@ -12,6 +17,20 @@ void UML_HoverPreviewComponent::Initialize(AML_PlayerController* Controller, AML
 {
 	OwningController = Controller;
 	PlayerCharacter = Character;
+
+	// Drive the gamepad plantable highlight off the same signals that change the board state:
+	// move start/stop (the "highlight while moving" gate) and the end of a wave propagation
+	// (tiles changed type). Player-tile / mode / device changes are handled by the Notify* hooks.
+	if (OwningController && OwningController->TransitionComponent)
+		OwningController->TransitionComponent->OnBoardActivityStateChanged.AddUniqueDynamic(this, &UML_HoverPreviewComponent::HandleBoardActivityStateChanged);
+
+	if (UWorld* World = GetWorld())
+		if (UML_WavePropagationSubsystem* WaveSub = World->GetSubsystem<UML_WavePropagationSubsystem>())
+		{
+			WaveSub->OnWavePropagationFinished.AddUniqueDynamic(this, &UML_HoverPreviewComponent::HandleWavePropagationFinished);
+			WaveSub->OnUndoAnimating.AddUniqueDynamic(this, &UML_HoverPreviewComponent::HandleRollbackAnimating);
+			WaveSub->OnResetAnimating.AddUniqueDynamic(this, &UML_HoverPreviewComponent::HandleRollbackAnimating);
+		}
 }
 
 void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode NewMode)
@@ -21,9 +40,12 @@ void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode
 	// Leaving board mode — clear path preview
 	if (NewMode != EML_PlayerMovementMode::InsideBoard && NewMode != EML_PlayerMovementMode::ExitingBoard)
 	{
-		ClearHoverPreview();
+		ClearPathHoverPreview();
 		ClearForcedHoverTile();
 	}
+
+	// The board visuals only show inside a board — re-evaluate selection + plantables on any mode change.
+	RefreshGamepadBoardVisuals();
 }
 
 void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
@@ -39,14 +61,17 @@ void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
 	{
 		// Player left the tile the cursor is still hovering → refresh it from the
 		// special player-tile glow back to a normal cursor hover.
-		LastCursorHoveredTile->GlowCursorHovered(false);
+		LastCursorHoveredTile->GlowCursorHovered(false, true);
 		bLastCursorTileIsPlayerTile = false;
 	}
 
 	// Force the preview path update from the new position.
-	LastHoveredTile = nullptr;
+	LastPathHoveredTile = nullptr;
 	if (HoverPreviewTimerHandle.IsValid())
-		TickHoverPreview();
+		TickPathHoverPreview();
+
+	// The board visuals depend on the player's tile — recompute selection + plantables around it.
+	RefreshGamepadBoardVisuals();
 }
 
 void UML_HoverPreviewComponent::StartHoverPreviewTimer()
@@ -57,7 +82,7 @@ void UML_HoverPreviewComponent::StartHoverPreviewTimer()
 			HoverPreviewTimerHandle,
 			this,
 			&UML_HoverPreviewComponent::UpdateHoverPreview,
-			1.f / 30.f, // 30Hz is enough for hover preview
+			UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->GetCursorDetectionTickInterval(),
 			true
 		);
 	}
@@ -66,30 +91,37 @@ void UML_HoverPreviewComponent::StartHoverPreviewTimer()
 void UML_HoverPreviewComponent::StopHoverPreviewTimer()
 {
 	GetWorld()->GetTimerManager().ClearTimer(HoverPreviewTimerHandle);
-	ClearHoverPreview();
+	ClearGamepadSelection();
+	ClearExitHighlight();
+	ClearPathHoverPreview();
 	ClearCursorHoverPreview();
 	ClearForcedHoverTile();
+	ClearPlantableHighlight();
 }
 
 // Bypasses cursor detection and locks the hover preview onto the given tile until cleared.
-// Invalidates LastHoveredTile so TickHoverPreview immediately recomputes the path.
+// Invalidates LastPathHoveredTile so TickPathHoverPreview immediately recomputes the path.
 void UML_HoverPreviewComponent::SetForcedHoverTile(AML_Tile* Tile)
 {
 	ForcedHoverTile = Tile;
 	// Force immediate recalculation
-	LastHoveredTile = nullptr;
+	LastPathHoveredTile = nullptr;
 	if (HoverPreviewTimerHandle.IsValid())
-		TickHoverPreview();
+		TickPathHoverPreview();
 }
 
 // Removes the forced tile override and hands control back to cursor-based detection.
 void UML_HoverPreviewComponent::ClearForcedHoverTile()
 {
 	ForcedHoverTile = nullptr;
-	// Force recalculation to return to normal cursor hover
-	LastHoveredTile = nullptr;
+
+	// Explicitly un-glow the path tiles. In gamepad mode there is no cursor to fall back to, so
+	// TickPathHoverPreview would see HoveredTile(null) == LastPathHoveredTile and short-circuit,
+	// leaving the previous path glowing (visible from where the player was). ClearPathHoverPreview
+	// also resets LastPathHoveredTile, so the follow-up tick correctly rebuilds from the cursor (MK).
+	ClearPathHoverPreview();
 	if (HoverPreviewTimerHandle.IsValid())
-		TickHoverPreview();
+		TickPathHoverPreview();
 }
 
 void UML_HoverPreviewComponent::NotifyInputDeviceChanged(EML_InputDevice NewDevice)
@@ -99,6 +131,9 @@ void UML_HoverPreviewComponent::NotifyInputDeviceChanged(EML_InputDevice NewDevi
 	// Switching to gamepad: clear any cursor-driven hover that was still active.
 	if (!bCursorHoverEnabled)
 		ClearCursorHoverPreview();
+
+	// Board visuals (plantables + selection) are gamepad-only: show on gamepad, clear on mouse/keyboard.
+	RefreshGamepadBoardVisuals();
 }
 
 void UML_HoverPreviewComponent::UpdateShowPreviews(const bool Value)
@@ -108,8 +143,15 @@ void UML_HoverPreviewComponent::UpdateShowPreviews(const bool Value)
 	// Disable previews if `bShowPreviews` is false
 	if (!bShowPreviews)
 	{
-		ClearHoverPreview();
+		ClearPathHoverPreview();
 		ClearCursorHoverPreview();
+		ClearGamepadSelection();
+		ClearPlantableHighlight();
+		ClearExitHighlight();
+	}
+	else
+	{
+		RefreshGamepadBoardVisuals();
 	}
 }
 
@@ -118,8 +160,27 @@ void UML_HoverPreviewComponent::UpdateHoverPreview()
 	// Do not show preview if `bShowPreviews` is false
 	if (!bShowPreviews) return;
 
-	TickHoverPreview();
+	TickPathHoverPreview();
 	TickCursorHoverPreview();
+}
+
+AML_Tile* UML_HoverPreviewComponent::ResolveHoveredTile() const
+{
+	if (!IsValid(OwningController))
+		return nullptr;
+
+	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
+	AML_Tile* Tile = ForcedHoverTile
+		? ForcedHoverTile
+		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
+
+	// A non-interactable tile reads as empty space: no glow, no path preview, no hover broadcast.
+	// Filtered here rather than at each call site so both inputs are covered at once — the gamepad
+	// selection arrives through ForcedHoverTile, which bypasses the cursor trace entirely.
+	if (IsValid(Tile) && !Tile->IsInteractable())
+		return nullptr;
+
+	return Tile;
 }
 
 void UML_HoverPreviewComponent::TickCursorHoverPreview()
@@ -127,10 +188,7 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 	if (!IsValid(OwningController))
 		return;
 
-	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
-	AML_Tile* CursorHoveredTile = ForcedHoverTile
-		? ForcedHoverTile
-		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
+	AML_Tile* CursorHoveredTile = ResolveHoveredTile();
 
 	if (CursorHoveredTile == LastCursorHoveredTile)
 		return;
@@ -141,20 +199,24 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 		return;
 	}
 
+	// Per-board glow switch: if the hovered tile's board has glow disabled, treat it as no hover.
+	const AML_BoardSpawner* CursorBoard = CursorHoveredTile->GetBoardSpawnerFromTile();
+	if (IsValid(CursorBoard) && !CursorBoard->IsGlowEnabled())
+	{
+		ClearCursorHoverPreview();
+		return;
+	}
+
 	if (IsValid(LastCursorHoveredTile))
 		LastCursorHoveredTile->StopGlowingCursorUnhovered();
 
-	if (bCurrentHoveredTileReachable)
-	{
-		const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
-		                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
-		CursorHoveredTile->GlowCursorHovered(bIsPlayerTile);
-		bLastCursorTileIsPlayerTile = bIsPlayerTile;
-	}
-	else
-	{
-		bLastCursorTileIsPlayerTile = false;
-	}
+	// Non-walkable tiles still glow on hover, just with a different (blocked) color driven by bIsWalkable.
+	// The path glow is handled separately in TickPathHoverPreview and only triggers on reachable tiles.
+	const bool bIsWalkable = UML_HexPathfinder::IsTileWalkable(CursorHoveredTile);
+	const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
+	                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
+	CursorHoveredTile->GlowCursorHovered(bIsPlayerTile, bIsWalkable);
+	bLastCursorTileIsPlayerTile = bIsPlayerTile;
 
 	LastCursorHoveredTile = CursorHoveredTile;
 }
@@ -169,28 +231,242 @@ void UML_HoverPreviewComponent::ClearCursorHoverPreview()
 	bLastCursorTileIsPlayerTile = false;
 }
 
+void UML_HoverPreviewComponent::ClearActiveGlow()
+{
+	ClearPathHoverPreview();
+	ClearCursorHoverPreview();
+}
+
+// ==================== Gamepad board visuals (plantable + selection) ====================
+
+void UML_HoverPreviewComponent::SetGamepadSelectedTile(AML_Tile* Tile)
+{
+	GamepadSelectedTile = Tile;
+	SetForcedHoverTile(Tile);    // cursor glow + path preview on the selected tile
+	RefreshPlantableHighlight(); // exclude it from the "available" glow (and re-glow the previous one)
+}
+
+void UML_HoverPreviewComponent::ClearGamepadSelection()
+{
+	if (!IsValid(GamepadSelectedTile)) return; // nothing to clear — avoids churn while moving
+	GamepadSelectedTile = nullptr;
+	ClearForcedHoverTile();
+	RefreshPlantableHighlight();
+}
+
+void UML_HoverPreviewComponent::UpdateGamepadSelection()
+{
+	// A plant selection is only offered in gamepad mode, inside a board, while stopped and not
+	// turning-to-plant (IsMoveInProgress() is the reliable "stopped" signal — see ShouldHighlightPlantableNow).
+	const bool bShouldSelect = !bCursorHoverEnabled && bShowPreviews && IsValid(OwningController)
+		&& OwningController->GetMovementMode() == EML_PlayerMovementMode::InsideBoard
+		&& !OwningController->IsMoveInProgress()
+		&& OwningController->GetBoardActionState() != EML_PlayerBoardActionState::TurningToPlant;
+
+	if (!bShouldSelect)
+	{
+		ClearGamepadSelection();
+		return;
+	}
+
+	// Keep a still-valid selection (e.g. one the player aimed with the right stick) — plantable or not, so a
+	// non-plantable tile the player deliberately hovered survives a refresh (mouse-parity stickiness).
+	if (IsValid(GamepadSelectedTile) && IsSelectableNeighborOfPlayer(GamepadSelectedTile))
+		return;
+
+	// Nothing valid selected: rest on a tile around the player. A plantable neighbor is preferred (the plant
+	// button is then immediately useful), but when none exists we still fall back to any neighbor so the
+	// cursor always hovers a tile at rest instead of clearing.
+	if (AML_Tile* Default = FindDefaultSelectableNeighbor())
+		SetGamepadSelectedTile(Default);
+	else
+		ClearGamepadSelection();
+}
+
+void UML_HoverPreviewComponent::RefreshGamepadBoardVisuals()
+{
+	// Selection first (it drives which tile is excluded from the plantable glow), then the plantable set,
+	// then the exit-plane availability. Running here (called from NotifyMovementModeChanged too) means the
+	// exit highlights correctly right after board entry, once the movement mode has flipped to InsideBoard.
+	UpdateGamepadSelection();
+	RefreshPlantableHighlight();
+	UpdateExitHighlight();
+}
+
+void UML_HoverPreviewComponent::UpdateExitHighlight()
+{
+	if (!IsValid(OwningController)) return;
+
+	// Gamepad only, inside a board, while previews are on, standing on a tile that maps to an exit plane.
+	AActor* NewPlane = nullptr;
+	if (!bCursorHoverEnabled && bShowPreviews &&
+		OwningController->GetMovementMode() == EML_PlayerMovementMode::InsideBoard &&
+		IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn))
+	{
+		if (AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile())
+			// Only highlight a usable exit — GetActiveExitPlaneForTile also filters out disabled ones, so the
+			// glow can never show for an exit the player can't actually take.
+			NewPlane = Board->GetActiveExitPlaneForTile(PlayerCharacter->CurrentTileOn);
+	}
+
+	if (NewPlane == CurrentExitPlane) return;
+
+	if (IsValid(CurrentExitPlane))
+		OwningController->OnBoardExitAvailabilityChanged.Broadcast(CurrentExitPlane, false);
+
+	CurrentExitPlane = NewPlane;
+
+	if (IsValid(CurrentExitPlane))
+		OwningController->OnBoardExitAvailabilityChanged.Broadcast(CurrentExitPlane, true);
+}
+
+void UML_HoverPreviewComponent::ClearExitHighlight()
+{
+	if (IsValid(OwningController) && IsValid(CurrentExitPlane))
+		OwningController->OnBoardExitAvailabilityChanged.Broadcast(CurrentExitPlane, false);
+	CurrentExitPlane = nullptr;
+}
+
+AML_Tile* UML_HoverPreviewComponent::FindDefaultSelectableNeighbor() const
+{
+	if (!IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return nullptr;
+
+	AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return nullptr;
+
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(PlayerCharacter->CurrentTileOn, Neighbors);
+
+	// Prefer any plantable neighbor (direction-agnostic — the player may face an obstacle). If none is
+	// plantable, fall back to the first valid neighbor so the cursor still rests on a tile around the player.
+	AML_Tile* FirstNeighbor = nullptr;
+	for (AML_Tile* Neighbor : Neighbors)
+	{
+		if (!IsValid(Neighbor)) continue;
+		// Never rest the cursor on a tile the player can't interact with (obstacle ring around the board).
+		if (!Neighbor->IsInteractable()) continue;
+		if (UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
+			return Neighbor;
+		if (!FirstNeighbor) FirstNeighbor = Neighbor;
+	}
+
+	return FirstNeighbor;
+}
+
+bool UML_HoverPreviewComponent::IsSelectableNeighborOfPlayer(const AML_Tile* Tile) const
+{
+	if (!IsValid(Tile) || !IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return false;
+
+	// Also the "is this selection still valid?" test, so a tile that became non-interactable is dropped.
+	if (!Tile->IsInteractable()) return false;
+
+	AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board)) return false;
+
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(PlayerCharacter->CurrentTileOn, Neighbors);
+	return Neighbors.Contains(Tile);
+}
+
+void UML_HoverPreviewComponent::RefreshPlantableHighlight()
+{
+	ClearPlantableHighlight();
+
+	if (!ShouldHighlightPlantableNow()) return;
+	if (!IsValid(PlayerCharacter) || !IsValid(PlayerCharacter->CurrentTileOn)) return;
+
+	AML_BoardSpawner* Board = PlayerCharacter->CurrentTileOn->GetBoardSpawnerFromTile();
+	if (!IsValid(Board) || !Board->IsGlowEnabled()) return;
+
+	FML_TileNeighbors Neighbors;
+	Board->GetNeighbors(PlayerCharacter->CurrentTileOn, Neighbors);
+
+	for (AML_Tile* Neighbor : Neighbors)
+	{
+		// Skip the currently-selected tile: it already shows the cursor glow (GlowCursorHovered),
+		// and both glows write the same tile color, so they would otherwise fight over it.
+		if (Neighbor == ForcedHoverTile) continue;
+
+		if (IsValid(Neighbor) && Neighbor->IsInteractable() && UML_TileTypeTraits::CanPlayerPlant(Neighbor->GetCurrentType()))
+		{
+			Neighbor->GlowPlantableAvailable();
+			HighlightedPlantables.Add(Neighbor);
+		}
+	}
+}
+
+void UML_HoverPreviewComponent::ClearPlantableHighlight()
+{
+	for (AML_Tile* Tile : HighlightedPlantables)
+		if (IsValid(Tile))
+			Tile->StopGlowingPlantableAvailable();
+	HighlightedPlantables.Reset();
+}
+
+bool UML_HoverPreviewComponent::ShouldHighlightPlantableNow() const
+{
+	// Gamepad-only visual, and only while previews are enabled (hidden during cinematics).
+	if (!bShowPreviews || bCursorHoverEnabled || !IsValid(OwningController))
+		return false;
+
+	if (OwningController->GetMovementMode() != EML_PlayerMovementMode::InsideBoard)
+		return false;
+
+	// Only when the player is stopped. Use IsMoveInProgress() (already false once a move commits)
+	// rather than the Idle state: when a move finishes, OnBoardActivityStateChanged(false) is broadcast
+	// just before the state flips to Idle, so testing == Idle here would miss the highlight at the stop.
+	// Exclude the turn-to-plant state (input locked) explicitly.
+	return !OwningController->IsMoveInProgress() &&
+		OwningController->GetBoardActionState() != EML_PlayerBoardActionState::TurningToPlant;
+}
+
+void UML_HoverPreviewComponent::HandleBoardActivityStateChanged(bool bIsMoving)
+{
+	// Move start clears the selection; move stop re-offers a default one. Plantables follow too.
+	RefreshGamepadBoardVisuals();
+}
+
+void UML_HoverPreviewComponent::HandleWavePropagationFinished()
+{
+	// Tiles may have changed type during the propagation — recompute selection + plantables once.
+	RefreshGamepadBoardVisuals();
+}
+
+void UML_HoverPreviewComponent::HandleRollbackAnimating(bool bAnimating)
+{
+	if (bAnimating)
+	{
+		// Hide the board visuals while the undo/reset animation reverts tiles.
+		ClearGamepadSelection();
+		ClearPlantableHighlight();
+		ClearExitHighlight();
+	}
+	else
+	{
+		// Animation done — the board is back to its restored state, recompute from it.
+		RefreshGamepadBoardVisuals();
+	}
+}
+
 void UML_HoverPreviewComponent::SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable)
 {
 	bCurrentHoveredTileReachable = bIsReachable;
 	OnHoveredTileChanged.Broadcast(HoveredTile, bIsReachable);
 }
 
-void UML_HoverPreviewComponent::TickHoverPreview()
+void UML_HoverPreviewComponent::TickPathHoverPreview()
 {
 	if (!IsValid(OwningController))
         return;
 
-	// ForcedHoverTile takes priority; in gamepad mode the physical cursor position is ignored.
-	AML_Tile* HoveredTile = ForcedHoverTile
-		? ForcedHoverTile
-		: (bCursorHoverEnabled ? OwningController->GetTileUnderCursor() : nullptr);
+	AML_Tile* HoveredTile = ResolveHoveredTile();
 
     // Same tile as before → no update needed unless it became non-walkable.
-    if (HoveredTile == LastHoveredTile)
+    if (HoveredTile == LastPathHoveredTile)
     {
         if (IsValid(HoveredTile) && bCurrentHoveredTileReachable && !UML_HexPathfinder::IsTileWalkable(HoveredTile))
         {
-            ClearHoverPreview();
+            ClearPathHoverPreview();
             ClearCursorHoverPreview();
         }
         return;
@@ -201,7 +477,7 @@ void UML_HoverPreviewComponent::TickHoverPreview()
         if (IsValid(Tile)) Tile->StopGlowingPathWalk();
     CurrentPreviewPath.Empty();
 
-    LastHoveredTile = HoveredTile;
+    LastPathHoveredTile = HoveredTile;
 
     if (!IsValid(HoveredTile))
     {
@@ -213,6 +489,13 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     const AML_BoardSpawner* Board = HoveredTile->GetBoardSpawnerFromTile();
     
     if (!IsValid(Board))
+    {
+        SetHoveredTileState(HoveredTile, false);
+        return;
+    }
+
+    // Per-board glow switch: no path preview when this board's glow is disabled.
+    if (!Board->IsGlowEnabled())
     {
         SetHoveredTileState(HoveredTile, false);
         return;
@@ -259,16 +542,16 @@ void UML_HoverPreviewComponent::TickHoverPreview()
     }
 }
 
-void UML_HoverPreviewComponent::ClearHoverPreview()
+void UML_HoverPreviewComponent::ClearPathHoverPreview()
 {
 	for (AML_Tile* Tile : CurrentPreviewPath)
 		if (IsValid(Tile)) Tile->StopGlowingPathWalk();
 	CurrentPreviewPath.Empty();
 
-	if (LastHoveredTile != nullptr)
+	if (LastPathHoveredTile != nullptr)
 		SetHoveredTileState(nullptr, false);
 
-	LastHoveredTile = nullptr;
+	LastPathHoveredTile = nullptr;
 }
 
 TArray<AML_Tile*> UML_HoverPreviewComponent::BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const

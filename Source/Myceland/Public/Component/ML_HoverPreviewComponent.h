@@ -35,10 +35,24 @@ private:
 	bool bLastCursorTileIsPlayerTile = false;
 
 	UPROPERTY(Transient)
-	AML_Tile* LastHoveredTile = nullptr;
+	AML_Tile* LastPathHoveredTile = nullptr;
 
 	UPROPERTY(Transient)
 	TArray<AML_Tile*> CurrentPreviewPath;
+
+	// Gamepad only: the plantable neighbor tiles currently glowing around the player (GlowPlantableAvailable).
+	UPROPERTY(Transient)
+	TArray<AML_Tile*> HighlightedPlantables;
+
+	// Gamepad only: the single tile currently selected (cursor glow) — plantable or not, the right stick can
+	// hover any tile around the player. Owned here so the board visuals (plantable set + selection) live in one
+	// place. The gamepad handler only sets/reads it; the plant button rejects it if it is not plantable.
+	UPROPERTY(Transient)
+	AML_Tile* GamepadSelectedTile = nullptr;
+
+	// Gamepad only: the exit plane currently broadcast as available (player standing on its exit tile).
+	UPROPERTY(Transient)
+	AActor* CurrentExitPlane = nullptr;
 
 	bool bCurrentHoveredTileReachable = false;
 
@@ -59,11 +73,60 @@ private:
 	bool bCursorHoverEnabled = true;
 
 	void UpdateHoverPreview();
-	void TickHoverPreview();
+
+	/** The tile the preview should currently treat as hovered (forced tile, else the cursor one), or
+	 *  nullptr. Single place where a tile is rejected as non-interactable, so both inputs are covered. */
+	AML_Tile* ResolveHoveredTile() const;
+
+	void TickPathHoverPreview();
 	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();
 	void SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable);
 	TArray<AML_Tile*> BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const;
+
+	// ===== Gamepad board visuals (plantable highlight + selection) =====
+
+	/** Rebuilds the plantable-neighbor glow around the player (gamepad + inside board only). */
+	void RefreshPlantableHighlight();
+
+	/** Stops glowing every currently-highlighted plantable tile. */
+	void ClearPlantableHighlight();
+
+	/** True when the plantable highlight should currently show (gamepad, inside board, stopped). */
+	bool ShouldHighlightPlantableNow() const;
+
+	/** Clears the gamepad plant selection and its cursor glow. */
+	void ClearGamepadSelection();
+
+	/** Validates / auto-selects the gamepad selection (default = a neighbor when stopped, plantable preferred). */
+	void UpdateGamepadSelection();
+
+	/** Recomputes the whole gamepad board visual: selection, plantable glow, and exit-plane availability. */
+	void RefreshGamepadBoardVisuals();
+
+	/** Broadcasts exit-plane availability (via the controller delegate) for the player's current tile. */
+	void UpdateExitHighlight();
+
+	/** Broadcasts "unavailable" for the currently highlighted exit plane, if any, and forgets it. */
+	void ClearExitHighlight();
+
+	/** Returns a default neighbor of the player's tile (direction-agnostic): a plantable one if any exists,
+	 *  otherwise any neighbor so the cursor always rests on a tile around the player. Nullptr if no neighbor. */
+	AML_Tile* FindDefaultSelectableNeighbor() const;
+
+	/** True if Tile is a neighbor of the player's current tile (plantable or not). */
+	bool IsSelectableNeighborOfPlayer(const AML_Tile* Tile) const;
+
+	UFUNCTION()
+	void HandleBoardActivityStateChanged(bool bIsMoving);
+
+	UFUNCTION()
+	void HandleWavePropagationFinished();
+
+	// Undo / reset animation: hide the board visuals while it plays, recompute once it finishes (covers
+	// undoing an action that did not move the player, e.g. undoing the plant that killed the player).
+	UFUNCTION()
+	void HandleRollbackAnimating(bool bAnimating);
 
 public:
 
@@ -74,12 +137,25 @@ public:
 	void NotifyMovementModeChanged(EML_PlayerMovementMode NewMode);
 	void NotifyPlayerTileChanged();
 
-	void ClearHoverPreview();
+	void ClearPathHoverPreview();
 	void StartHoverPreviewTimer();
 	void StopHoverPreviewTimer();
+
+	// Clears the currently active glow (cursor + path) immediately.
+	// Used when a board's glow is toggled OFF while it is being hovered: the per-tick
+	// same-tile short-circuit would otherwise leave a stale glow on the hovered tile.
+	void ClearActiveGlow();
 	
 	void SetForcedHoverTile(AML_Tile* Tile);
 	void ClearForcedHoverTile();
+
+	// ===== Gamepad plant selection (called by the gamepad input handler) =====
+
+	/** Sets the gamepad plant selection (right-stick aim), rendering its cursor glow + updating plantables. */
+	void SetGamepadSelectedTile(AML_Tile* Tile);
+
+	/** The tile the plant button should act on, or nullptr. */
+	AML_Tile* GetGamepadSelectedTile() const { return GamepadSelectedTile; }
 
 	void UpdateShowPreviews(const bool Value);
 	void NotifyInputDeviceChanged(EML_InputDevice NewDevice);

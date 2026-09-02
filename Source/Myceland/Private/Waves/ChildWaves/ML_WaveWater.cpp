@@ -10,8 +10,6 @@
 
 void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& OutChanges)
 {
-	GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Blue, TEXT("Water Wave"));
-	
 	if (!OriginTile) return;
 
 	AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
@@ -39,6 +37,7 @@ void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
 		return;
 
 	// Chain propagation
+	FML_TileNeighbors Neighbors;
 	while (!Queue.IsEmpty())
 	{
 		TPair<AML_Tile*, int32> Current;
@@ -47,7 +46,7 @@ void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
 		AML_Tile* CurrentTile = Current.Key;
 		int32 Distance = Current.Value;
 
-		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(CurrentTile);
+		Board->GetNeighbors(CurrentTile, Neighbors);
 		for (AML_Tile* Neighbor : Neighbors)
 		{
 			if (!Neighbor || Visited.Contains(Neighbor))
@@ -56,14 +55,30 @@ void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
 			Visited.Add(Neighbor);
 
 			// Water eats only a parasite
-			if (UML_TileTypeTraits::CanWaterPropagateTo(Neighbor->GetCurrentType()))
-			{
-				OutChanges.Add(FML_WaveChange(Neighbor, EML_TileType::Water, Distance + 1));
-
-				// The transformed parasite becomes water
-				// therefore, it can continue to spread
-				Queue.Enqueue({ Neighbor, Distance + 1 });
-			}
+			// Water eats:
+            // 1. A real parasite
+            // 2. Grass that is currently in the delayed Grass -> Parasite transition
+            const bool bIsParasite =
+                UML_TileTypeTraits::CanWaterPropagateTo(Neighbor->GetCurrentType());
+            
+            const bool bIsPendingParasite =
+                Neighbor->GetCurrentType() == EML_TileType::Grass &&
+                Neighbor->bConsumedGrass;
+            
+            if (bIsParasite || bIsPendingParasite)
+            {
+                OutChanges.Add(
+                    FML_WaveChange(
+                        Neighbor,
+                        EML_TileType::Water,
+                        Distance + 1
+                    )
+                );
+            
+                // Once consumed, this tile becomes water and can continue
+                // propagating through the parasite chain.
+                Queue.Enqueue({ Neighbor, Distance + 1 });
+            }
 		}
 	}
 }

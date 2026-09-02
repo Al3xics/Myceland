@@ -78,5 +78,12 @@ void AML_TileObstacle::HandleWin()
 		return;
 	}
 
-	SwitchAlive();
+	 FTimerHandle TimerHandle;
+        GetWorldTimerManager().SetTimer(
+            TimerHandle,
+            this,
+            &AML_TileObstacle::SwitchAlive,
+            1.0f,
+            false
+        );
 }

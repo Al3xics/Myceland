@@ -8,6 +8,7 @@
 #include "ML_RollBackSubsystem.generated.h"
 
 class UML_MycelandDeveloperSettings;
+class UML_BiomeTileSet;
 class AML_PlayerController;
 class AML_PlayerCharacter;
 class AML_BoardSpawner;
@@ -17,11 +18,16 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRollbackUndoAnimating, bool, IsUn
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRollbackResetAnimating, bool, IsResetAnimating);
 
 UCLASS()
-class MYCELAND_API UML_RollBackSubsystem : public UWorldSubsystem
+class MYCELAND_API UML_RollBackSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	// Ticks only while an undo wave group is being time-sliced across frames (see IsTickable).
+	virtual void Tick(float DeltaTime) override;
+	virtual bool IsTickable() const override;
+	virtual TStatId GetStatId() const override;
+
 	void EnsureInitialized();
 
 	void BeginTurnRecord(AML_Tile* OriginTile);
@@ -82,6 +88,11 @@ private:
 
 	TArray<FML_ActionUndoRecord>* GetCurrentBoardStack();
 
+	// True when the player's current board's puzzle is solved. Undo/reset are refused then: the mouse UI
+	// hides its buttons on win, but a gamepad/keyboard shortcut could otherwise still reach undo/reset.
+	// bIsPuzzleSolved is set the moment the win is detected, so this covers the whole post-win window.
+	bool IsCurrentBoardSolved() const;
+
 	UPROPERTY(Transient)
 	FML_TurnUndoRecord CurrentTurnRecord;
 
@@ -100,6 +111,18 @@ private:
 	UPROPERTY(Transient)
 	TArray<FML_SpawnUndoDelta> PendingUndoSpawnDeltas;
 
+	// Read cursors into the pending delta arrays (consumed in place, no removal).
+	int32 PendingUndoTileIndex = 0;
+	int32 PendingUndoSpawnIndex = 0;
+
+	// Time-slicing state: the current undo wave group — all deltas sharing the same
+	// (PriorityIndex, DistanceFromOrigin) — is applied under a per-frame CPU budget
+	// (DevSettings->RollbackFrameBudgetMs). If the group doesn't fit in one frame,
+	// the remainder continues in Tick on the following frames.
+	bool bUndoGroupInProgress = false;
+	int32 CurrentUndoGroupPriority = 0;
+	int32 CurrentUndoGroupDistance = 0;
+
 	FTimerHandle UndoWaveTimerHandle;
 
 	UPROPERTY(Transient)
@@ -113,13 +136,29 @@ private:
 
 	UPROPERTY(Transient)
 	bool bUndoTimeDilationApplied = false;
-	
+
+	// Time dilation currently applied for the active undo/reset operation.
+	UPROPERTY(Transient)
+	float AppliedTimeDilation = 1.0f;
+
+	// Minimum real (non-dilated) seconds enforced between two undo/reset waves.
+	UPROPERTY(Transient)
+	float MinRealSecondsPerWave = 0.033f;
+
+	// Cached once per turn (set alongside ActiveUndoRecord) to avoid recomputing
+	// per wave group inside ApplyUndoWaveGroup.
+	TSet<FIntPoint> CachedSpawnedCollectibleAxials;
+	const UML_BiomeTileSet* CachedActiveUndoTileSet = nullptr;
+
 	UFUNCTION()
 	void OnBoardChanged(const AML_Tile* OldTile, const AML_Tile* NewTile);
-	
+
 	void RunUndoWave();
+	void ContinueUndoGroupSlice();
+	void PeekNextUndoGroup(int32& OutPriority, int32& OutDistance) const;
+	double MakeUndoSliceDeadline() const;
 	void ScheduleNextUndoWave(float Delay);
-	void ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin);
+	bool ApplyUndoWaveGroup(int32 PriorityIndex, int32 DistanceFromOrigin, double Deadline);
 	bool UndoSingleAction_Animated();
 	bool UndoUntilPlant_Animated();
 	void StartNextUndoUntilPlantStep();

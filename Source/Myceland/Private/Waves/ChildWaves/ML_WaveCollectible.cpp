@@ -13,8 +13,6 @@
 
 void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const TArray<AML_Tile*>& ParasitesThatAteGrass, TArray<FML_WaveChange>& OutChanges)
 {
-    GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, TEXT("Collectible Wave"));
-    
     if (!OriginTile || ParasitesThatAteGrass.Num() == 0) return;
 
     AML_BoardSpawner* Board = OriginTile->GetBoardSpawnerFromTile();
@@ -39,7 +37,8 @@ void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const
 
         if (!Tile) continue;
 
-        TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Tile);
+        FML_TileNeighbors Neighbors;
+        Board->GetNeighbors(Tile, Neighbors);
         for (AML_Tile* Neighbor : Neighbors)
         {
             if (!Neighbor || Visited.Contains(Neighbor))
@@ -55,7 +54,8 @@ void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const
                 UML_TileTypeTraits::CanSpawnCollectible(Neighbor->GetCurrentType()))
             {
                 // Check if this tile is near a parasite that has eaten
-                TArray<AML_Tile*> CheckNeighbors = Board->GetNeighbors(Neighbor);
+                FML_TileNeighbors CheckNeighbors;
+                Board->GetNeighbors(Neighbor, CheckNeighbors);
                 for (AML_Tile* CheckTile : CheckNeighbors)
                 {
                     if (ParasiteSet.Contains(CheckTile))

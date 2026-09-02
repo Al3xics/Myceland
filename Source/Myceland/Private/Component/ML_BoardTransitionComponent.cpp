@@ -20,12 +20,35 @@ void UML_BoardTransitionComponent::Initialize(AML_PlayerController* Controller, 
 	RotateSpeed      = InRotateSpeed;
 }
 
+float UML_BoardTransitionComponent::GetCursorTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetCursorDetectionTickInterval() : 1.f / 30.f;
+}
+
+float UML_BoardTransitionComponent::GetExitHoldTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetExitHoldTickInterval() : 1.f / 60.f;
+}
+
+float UML_BoardTransitionComponent::GetTurnTickInterval() const
+{
+	return IsValid(DevSettings) ? DevSettings->GetTurnTowardTileTickInterval() : 1.f / 60.f;
+}
+
 // ==================== Mode management ====================
 
 void UML_BoardTransitionComponent::SwitchToMode(EML_PlayerMovementMode NewMode)
 {
 	const EML_PlayerMovementMode OldMode = CurrentMovementMode;
 	CurrentMovementMode = NewMode;
+
+	// Ground detection only runs while the cursor can leave the board (InsideBoard/ExitingBoard).
+	const bool bBoardMode = NewMode == EML_PlayerMovementMode::InsideBoard ||
+	                        NewMode == EML_PlayerMovementMode::ExitingBoard;
+	if (bBoardMode)
+		StartGroundHoverDetection();
+	else
+		StopGroundHoverDetection();
 
 	// ExitingBoard → InsideBoard: this is a CANCELLED exit — clean up exit state
 	if (OldMode == EML_PlayerMovementMode::ExitingBoard &&
@@ -59,6 +82,30 @@ bool UML_BoardTransitionComponent::IsOutsideBoardMovementMode() const
 		CurrentMovementMode == EML_PlayerMovementMode::EnteringBoard;
 }
 
+void UML_BoardTransitionComponent::ForceFreeMovement()
+{
+	// Clear the exit-hold timer + state (SetMovementMode alone would leak the running timer).
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
+
+	if (bIsHoldingExitInput || bWasExitingLastFrame)
+		OnExitCursorHold.Broadcast(false, 0.f);
+
+	ExitHoldTimer         = 0.f;
+	bIsHoldingExitInput   = false;
+	bWasExitingLastFrame  = false;
+	bHasExitTargetWorld   = false;
+	LastBroadcastProgress = -1.f;
+	PendingExitBorderTile = nullptr;
+
+	// Clear pending board-entry state.
+	bPendingBoardEntryOnArrival   = false;
+	PendingBoardEntryTargetTile   = nullptr;
+	bPendingFreeMovementOnArrival = false;
+
+	OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
+}
+
 // ==================== Exit hold ====================
 
 void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, const FVector& WorldTarget)
@@ -79,7 +126,7 @@ void UML_BoardTransitionComponent::RequestExitHold(AML_Tile* ExitBorderTile, con
 		ExitHoldTimerHandle,
 		this,
 		&UML_BoardTransitionComponent::TickExitHold,
-		1.f / 60.f,
+		GetExitHoldTickInterval(),
 		true
 	);
 }
@@ -121,8 +168,14 @@ void UML_BoardTransitionComponent::TickExitHold()
 		return;
 	}
 
-	// Calculate progress
-	const float Progress = FMath::Clamp(ExitHoldTimer / DevSettings->ExitBoardHoldDuration, 0.f, 1.f);
+	// Calculate progress. A zero (or negative) hold duration means "no hold" — a simple press
+	// exits immediately, so progress is already full on the first tick (guards against div-by-zero).
+	// Mouse and gamepad have separate hold durations (they share the tick rate). OwningController is
+	// guaranteed valid here (checked at the top of TickExitHold).
+	const float HoldDuration = OwningController->IsGamepadActive() ? DevSettings->ExitBoardHoldDurationGamepad : DevSettings->ExitBoardHoldDurationMouse;
+	const float Progress = (HoldDuration > KINDA_SMALL_NUMBER)
+		? FMath::Clamp(ExitHoldTimer / HoldDuration, 0.f, 1.f)
+		: 1.f;
 
 	const bool bJustStartedExiting = !bWasExitingLastFrame;
 	const bool bProgressChanged    = FMath::Abs(Progress - LastBroadcastProgress) > 0.01f;
@@ -134,9 +187,10 @@ void UML_BoardTransitionComponent::TickExitHold()
 	}
 
 	bWasExitingLastFrame = true;
-	ExitHoldTimer += 1.f / 60.f;
+	// Must match the timer rate: the hold progress advances by exactly one tick interval per tick.
+	ExitHoldTimer += GetExitHoldTickInterval();
 
-	if (ExitHoldTimer >= DevSettings->ExitBoardHoldDuration)
+	if (ExitHoldTimer >= HoldDuration)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(ExitHoldTimerHandle);
 		ExitHoldTimer         = 0.f;
@@ -144,7 +198,12 @@ void UML_BoardTransitionComponent::TickExitHold()
 		LastBroadcastProgress = -1.f;
 
 		OnExitCursorHold.Broadcast(false, 1.0f);
-		
+
+		// The hold is fulfilled: clear the holding flag before starting the walk-out. From here the player is
+		// carried off the board by the navmesh (see ConfirmExitBoard) while staying in ExitingBoard, and the
+		// stick/cursor must no longer run the exit-cancel logic (HandleExitingBoardStick / TickGroundHover).
+		bIsHoldingExitInput = false;
+
 		OwningController->ClearForcedHoverTile();
 		ConfirmExitBoard();
 	}
@@ -169,12 +228,23 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 	if (StartAxial == GoalAxial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[EXIT] Direct exit (already on border tile)"));
-		OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 
 		if (bHasExitTargetWorld)
 		{
+			// Stay in ExitingBoard while the navmesh carries the player off the board. The switch to
+			// FreeMovement happens in AML_PlayerController::HandleBoardStateChanged the moment the player
+			// physically leaves the board footprint (board -> null). Until then no free-movement input is
+			// accepted (in ExitingBoard the stick routes to HandleExitingBoardStick and mouse clicks are
+			// ignored), so the player can't hijack the walk-out and end up free-moving while still on the
+			// board's tiles. TickMoveAlongPath force-switches to FreeMovement if the walk-out ever finishes
+			// without leaving the footprint (e.g. an exit plane placed on a border tile).
 			OwningController->StartNavMeshMovement(PendingExitTargetWorld);
 			bHasExitTargetWorld = false;
+		}
+		else
+		{
+			// No target to walk to — nothing would carry the player out, so leave immediately.
+			OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 		}
 
 		PendingExitBorderTile = nullptr;
@@ -190,11 +260,74 @@ void UML_BoardTransitionComponent::ConfirmExitBoard()
 		AxialPath.Num(), bHasExitTargetWorld);
 
 	bPendingFreeMovementOnArrival = true;
-	// Walk to border inside board; FreeMovement triggers on arrival via HandlePathFinished
+	// Walk to the border tile-by-tile inside the board. On arrival HandlePathFinished switches to ExitingBoard
+	// and navmeshes off the board; FreeMovement then triggers once the player leaves the board footprint.
 	OwningController->SetMovementMode(EML_PlayerMovementMode::InsideBoard);
 	// Don't clear pending exit state: HandlePathFinished needs PendingExitTargetWorld.
 
 	OwningController->StartMoveAlongPath(AxialPath, GridMap);
+}
+
+// ==================== Ground hover (cursor outside-board detection) ====================
+
+void UML_BoardTransitionComponent::StartGroundHoverDetection()
+{
+	if (!bCursorGroundDetectionEnabled || GroundHoverTimerHandle.IsValid()) return;
+
+	GetWorld()->GetTimerManager().SetTimer(
+		GroundHoverTimerHandle,
+		this,
+		&UML_BoardTransitionComponent::TickGroundHover,
+		GetCursorTickInterval(), // Same rate as the hover preview — enough for cursor detection
+		true
+	);
+}
+
+void UML_BoardTransitionComponent::StopGroundHoverDetection()
+{
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(GroundHoverTimerHandle);
+
+	SetHoveredGroundActor(nullptr);
+}
+
+void UML_BoardTransitionComponent::TickGroundHover()
+{
+	if (!IsValid(OwningController)) return;
+
+	FHitResult Hit;
+	AActor* NewGround = OwningController->GetGroundUnderCursor(Hit) ? Hit.GetActor() : nullptr;
+	SetHoveredGroundActor(NewGround);
+
+	// Exit hold in progress but the cursor left the designated ground (moved back over the board,
+	// onto decor, or off any ground): cancel the exit. TickExitHold sees the cleared flag on its
+	// next tick and performs the state cleanup + mode switch back to InsideBoard.
+	if (bIsHoldingExitInput && !IsValid(HoveredGroundActor))
+	{
+		CancelExitHold();
+		// The mouse release handler only clears the exit glow when the hold is still active on
+		// release, so an auto-cancelled hold must clear it here.
+		OwningController->ClearForcedHoverTile();
+		OwningController->ClearPathHoverPreview();
+	}
+}
+
+void UML_BoardTransitionComponent::SetHoveredGroundActor(AActor* NewGround)
+{
+	if (HoveredGroundActor == NewGround) return;
+
+	HoveredGroundActor = NewGround;
+	OnHoveredGroundChanged.Broadcast(NewGround);
+}
+
+void UML_BoardTransitionComponent::NotifyInputDeviceChanged(EML_InputDevice NewDevice)
+{
+	bCursorGroundDetectionEnabled = (NewDevice == EML_InputDevice::MouseKeyboard);
+
+	if (!bCursorGroundDetectionEnabled) // --> if using gamepad, stop ground hover detection
+		StopGroundHoverDetection();
+	else if (CurrentMovementMode == EML_PlayerMovementMode::InsideBoard || CurrentMovementMode == EML_PlayerMovementMode::ExitingBoard)
+		StartGroundHoverDetection();
 }
 
 // ==================== Board entry / action state ====================
@@ -207,6 +340,11 @@ void UML_BoardTransitionComponent::SetBoardActionState(EML_PlayerBoardActionStat
 
 void UML_BoardTransitionComponent::RequestBoardEntry(AML_Tile* TargetTile)
 {
+	// Per-board transition switch: if the target board has entry/exit disabled, do nothing.
+	// The NavMesh move issued by the caller still runs, so the player walks to the tile in free movement.
+	const AML_BoardSpawner* Board = IsValid(TargetTile) ? TargetTile->GetBoardSpawnerFromTile() : nullptr;
+	if (IsValid(Board) && !Board->IsBoardTransitionEnabled()) return;
+
 	PendingBoardEntryTargetTile = TargetTile;
 	bPendingBoardEntryOnArrival = true;
 	OwningController->SetMovementMode(EML_PlayerMovementMode::EnteringBoard);
@@ -231,13 +369,20 @@ void UML_BoardTransitionComponent::StartTurnTowardTile(AML_Tile* Target)
 	BoardActionState       = EML_PlayerBoardActionState::TurningToPlant;
 	OnBoardActivityStateChanged.Broadcast(true);
 
+	// Tell Blueprint that the planting sequence has started.
+	// Character begins rotating at the same time.
+	if (IsValid(OwningController))
+	{
+		OwningController->NotifyGrassPlantStarted(Target);
+	}
+
 	if (!TurnTowardTileTimerHandle.IsValid())
 	{
 		GetWorld()->GetTimerManager().SetTimer(
 			TurnTowardTileTimerHandle,
 			this,
 			&UML_BoardTransitionComponent::UpdateTurnTowardPendingTile,
-			1.f / 60.f,
+			GetTurnTickInterval(),
 			true
 		);
 	}
@@ -274,7 +419,8 @@ void UML_BoardTransitionComponent::UpdateTurnTowardPendingTile()
 		return;
 	}
 
-	const bool bStillTurning = RotateCharacterTowardTile(PendingPlantTargetTile, 1.f / 60.f, RotateSpeed);
+	// DeltaTime must match the timer rate so the RInterpTo rotation speed stays framerate-independent.
+	const bool bStillTurning = RotateCharacterTowardTile(PendingPlantTargetTile, GetTurnTickInterval(), RotateSpeed);
 
 	if (!bStillTurning)
 	{
@@ -302,12 +448,14 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 		UE_LOG(LogTemp, Warning, TEXT("[EXIT] OnPathFinished: bPendingFreeMovementOnArrival=true"));
 
 		bPendingFreeMovementOnArrival = false;
-		OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 
 		if (bHasExitTargetWorld)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[EXIT] Returning StartNavMesh command to %s"),
-				*PendingExitTargetWorld.ToString());
+			UE_LOG(LogTemp, Warning, TEXT("[EXIT] Returning StartNavMesh command to %s"), *PendingExitTargetWorld.ToString());
+			// Reached the border tile; now cross off the board via navmesh. Stay in ExitingBoard (input stays
+			// disabled) until the player physically leaves the footprint — HandleBoardStateChanged then flips
+			// to FreeMovement. Same rationale as the direct-exit case in ConfirmExitBoard.
+			OwningController->SetMovementMode(EML_PlayerMovementMode::ExitingBoard);
 			Cmd.bStartNavMesh   = true;
 			Cmd.NavMeshTarget   = PendingExitTargetWorld;
 			bHasExitTargetWorld = false;
@@ -315,6 +463,7 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 		else
 		{
 			UE_LOG(LogTemp, Error, TEXT("[EXIT] ERROR: bHasExitTargetWorld is FALSE!"));
+			OwningController->SetMovementMode(EML_PlayerMovementMode::FreeMovement);
 		}
 
 		PendingExitBorderTile = nullptr;
@@ -374,7 +523,8 @@ FBoardTransitionCommand UML_BoardTransitionComponent::HandlePathFinished(AML_Pla
 			return Cmd;
 		}
 
-		TArray<AML_Tile*> Neighbors = Board->GetNeighbors(Character->CurrentTileOn);
+		FML_TileNeighbors Neighbors;
+		Board->GetNeighbors(Character->CurrentTileOn, Neighbors);
 		if (Neighbors.Contains(PendingPlantTargetTile) &&
 			UML_TileTypeTraits::CanPlayerPlant(PendingPlantTargetTile->GetCurrentType()) &&
 			OwningController->HasEnergy())
