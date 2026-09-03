@@ -559,8 +559,16 @@ void UML_GameUserSettings::LoadSettings(bool bForceReload)
 	Super::LoadSettings(bForceReload);
 	
 	LoadResolution();
-	// ResolutionScale = FMath::Clamp(Super::GetResolutionScaleNormalized() * 100.0f, 1.0f, 100.0f);
-	ResolutionScale = ScalabilityQuality.ResolutionQuality;
+
+	// ScalabilityQuality.ResolutionQuality has no persisted state to trust on a true first run
+	// (no saved GameUserSettings.ini / [ScalabilityGroups] section yet), so it can hold whatever
+	// raw value the engine's scalability defaults happen to assign rather than our project default
+	// (DefaultResolutionScale, mirrored in DefaultEngine.ini's r.ScreenPercentage.Default). Fall back
+	// to the project default whenever the loaded value is outside the slider's valid 1-100 range.
+	const float LoadedResolutionQuality = ScalabilityQuality.ResolutionQuality;
+	ResolutionScale = (LoadedResolutionQuality >= 1.0f && LoadedResolutionQuality <= 100.0f)
+		? LoadedResolutionQuality
+		: DefaultResolutionScale;
 	WindowMode = Super::GetFullscreenMode();
 	bVSync = Super::IsVSyncEnabled();
 	FrameRLimit = Super::GetFrameRateLimit();
@@ -577,6 +585,16 @@ void UML_GameUserSettings::LoadSettings(bool bForceReload)
 	ApplyAudioSettings();
 	ApplyControlsSettings();
 	ApplyAccessibilitySettings();
+
+	// Deliberately NOT calling ApplySettings()/ApplyGraphicsSettings() here. Every Apply* variant
+	// (ApplySettings, ApplyResolutionSettings, even ApplyNonResolutionSettings alone) calls
+	// Engine's UGameUserSettings::ValidateSettings() internally, and ValidateSettings() itself calls
+	// LoadSettings(true) whenever !IsVersionValid() — which is exactly the case on a true first run
+	// (no saved ini yet). Calling any Apply* from inside LoadSettings() re-enters LoadSettings()
+	// before it has returned, which re-enters Apply*, forever: confirmed by two
+	// EXCEPTION_STACK_OVERFLOW crashes in Standalone with an earlier version of this function that
+	// did call ApplySettings(false) here. Graphics stay pending (as before) until the player opens
+	// Settings or hits Apply; only the safe read-time fallback above (ResolutionScale) changed.
 
 	OnSettingsLoaded.Broadcast();
 }

@@ -24,15 +24,26 @@ void UML_AmbienceSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		WinLoseSubsystem->OnWin.AddDynamic(this, &UML_AmbienceSubsystem::HandlePuzzleWon);
 	}
 
-	if (DevSettings && DevSettings->bAutoStartAmbienceEnviro)
-	{
-		StartAmbience();
-	}
+	// Deferred by one tick: AML_BoardSpawner::BeginPlay (which restores bIsPuzzleSolved from the
+	// save) hasn't necessarily run yet at this point, since world subsystems begin play before
+	// actors do. Waiting one tick guarantees every board's solved state is settled before we read it.
+	InWorld.GetTimerManager().SetTimer(
+		SeedStateTimerHandle,
+		this,
+		&UML_AmbienceSubsystem::SeedStateFromAlreadySolvedBoards,
+		KINDA_SMALL_NUMBER,
+		false);
 }
 
 void UML_AmbienceSubsystem::Deinitialize()
 {
 	StopAmbience();
+	StopMusicLayers();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(SeedStateTimerHandle);
+	}
 
 	if (WinLoseSubsystem)
 	{
@@ -114,6 +125,8 @@ void UML_AmbienceSubsystem::HandlePuzzleWon()
 		WonPuzzleCount,
 		TotalPuzzleCount,
 		GetLivingAmbienceRatio());
+
+	UnlockNextMusicLayer();
 }
 
 void UML_AmbienceSubsystem::PlayNextAmbienceSound()
@@ -188,6 +201,104 @@ void UML_AmbienceSubsystem::InitializePuzzleCount()
 	UE_LOG(LogMycelandAmbience, Log, TEXT("Ambience Enviro initialized for %s with %d puzzle(s)."),
 		*GetCleanMapName(),
 		TotalPuzzleCount);
+}
+
+void UML_AmbienceSubsystem::SeedStateFromAlreadySolvedBoards()
+{
+	TArray<AActor*> FoundBoards;
+	UGameplayStatics::GetAllActorsOfClass(this, AML_BoardSpawner::StaticClass(), FoundBoards);
+
+	for (AActor* Actor : FoundBoards)
+	{
+		const AML_BoardSpawner* Board = Cast<AML_BoardSpawner>(Actor);
+		if (IsValid(Board) && Board->bIsPuzzleSolved)
+		{
+			WonBoards.Add(FObjectKey(Board));
+		}
+	}
+
+	WonPuzzleCount = FMath::Clamp(WonBoards.Num(), 0, TotalPuzzleCount);
+
+	UE_LOG(LogMycelandAmbience, Log, TEXT("Ambience Enviro seeded from existing save state: %d/%d already solved."),
+		WonPuzzleCount,
+		TotalPuzzleCount);
+
+	if (DevSettings && DevSettings->bAutoStartAmbienceEnviro)
+	{
+		StartAmbience();
+	}
+
+	if (DevSettings && DevSettings->bAutoStartMusicLayers)
+	{
+		StartMusicLayers();
+	}
+}
+
+void UML_AmbienceSubsystem::StartMusicLayers()
+{
+	if (!ActiveMusicLayerHandles.IsEmpty())
+	{
+		return;
+	}
+
+	if (!DevSettings)
+	{
+		DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	}
+
+	if (!DevSettings || DevSettings->MusicLayerEventPaths.IsEmpty())
+	{
+		UE_LOG(LogMycelandAmbience, Warning, TEXT("Music layering has no FMOD event paths configured."));
+		return;
+	}
+
+	// Catch up to however many layers were already unlocked (e.g. on a reloaded save), then leave
+	// the rest to unlock one by one as future puzzles are won.
+	const int32 LayersToStart = FMath::Clamp(WonPuzzleCount + 1, 1, DevSettings->MusicLayerEventPaths.Num());
+	for (int32 i = 0; i < LayersToStart; ++i)
+	{
+		UnlockNextMusicLayer();
+	}
+}
+
+void UML_AmbienceSubsystem::StopMusicLayers()
+{
+	for (const TObjectPtr<UML_SoundPlaybackHandle>& Handle : ActiveMusicLayerHandles)
+	{
+		if (IsValid(Handle))
+		{
+			Handle->Stop();
+		}
+	}
+
+	ActiveMusicLayerHandles.Reset();
+}
+
+void UML_AmbienceSubsystem::UnlockNextMusicLayer()
+{
+	if (!DevSettings)
+	{
+		return;
+	}
+
+	const int32 NextLayerIndex = ActiveMusicLayerHandles.Num();
+	if (!DevSettings->MusicLayerEventPaths.IsValidIndex(NextLayerIndex))
+	{
+		return; // every configured layer is already playing
+	}
+
+	UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this);
+	if (!SoundSubsystem)
+	{
+		return;
+	}
+
+	const FString& EventPath = DevSettings->MusicLayerEventPaths[NextLayerIndex];
+	if (UML_SoundPlaybackHandle* Handle = SoundSubsystem->StartTrackedSound2DByPath(EventPath, FML_OnSoundFinished(), /*bAutoDestroy=*/false))
+	{
+		ActiveMusicLayerHandles.Add(Handle);
+		UE_LOG(LogMycelandAmbience, Log, TEXT("Music layer %d unlocked: %s"), NextLayerIndex, *EventPath);
+	}
 }
 
 int32 UML_AmbienceSubsystem::GetConfiguredPuzzleCountForCurrentLevel() const

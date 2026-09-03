@@ -91,6 +91,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
 	UML_SoundPlaybackHandle* StartTrackedSoundAtLocation(UFMODEvent* Sound, const FTransform& Location, FML_OnSoundFinished OnFinished, bool bAutoDestroy = true);
 
+	/** Resolve an FMOD Studio event path (event:/...) and play it as a tracked 2D sound (handle can be
+	 * stopped later — e.g. an ambience bed or a music layer that must persist across many frames). */
+	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
+	UML_SoundPlaybackHandle* StartTrackedSound2DByPath(const FString& EventPath, FML_OnSoundFinished OnFinished, bool bAutoDestroy = true);
+
 	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
 	void StopSoundInstance(FFMODEventInstance SoundInstance, bool bRelease = true);
 
@@ -99,7 +104,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")
 	void SetGlobalSoundParameter(FName ParameterName, float Value);
-	
+
 	UML_SoundPlaybackHandle* CreateTrackedSound(UFMODEvent* Sound, const FTransform& Location, const FML_OnSoundFinished& OnFinished, bool bAutoDestroy, const TCHAR* FunctionName);
 	void NotifyPlaybackFinished(UML_SoundPlaybackHandle* PlaybackHandle);
 };
