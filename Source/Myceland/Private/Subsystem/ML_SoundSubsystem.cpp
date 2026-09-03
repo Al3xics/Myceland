@@ -152,6 +152,18 @@ UML_SoundPlaybackHandle* UML_SoundSubsystem::StartTrackedSoundAtLocation(UFMODEv
 	return CreateTrackedSound(Sound, Location, OnFinished, bAutoDestroy, TEXT("StartTrackedSoundAtLocation"));
 }
 
+UML_SoundPlaybackHandle* UML_SoundSubsystem::StartTrackedSound2DByPath(const FString& EventPath, FML_OnSoundFinished OnFinished, const bool bAutoDestroy)
+{
+	UFMODEvent* Sound = UFMODBlueprintStatics::FindEventByName(EventPath);
+	if (!Sound)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("FMOD event not found: %s. Build the banks and refresh FMOD assets in Unreal."), *EventPath);
+		return nullptr;
+	}
+
+	return CreateTrackedSound(Sound, FTransform::Identity, OnFinished, bAutoDestroy, TEXT("StartTrackedSound2DByPath"));
+}
+
 UML_SoundPlaybackHandle* UML_SoundSubsystem::CreateTrackedSound(UFMODEvent* Sound, const FTransform& Location, const FML_OnSoundFinished& OnFinished, const bool bAutoDestroy, const TCHAR* FunctionName)
 {
 	if (!Sound)

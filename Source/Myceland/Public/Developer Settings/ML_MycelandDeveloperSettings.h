@@ -33,7 +33,7 @@ class MYCELAND_API UML_MycelandDeveloperSettings : public UDeveloperSettings
 
 public:
 	// ==================== Input ====================
-	
+
 	// All gameplay IMCs, mapped together while not in a cinematic. Keep BOTH the mouse/keyboard and the
 	// gamepad IMC here: device detection piggy-backs on their action callbacks, so both must stay mapped
 	// for the gamepad <-> mouse/keyboard switch to work in both directions.
@@ -43,7 +43,7 @@ public:
 	// IMC used during cinematic sequences — should contain only the skip action
 	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
 	FML_InputMappingEntry CinematicInputMappingContext;
-	
+
 	UPROPERTY(EditAnywhere, config, Category="Input|IMC")
 	FML_InputMappingEntry TeleportInputMappingContext;
 
@@ -144,22 +144,22 @@ public:
 
 
 	// ==================== UI ====================
-	
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
 	float TimeShowWinUI = 3.f;
-	
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
 	float DelayBeforeShowLoseUI = 0.f;
-	
-	
-	
+
+
+
 	// ==================== Levels ====================
-	
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Levels", meta=(ForceInlineRow, Categories="Level"))
 	TMap<FGameplayTag, TSoftObjectPtr<UWorld>> Levels;
-	
-	
-	
+
+
+
 	// ==================== Audio ====================
 
 	UPROPERTY(EditAnywhere, config, Category="Audio|FMOD VCA")
@@ -194,17 +194,29 @@ public:
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Audio|Ambience Enviro", meta=(TitleProperty="Level"))
 	TArray<FML_LevelAmbiencePuzzleCount> AmbiencePuzzleCounts;
-	
-	
-	
+
+	// ==================== Audio · Music Layers ====================
+
+	// Ordered list of FMOD event paths (event:/...), one looping stem per layer.
+	// Index 0 is the base bed and starts as soon as the music system starts; each further
+	// puzzle win unlocks and starts the next entry, stacked on top of what's already playing.
+	// On a reloaded save, StartMusicLayers() catches up immediately instead of restarting at layer 0.
+	UPROPERTY(EditAnywhere, config, Category="Audio|Music Layers")
+	TArray<FString> MusicLayerEventPaths;
+
+	UPROPERTY(EditAnywhere, config, Category="Audio|Music Layers")
+	bool bAutoStartMusicLayers = true;
+
+
+
 	// ==================== Wave Propagation ====================
-	
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	TArray<FML_WavePriorityEntry> WavesPriority;
-	
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each global waves (grass, DELAY, parasite, DELAY, water, DELAY, etc..."))
 	float InterWaveDelay = 1.f;
-	
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
 
@@ -215,7 +227,7 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation",
 		meta=(ClampMin="0.0", Tooltip="Delay between Grass StartTransition and the tile becoming Parasite."))
 	float GrassToParasiteDelay = 0.5f;
-	
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	float UndoSpeed = 3.0f;
 
@@ -260,8 +272,8 @@ public:
 
 	UPROPERTY(EditAnywhere,Category = "WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
 	float WinTileDelay = 0.1f;
-	
-	
+
+
 	// ==================== Helper ====================
 	UFUNCTION(BlueprintCallable, Category="Myceland Settings")
 	static void SetIntraWaveDelay(float NewDelay)
@@ -276,7 +288,7 @@ public:
 	{
 		return GetDefault<UML_MycelandDeveloperSettings>();
 	}
-	
+
 	UFUNCTION(BlueprintPure, Category="Myceland Settings")
 	UInputMappingContext* GetInputMappingContext(EInputMappingType Type, int32& Priority) const
 	{
