@@ -133,9 +133,6 @@ private:
 	UPROPERTY(Config)
 	float SubtitlesSize = DefaultSubtitlesSize;
 
-	UPROPERTY(Config)
-	EMLColorblindMode ColorblindMode = DefaultColorblindMode;
-
 
 
 	// ==================== Internal Helpers ====================
@@ -291,17 +288,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
 	void SetSubtitlesSize(float Size);
 
-	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
-	void SetColorblindMode(EMLColorblindMode Mode);
-
 	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
 	bool GetSubtitles() const { return bSubtitles; }
 
 	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
 	float GetSubtitlesSize() const { return SubtitlesSize; }
-
-	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
-	EMLColorblindMode GetColorblindMode() const { return ColorblindMode; }
 
 
 
