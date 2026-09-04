@@ -153,7 +153,6 @@ void UML_GameUserSettings::InitValues()
 	// Accessibility
 	bSubtitles = DefaultSubtitles;
 	SubtitlesSize = DefaultSubtitlesSize;
-	ColorblindMode = DefaultColorblindMode;
 }
 
 float UML_GameUserSettings::Normalize(float Value, float Min, float Max)
@@ -216,12 +215,6 @@ void UML_GameUserSettings::SetSubtitles(const bool bEnable)
 void UML_GameUserSettings::SetSubtitlesSize(const float Size)
 {
 	SubtitlesSize = Size;
-	ApplyAccessibilitySettings();
-}
-
-void UML_GameUserSettings::SetColorblindMode(const EMLColorblindMode Mode)
-{
-	ColorblindMode = Mode;
 	ApplyAccessibilitySettings();
 }
 
@@ -407,10 +400,7 @@ void UML_GameUserSettings::ApplyAccessibilitySettings()
 	// (once it exists) react immediately instead of waiting for the next read.
 	OnAccessibilitySettingsApplied.Broadcast();
 
-	UE_LOG(LogTemp, Log, TEXT("Accessibility settings applied - Subtitles: %s, Size: %.2f, Colorblind: %s"),
-		bSubtitles ? TEXT("On") : TEXT("Off"),
-		SubtitlesSize,
-		*UEnum::GetValueAsString(ColorblindMode));
+	UE_LOG(LogTemp, Log, TEXT("Accessibility settings applied - Subtitles: %s, Size: %.2f"), bSubtitles ? TEXT("On") : TEXT("Off"), SubtitlesSize);
 }
 
 
@@ -477,7 +467,6 @@ void UML_GameUserSettings::ResetMycelandSettingToDefault(const EMLSettingCategor
 		case EMLSettingCategory::Accessibility:
 			bSubtitles = DefaultSubtitles;
 			SubtitlesSize = DefaultSubtitlesSize;
-			ColorblindMode = DefaultColorblindMode;
 			break;
 	}
 
