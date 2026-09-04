@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <objects serializationModel="Studio.02.03.00">
-	<object class="AudioFile" id="{20679654-043d-4c58-bcc2-35284382ec42}">
+	<object class="AudioFile" id="{6b64eece-4517-49d8-8d89-894e2f47c672}">
 		<property name="assetPath">
-			<value>ting1.mp3</value>
+			<value>GrassMovementRustle_SFXB.94.wav</value>
 		</property>
 		<property name="frequencyInKHz">
-			<value>24</value>
+			<value>96</value>
 		</property>
 		<property name="channelCount">
 			<value>2</value>
 		</property>
 		<property name="length">
-			<value>1.752</value>
+			<value>3.536</value>
 		</property>
 		<relationship name="masterAssetFolder">
 			<destination>{03b97852-04f0-4cb9-ae63-7dcd289cd534}</destination>

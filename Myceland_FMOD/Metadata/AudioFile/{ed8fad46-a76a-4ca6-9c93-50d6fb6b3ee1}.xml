@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <objects serializationModel="Studio.02.03.00">
-	<object class="AudioFile" id="{420d7f8a-0a8d-42f7-9b34-6fbbc9c83310}">
+	<object class="AudioFile" id="{ed8fad46-a76a-4ca6-9c93-50d6fb6b3ee1}">
 		<property name="assetPath">
-			<value>Duck Quack - Sound Effect (HD).mp3</value>
+			<value>BloomSpawn.wav</value>
 		</property>
 		<property name="frequencyInKHz">
-			<value>44.0999985</value>
+			<value>48</value>
 		</property>
 		<property name="channelCount">
 			<value>2</value>
 		</property>
 		<property name="length">
-			<value>3.1346938775510202</value>
+			<value>1.1040000000000001</value>
 		</property>
 		<relationship name="masterAssetFolder">
 			<destination>{03b97852-04f0-4cb9-ae63-7dcd289cd534}</destination>
