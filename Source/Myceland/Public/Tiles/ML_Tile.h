@@ -152,13 +152,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	AML_BoardSpawner* GetBoardSpawnerFromTile() const { return Cast<AML_BoardSpawner>(GetOwner()); }
 
-	// bIsWalkable is false when hovering a non-walkable tile type (water, obstacle, parasite, tree).
-	// The Blueprint uses it to pick a different "blocked" glow color.
+	// Single entry point for the cursor / selection glow: the state fully describes what must be shown,
+	// so the Blueprint only maps a state to a color. It must be TOTAL: every state, None included (which
+	// hides the glow), has to leave the tile in a consistent visual state, because the same tile can be
+	// pushed a new state without ever being "unhovered" first (the player leaves it, its type changes,
+	// the energy runs out). Nothing else may write the hover color or destroy the hover VFX:
+	// UML_HoverPreviewComponent owns that visual and only pushes it when the state actually changes.
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void GlowCursorHovered(bool bIsPlayerTile, bool bIsWalkable);
-
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void StopGlowingCursorUnhovered();
+	void SetCursorHoverState(EML_TileHoverState State);
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void GlowPathWalk();
@@ -167,7 +168,7 @@ public:
 	void StopGlowingPathWalk();
 
 	// Gamepad: glow used to advertise a tile the player can plant on (a plantable neighbor around
-	// the player). Distinct from GlowCursorHovered, which marks the single currently-selected tile.
+	// the player). Distinct from SetCursorHoverState, which marks the single currently-selected tile.
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void GlowPlantableAvailable();
 
