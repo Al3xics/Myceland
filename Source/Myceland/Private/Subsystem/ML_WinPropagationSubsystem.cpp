@@ -67,23 +67,49 @@ void UML_WinPropagationSubsystem::StartWinPropagation()
 
 	AML_BoardSpawner* Board = WinLoseSubsystem->CurrentBoardSpawner;
 	const TArray<AML_Tile*> TreeTiles = Board->GetTreeTiles();
-	if (TreeTiles.Num() == 0) return;
 
 	WinWaveEntries.Empty();
 	WinWaveIndex = 0;
 	bWinRingInProgress = false;
 
-	// Multi-source BFS from all tree tiles simultaneously.
-	// Distance = hexagonal distance from the nearest tree.
+	// Multi-source BFS.
+	// Normal win: starts from tree tiles.
+	// No-tree forced win: starts from all convertible tiles.
 	TSet<AML_Tile*> Visited;
 	TQueue<TPair<AML_Tile*, int32>> Queue;
 
-	for (AML_Tile* Tree : TreeTiles)
+	if (TreeTiles.Num() > 0)
 	{
-		if (!IsValid(Tree)) continue;
+		for (AML_Tile* Tree : TreeTiles)
+		{
+			if (!IsValid(Tree)) continue;
 
-		Visited.Add(Tree);
-		Queue.Enqueue({ Tree, 0 });
+			Visited.Add(Tree);
+			Queue.Enqueue({ Tree, 0 });
+		}
+	}
+	else
+	{
+		for (AML_Tile* Tile : Board->GetGridTiles())
+		{
+			if (!IsValid(Tile)) continue;
+
+			if (!UML_TileTypeTraits::IsWinPropagationConvertible(Tile->GetCurrentType()))
+				continue;
+
+			Visited.Add(Tile);
+
+			// Unlike tree sources, these source tiles themselves need to become Grass.
+			WinWaveEntries.Add(
+			   FML_WaveChange(
+				  Tile,
+				  EML_TileType::Grass,
+				  0
+			   )
+			);
+
+			Queue.Enqueue({ Tile, 0 });
+		}
 	}
 
 	FML_TileNeighbors Neighbors;

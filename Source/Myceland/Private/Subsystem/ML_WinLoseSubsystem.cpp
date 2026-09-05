@@ -515,7 +515,19 @@ void UML_WinLoseSubsystem::BroadcastNextConnectedGoalPathTile()
 	if (IsValid(Next))
 		OnConnectedGoalPathTile.Broadcast(Next);
 }
+void UML_WinLoseSubsystem::ForceBoardWin(AML_BoardSpawner* Board)
+{
+	if (!IsValid(Board))
+		return;
 
+	if (Board->bIsPuzzleSolved)
+		return;
+
+	CurrentBoardSpawner = Board;
+	Board->bIsPuzzleSolved = true;
+
+	FireWinSequence();
+}
 void UML_WinLoseSubsystem::FireWinSequence()
 {
 	OnWin.Broadcast();

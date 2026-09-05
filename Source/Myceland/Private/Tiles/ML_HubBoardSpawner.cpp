@@ -493,3 +493,14 @@ int32 AML_HubBoardSpawner::FindEntryIndexForBoard(const AML_BoardSpawner* Board)
 
 	return INDEX_NONE;
 }
+void AML_HubBoardSpawner::ForceWin()
+{
+	if (!GetWorld())
+		return;
+
+	UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>();
+	if (!WinLose)
+		return;
+
+	WinLose->ForceBoardWin(this);
+}
