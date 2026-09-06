@@ -25,7 +25,17 @@ struct FML_LevelAmbiencePuzzleCount
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ambience", meta=(ClampMin="1"))
 	int32 PuzzleCount = 1;
 };
+USTRUCT(BlueprintType)
+struct FML_LevelFixedMusic
+{
+	GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Music", meta=(Categories="Level"))
+	FGameplayTag Level;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Music")
+	FString MusicEventPath;
+};
 UCLASS(config=Game, defaultconfig, meta=(DisplayName="Myceland"))
 class MYCELAND_API UML_MycelandDeveloperSettings : public UDeveloperSettings
 {
@@ -203,6 +213,11 @@ public:
 	// layering on top of it. Progress past the last entry just keeps the last track playing.
 	UPROPERTY(EditAnywhere, config, Category="Audio|Music Progression")
 	TArray<FString> MusicTrackEventPaths;
+
+	// Levels configured here ignore puzzle-based music progression
+	// and keep one fixed FMOD event playing for the entire level.
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Audio|Music Progression", meta=(TitleProperty="Level"))
+	TArray<FML_LevelFixedMusic> FixedMusicLevels;
 
 	UPROPERTY(EditAnywhere, config, Category="Audio|Music Progression")
 	bool bAutoStartMusicProgression = true;

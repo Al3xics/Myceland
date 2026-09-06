@@ -116,5 +116,6 @@ private:
 	// void UnlockNextMusicLayer();
 
 	int32 GetConfiguredPuzzleCountForCurrentLevel() const;
+	bool GetFixedMusicForCurrentLevel(FString& OutEventPath) const;
 	FString GetCleanMapName() const;
 };

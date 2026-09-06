@@ -266,26 +266,9 @@ void UML_AmbienceSubsystem::SwitchToMusicTrackForCurrentProgress()
 		DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	}
 
-	if (!DevSettings || DevSettings->MusicTrackEventPaths.IsEmpty())
+	if (!DevSettings)
 	{
-		UE_LOG(LogMycelandAmbience, Warning, TEXT("Music progression has no FMOD event paths configured."));
 		return;
-	}
-
-	// Track index follows the number of puzzles won this level: 0 won -> track 0 ("Musique 1"),
-	// 1 won -> track 1 ("Musique 2"), etc. Clamped to the last authored track once progress goes
-	// further than the list provides, instead of going out of bounds.
-	const int32 TargetTrackIndex = FMath::Clamp(WonPuzzleCount, 0, DevSettings->MusicTrackEventPaths.Num() - 1);
-
-	if (TargetTrackIndex == CurrentMusicTrackIndex && IsValid(CurrentMusicHandle))
-	{
-		return; // already playing the right track
-	}
-
-	if (IsValid(CurrentMusicHandle))
-	{
-		CurrentMusicHandle->Stop();
-		CurrentMusicHandle = nullptr;
 	}
 
 	UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this);
@@ -294,11 +277,102 @@ void UML_AmbienceSubsystem::SwitchToMusicTrackForCurrentProgress()
 		return;
 	}
 
-	const FString& EventPath = DevSettings->MusicTrackEventPaths[TargetTrackIndex];
-	CurrentMusicHandle = SoundSubsystem->StartTrackedSound2DByPath(EventPath, FML_OnSoundFinished(), /*bAutoDestroy=*/false);
+	// ============================================================
+	// FIXED MUSIC LEVEL
+	// ============================================================
+
+	FString FixedMusicEventPath;
+
+	if (GetFixedMusicForCurrentLevel(FixedMusicEventPath))
+	{
+		// INDEX_NONE - 1 is used internally to mean:
+		// "fixed level music is currently playing".
+		constexpr int32 FixedMusicIndex = INDEX_NONE - 1;
+
+		// Puzzle wins still call this function, but fixed music must
+		// never restart when that happens.
+		if (CurrentMusicTrackIndex == FixedMusicIndex && IsValid(CurrentMusicHandle))
+		{
+			return;
+		}
+
+		if (IsValid(CurrentMusicHandle))
+		{
+			CurrentMusicHandle->Stop();
+			CurrentMusicHandle = nullptr;
+		}
+
+		CurrentMusicHandle =
+			SoundSubsystem->StartTrackedSound2DByPath(
+				FixedMusicEventPath,
+				FML_OnSoundFinished(),
+				/*bAutoDestroy=*/false
+			);
+
+		CurrentMusicTrackIndex = FixedMusicIndex;
+
+		UE_LOG(
+			LogMycelandAmbience,
+			Log,
+			TEXT("Fixed level music started: %s"),
+			*FixedMusicEventPath
+		);
+
+		return;
+	}
+
+	// ============================================================
+	// NORMAL PUZZLE MUSIC PROGRESSION
+	// ============================================================
+
+	if (DevSettings->MusicTrackEventPaths.IsEmpty())
+	{
+		UE_LOG(
+			LogMycelandAmbience,
+			Warning,
+			TEXT("Music progression has no FMOD event paths configured.")
+		);
+
+		return;
+	}
+
+	const int32 TargetTrackIndex =
+		FMath::Clamp(
+			WonPuzzleCount,
+			0,
+			DevSettings->MusicTrackEventPaths.Num() - 1
+		);
+
+	if (TargetTrackIndex == CurrentMusicTrackIndex && IsValid(CurrentMusicHandle))
+	{
+		return;
+	}
+
+	if (IsValid(CurrentMusicHandle))
+	{
+		CurrentMusicHandle->Stop();
+		CurrentMusicHandle = nullptr;
+	}
+
+	const FString& EventPath =
+		DevSettings->MusicTrackEventPaths[TargetTrackIndex];
+
+	CurrentMusicHandle =
+		SoundSubsystem->StartTrackedSound2DByPath(
+			EventPath,
+			FML_OnSoundFinished(),
+			/*bAutoDestroy=*/false
+		);
+
 	CurrentMusicTrackIndex = TargetTrackIndex;
 
-	UE_LOG(LogMycelandAmbience, Log, TEXT("Music progression switched to track %d: %s"), TargetTrackIndex, *EventPath);
+	UE_LOG(
+		LogMycelandAmbience,
+		Log,
+		TEXT("Music progression switched to track %d: %s"),
+		TargetTrackIndex,
+		*EventPath
+	);
 }
 
 // ==================================================================================
@@ -404,7 +478,44 @@ int32 UML_AmbienceSubsystem::GetConfiguredPuzzleCountForCurrentLevel() const
 
 	return 0;
 }
+bool UML_AmbienceSubsystem::GetFixedMusicForCurrentLevel(FString& OutEventPath) const
+{
+	OutEventPath.Empty();
 
+	if (!DevSettings)
+	{
+		return false;
+	}
+
+	const FString CurrentMapName = GetCleanMapName();
+
+	for (const FML_LevelFixedMusic& Entry : DevSettings->FixedMusicLevels)
+	{
+		if (!Entry.Level.IsValid() || Entry.MusicEventPath.IsEmpty())
+		{
+			continue;
+		}
+
+		const TSoftObjectPtr<UWorld>* LevelAsset =
+			DevSettings->Levels.Find(Entry.Level);
+
+		if (!LevelAsset)
+		{
+			continue;
+		}
+
+		const FSoftObjectPath LevelPath =
+			LevelAsset->ToSoftObjectPath();
+
+		if (LevelPath.GetAssetName() == CurrentMapName)
+		{
+			OutEventPath = Entry.MusicEventPath;
+			return true;
+		}
+	}
+
+	return false;
+}
 FString UML_AmbienceSubsystem::GetCleanMapName() const
 {
 	const UWorld* World = GetWorld();
