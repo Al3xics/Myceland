@@ -7,6 +7,7 @@
 #include "EngineUtils.h"
 #include "FMODAudioComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Player/ML_HexPathfinder.h"
 #include "Player/ML_PlayerController.h"
 #include "Save System/ML_SaveSubsystem.h"
 #include "TechArt/ML_NatureZone.h"
@@ -132,17 +133,47 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 		if (!IsValid(Board)) continue;
 		if (Board->PuzzleID.GetTagName() != LastPuzzle) continue;
 
-		// Found the board — spawn on the first tile of its first board exit.
-		if (Board->BoardExits.IsEmpty() || Board->BoardExits[0].ExitTiles.IsEmpty())
+		// Pick the spawn tile with a walkability fallback chain, since a solved board can leave its
+		// authored first exit tile non-walkable (blocked / flooded), and standing the player there
+		// would trap them:
+		//   1. the first walkable ExitTile across all BoardExits (in order),
+		//   2. failing that, the first walkable water-path tile (Exit then Entry, in order).
+		const AML_Tile* SpawnTile = nullptr;
+
+		for (const FML_BoardExit& Exit : Board->BoardExits)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' has no BoardExits/ExitTiles — skipping spawn restore."), *LastPuzzle.ToString());
-			break;
+			for (const TObjectPtr<AML_Tile>& ExitTile : Exit.ExitTiles)
+			{
+				if (UML_HexPathfinder::IsTileWalkable(ExitTile.Get()))
+				{
+					SpawnTile = ExitTile.Get();
+					break;
+				}
+			}
+			if (SpawnTile) break;
 		}
 
-		const AML_Tile* SpawnTile = Board->BoardExits[0].ExitTiles[0].Get();
+		// Final fallback: no walkable exit tile — try the water-path tiles.
+		if (!SpawnTile)
+		{
+			for (const FML_WaterPath& WaterPath : Board->WaterPaths)
+			{
+				if (UML_HexPathfinder::IsTileWalkable(WaterPath.ExitTile.Get()))
+				{
+					SpawnTile = WaterPath.ExitTile.Get();
+					break;
+				}
+				if (UML_HexPathfinder::IsTileWalkable(WaterPath.EntryTile.Get()))
+				{
+					SpawnTile = WaterPath.EntryTile.Get();
+					break;
+				}
+			}
+		}
+
 		if (!IsValid(SpawnTile))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' first exit tile is invalid — skipping spawn restore."), *LastPuzzle.ToString());
+			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' has no walkable exit or water-path tile — skipping spawn restore."), *LastPuzzle.ToString());
 			break;
 		}
 
@@ -156,7 +187,7 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 		UpdateCurrentTile();
 		bPlaced = true;
 
-		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] Restored spawn to first exit tile of puzzle '%s'."), *LastPuzzle.ToString());
+		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] Restored spawn to walkable tile of puzzle '%s'."), *LastPuzzle.ToString());
 		break;
 	}
 
