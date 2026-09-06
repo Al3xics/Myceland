@@ -9,6 +9,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Player/ML_PlayerController.h"
 #include "Save System/ML_SaveSubsystem.h"
+#include "TechArt/ML_NatureZone.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 
@@ -159,17 +160,23 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 		break;
 	}
 
-	// ---- Step 2: only now replay the win cinematics for every solved board ----
-	// Driven here (not in each board's BeginPlay) so the player is placed and CurrentTileOn is valid
-	// before any cinematic — and its OnCinematicFinished handler — runs. The cinematic subsystem
-	// queues them, so they still play one after another.
+	// ---- Step 2: revive the nature zones of every solved board ----
+	// Instead of replaying the win cinematics on load, we directly revitalize each solved board's
+	// nature zones. Revive() is a BlueprintNativeEvent authored in the nature-zone Blueprint, so the
+	// grown foliage is restored instantly without the camera-hijacking cinematics. Gated on bPlaced
+	// so CurrentTileOn is valid first (keeps BP_ProgressionManager from reading a null tile).
 	if (bPlaced)
 	{
 		for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
 		{
 			AML_BoardSpawner* Board = *It;
-			if (IsValid(Board) && Board->bIsPuzzleSolved)
-				Board->PlayAssociatedWinCinematic();
+			if (!IsValid(Board) || !Board->bIsPuzzleSolved) continue;
+
+			for (AActor* ZoneActor : Board->GetAssociatedNatureZones())
+			{
+				if (AML_NatureZone* Zone = Cast<AML_NatureZone>(ZoneActor))
+					Zone->Revive();
+			}
 		}
 	}
 }

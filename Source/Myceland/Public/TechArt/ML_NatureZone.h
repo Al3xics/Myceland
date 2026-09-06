@@ -59,6 +59,14 @@ public:
 	AML_NatureZone();
 
 	virtual void Tick(float DeltaSeconds) override;
+
+	// Revitalizes this nature zone. The actual growth/reveal is authored in the Blueprint override;
+	// the C++ default is a no-op. Called on load for every nature zone of an already-solved board
+	// (see AML_PlayerCharacter::ApplySavedSpawnPosition) so a saved world restores its grown foliage
+	// without replaying the win cinematics.
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Nature Zone|Revive")
+	void Revive();
+	virtual void Revive_Implementation();
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nature Zone|Growth")
 	float MinGrowthDelay = 0.01f;
