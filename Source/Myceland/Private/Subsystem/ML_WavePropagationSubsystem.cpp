@@ -334,31 +334,40 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
     // ---------------------------------------------------------
     // ANYTHING -> GRASS
     // ---------------------------------------------------------
-    else if (Change.TargetType == EML_TileType::Grass)
-    {
-        TWeakObjectPtr<AML_Tile> WeakTile = Tile;
+	    else if (Change.TargetType == EML_TileType::Grass)
+	    {
+	    	TWeakObjectPtr<AML_Tile> WeakTile = Tile;
 
-        const TSubclassOf<AML_TileBase> GrassClass =
-            TileSet->GetClassFromTileType(EML_TileType::Grass);
+	    	const TSubclassOf<AML_TileBase> GrassClass =
+				TileSet->GetClassFromTileType(EML_TileType::Grass);
 
-        FTimerHandle GrassDelayHandle;
+	    	FTimerHandle GrassDelayHandle;
 
-        GetWorld()->GetTimerManager().SetTimer(
-            GrassDelayHandle,
-            [WeakTile, GrassClass]()
-            {
-                if (WeakTile.IsValid())
-                {
-                    WeakTile->UpdateClassAtRuntime(
-                        EML_TileType::Grass,
-                        GrassClass
-                    );
-                }
-            },
-            DevSettings->GrassSpawnDelay,
-            false
-        );
-    }
+	    	GetWorld()->GetTimerManager().SetTimer(
+				GrassDelayHandle,
+				[WeakTile, GrassClass]()
+				{
+					if (WeakTile.IsValid())
+					{
+						WeakTile->UpdateClassAtRuntime(
+							EML_TileType::Grass,
+							GrassClass
+						);
+
+						if (UML_SoundSubsystem* SoundSubsystem =
+							UML_SoundSubsystem::Get(WeakTile.Get()))
+						{
+							SoundSubsystem->StartSoundAtLocationByPath(
+								MLFMODEvents::TilePlant,
+								FTransform(WeakTile->GetActorLocation())
+							);
+						}
+					}
+				},
+				DevSettings->GrassSpawnDelay,
+				false
+			);
+	    }
 
     // ---------------------------------------------------------
     // EVERYTHING ELSE

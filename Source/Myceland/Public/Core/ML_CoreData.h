@@ -69,6 +69,22 @@ enum class EML_TileType : uint8
 	Tree
 };
 
+/**
+ * What the cursor / selection glow must show on a tile.
+ * Single source of truth for the hover color: the hover preview component computes this state and
+ * pushes it to the tile, the Blueprint only maps a state to a color (see AML_Tile::SetCursorHoverState).
+ * Ordered by priority, from "nothing" to "the player stands here".
+ */
+UENUM(BlueprintType)
+enum class EML_TileHoverState : uint8
+{
+	None      UMETA(DisplayName="None (no glow)"),
+	Blocked   UMETA(DisplayName="Blocked (not walkable)"),
+	Walkable  UMETA(DisplayName="Walkable (not plantable)"),
+	Plantable UMETA(DisplayName="Plantable (and energy available)"),
+	Player    UMETA(DisplayName="Player tile")
+};
+
 UENUM(BlueprintType)
 enum class EML_WinLose : uint8
 {

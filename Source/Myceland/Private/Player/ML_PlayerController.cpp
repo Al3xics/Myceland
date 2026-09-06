@@ -285,10 +285,9 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
 		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 		{
-			SoundSubsystem->StartSound2DByPath(MLFMODEvents::TileNaturePlaceSuccess);
-			SoundSubsystem->StartSoundAtLocationByPath(
-				MLFMODEvents::TilePlant,
-				FTransform(HitTile->GetActorLocation()));
+			SoundSubsystem->StartSound2DByPath(
+				MLFMODEvents::TileNaturePlaceSuccess
+			);
 		}
 	}
 }
