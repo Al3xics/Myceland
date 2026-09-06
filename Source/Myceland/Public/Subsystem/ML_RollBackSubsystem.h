@@ -1,4 +1,4 @@
-// Copyright Myceland Team, All Rights Reserved.
+﻿// Copyright Myceland Team, All Rights Reserved.
 
 #pragma once
 
@@ -61,7 +61,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Reset")
 	bool ResetAllActions_Animated();
 
-	bool ResetAllActions_ExcludingMoves_Animated();
 	void ResetAllActions_ExcludingMoves_Instant(AML_BoardSpawner* Board);
 
 	bool IsUndoInProgress() const { return bUndoInProgress; }

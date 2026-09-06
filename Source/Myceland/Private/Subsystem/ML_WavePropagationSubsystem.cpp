@@ -7,6 +7,7 @@
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_PlayerController.h"
 #include "Collectible/ML_Collectible.h"
+#include "Subsystem/ML_BoardActionSubsystem.h"
 #include "Subsystem/ML_CinematicSubsystem.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_SoundSubsystem.h"
@@ -88,10 +89,9 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	AML_BoardSpawner* WaveBoard = IsValid(CurrentOriginTile) ? CurrentOriginTile->GetBoardSpawnerFromTile() : nullptr;
 	const bool bWaveOnOtherBoard = IsValid(WaveBoard) && IsValid(WinLoseSubsystem->CurrentBoardSpawner) && WaveBoard != WinLoseSubsystem->CurrentBoardSpawner;
 
-	FML_GameResult Result;
 	if (!bWaveOnOtherBoard)
 	{
-		Result = WinLoseSubsystem->CheckWinLose();
+		WinLoseSubsystem->CheckWinLose();
 
 		// If the whole action changed nothing on the board, goal connectivity can't
 		// have changed either: skip the (BFS-heavy) goal-path recompute.
@@ -128,19 +128,15 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	if (RollBackSubsystem)
 		RollBackSubsystem->CommitTurnRecord();
 
-	if (PlayerController)
-	{
-		if (PlayerController->TransitionComponent)
-			PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
+	if (PlayerController && PlayerController->TransitionComponent)
+		PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
 
-		// The win flow owns the input lock from the moment the win is detected until
-		// the win cinematic (or the Win BP event when no cinematic plays) releases it.
-		// A wave resolving on another board (e.g. hub changes after a win) must not
-		// re-enable inputs in the middle of that sequence.
-		const bool bWinOwnsInputLock = Result.Result == EML_WinLose::Win || WinLoseSubsystem->IsWinSequenceActive() || (CinematicSubsystem && CinematicSubsystem->IsCinematicPlaying());
-		if (!bWinOwnsInputLock)
-			PlayerController->EnableInput(PlayerController);
-	}
+	// The propagation is over, but the animations it spawned (collectible flight, parasite crash) can
+	// still be running and hold tokens of their own. Releasing ours only gives the input back if we were
+	// the last one, which is what closes the gap the old BP delays used to paper over. The win-sequence
+	// and cinematic lock is honoured inside the subsystem.
+	if (UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+		BoardAction->EndBoardAction(this);
 
 	// The board has reached its final state: let board-dependent UI (e.g. the gamepad plantable
 	// highlight) refresh once, rather than on every tile change during the propagation.
@@ -164,7 +160,11 @@ void UML_WavePropagationSubsystem::BeginTileResolvedInternal(AML_Tile* HitTile, 
 	if (!PlayerController || !DevSettings || !RollBackSubsystem) return;
 
 	bIsResolvingTiles = true;
-	PlayerController->DisableInput(PlayerController);
+
+	// One token for the whole turn, held until EndTileResolved. Anything that starts animating during the
+	// propagation takes its own token before this one is released, so the lock never briefly opens.
+	if (UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+		BoardAction->BeginBoardAction(this, EML_BoardActionReason::Wave, 30.f);
 	if (PlayerController->TransitionComponent)
 		PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(true);
 
@@ -633,6 +633,12 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 void UML_WavePropagationSubsystem::AbortPropagationRuntime()
 {
 	bIsResolvingTiles = false;
+
+	// This path tears the propagation down without ever reaching EndTileResolved, so the turn token has
+	// to be released here too -- otherwise the board stays locked until the timeout fires.
+	if (UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+		BoardAction->EndBoardAction(this);
+
 	CancelAllWaveTimers();
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
@@ -747,6 +753,13 @@ void UML_WavePropagationSubsystem::RecordTileForUndo(AML_Tile* Tile, int32 Dista
 
 bool UML_WavePropagationSubsystem::CanUndo() const
 {
+	// The UMG button binds this: returning false while the board resolves greys it out instead of
+	// letting the player queue an undo on top of a running turn.
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
+
 	if (RollBackSubsystem) return RollBackSubsystem->CanUndo();
 	if (const UWorld* World = GetWorld())
 		if (const UML_RollBackSubsystem* Subsystem = World->GetSubsystem<UML_RollBackSubsystem>())
@@ -757,6 +770,10 @@ bool UML_WavePropagationSubsystem::CanUndo() const
 bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 {
 	if (!RollBackSubsystem) EnsureInitialized();
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
 	return RollBackSubsystem ? RollBackSubsystem->UndoLastAction_Animated() : false;
 }
 
@@ -793,13 +810,11 @@ void UML_WavePropagationSubsystem::NotifyMoveCompleted(
 bool UML_WavePropagationSubsystem::ResetAllActions_Animated()
 {
 	if (!RollBackSubsystem) EnsureInitialized();
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
 	return RollBackSubsystem ? RollBackSubsystem->ResetAllActions_Animated() : false;
-}
-
-bool UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Animated()
-{
-	if (!RollBackSubsystem) EnsureInitialized();
-	return RollBackSubsystem ? RollBackSubsystem->ResetAllActions_ExcludingMoves_Animated() : false;
 }
 
 void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_BoardSpawner* Board)
@@ -813,10 +828,24 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 
 void UML_WavePropagationSubsystem::HandleRollbackUndoAnimating(bool bIsAnimating)
 {
+	// Undo and reset are mutually exclusive, so they can share the rollback subsystem as token owner.
+	HoldBoardForRollback(bIsAnimating, EML_BoardActionReason::Undo);
 	OnUndoAnimating.Broadcast(bIsAnimating);
 }
 
 void UML_WavePropagationSubsystem::HandleRollbackResetAnimating(bool bIsAnimating)
 {
+	HoldBoardForRollback(bIsAnimating, EML_BoardActionReason::Reset);
 	OnResetAnimating.Broadcast(bIsAnimating);
+}
+
+void UML_WavePropagationSubsystem::HoldBoardForRollback(const bool bIsAnimating, const EML_BoardActionReason Reason)
+{
+	UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this);
+	if (!BoardAction || !RollBackSubsystem) return;
+
+	if (bIsAnimating)
+		BoardAction->BeginBoardAction(RollBackSubsystem, Reason, 30.f);
+	else
+		BoardAction->EndBoardAction(RollBackSubsystem);
 }
