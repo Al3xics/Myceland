@@ -50,7 +50,10 @@ void UML_WaveCollectible::ComputeWaveForCollectibles(AML_Tile* OriginTile, const
             Queue.Enqueue({ Neighbor, Distance + 1 });
 
             // Spawn condition
+            // A tile eaten this turn is already a parasite's meal: the type only flips after
+            // GrassToParasiteDelay, so it still reads as Grass here and would wrongly qualify.
             if (!Neighbor->HasCollectible() &&
+                !ParasiteSet.Contains(Neighbor) &&
                 UML_TileTypeTraits::CanSpawnCollectible(Neighbor->GetCurrentType()))
             {
                 // Check if this tile is near a parasite that has eaten

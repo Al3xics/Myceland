@@ -298,9 +298,8 @@ void FHBAOPlusViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGBuilder
 		const FSceneTextureShaderParameters SceneTextureParams = CreateSceneTextureShaderParameters(GraphBuilder, ViewInfo.GetSceneTexturesChecked(), ViewInfo.GetFeatureLevel(), ESceneTextureSetupMode::All);
 #endif
 	FRDGTextureRef FinalAOTexture = RenderHBAO_Internal_RenderThread(GraphBuilder, ViewInfo, SceneTextureParams);
-	UE_LOG(LogTemp, Warning, TEXT("HBAO MODE 1: AO GENERATED"));
 	if (FinalAOTexture)
-	{UE_LOG(LogTemp, Warning, TEXT("HBAO MODE 1: WRITING SCREEN SPACE AO"));
+	{
 		const FSceneTextures* SceneTexturesPtr = ViewInfo.GetSceneTexturesChecked();
 		if (SceneTexturesPtr)
 		{

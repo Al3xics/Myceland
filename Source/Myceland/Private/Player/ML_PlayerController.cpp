@@ -1,4 +1,4 @@
-// Copyright Myceland Team, All Rights Reserved.
+﻿// Copyright Myceland Team, All Rights Reserved.
 
 #include "Player/ML_PlayerController.h"
 
@@ -21,6 +21,7 @@
 #include "Input/ML_InputDeviceManager.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
+#include "Subsystem/ML_BoardActionSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
@@ -176,6 +177,13 @@ void AML_PlayerController::SetIsMoving(bool bNewIsMoving)
 
 bool AML_PlayerController::Move(AML_Tile* TargetTile, int32 StopBeforeTarget)
 {
+	// Second belt: the board lock already disables the input component, but Move/Plant are also
+	// BlueprintCallable, so an unlucky BP or UMG call must not slip a turn in while one is resolving.
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
+
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
 	if (!IsValid(TargetTile)) return false;
 
@@ -205,6 +213,13 @@ bool AML_PlayerController::Move(AML_Tile* TargetTile, int32 StopBeforeTarget)
 
 bool AML_PlayerController::Plant(AML_Tile* TargetTile)
 {
+	// Second belt: the board lock already disables the input component, but Move/Plant are also
+	// BlueprintCallable, so an unlucky BP or UMG call must not slip a turn in while one is resolving.
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
+
 	if (TransitionComponent->GetMovementMode() != EML_PlayerMovementMode::InsideBoard) return false;
 	if (TransitionComponent->GetBoardActionState() == EML_PlayerBoardActionState::TurningToPlant) return false;
 	if (!IsValid(MycelandCharacter) || !IsValid(MycelandCharacter->CurrentTileOn)) return false;
@@ -285,10 +300,9 @@ void AML_PlayerController::ExecutePlant(AML_Tile* HitTile)
 		WavePropagationSubsystem->BeginTileResolved(HitTile);
 		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 		{
-			SoundSubsystem->StartSound2DByPath(MLFMODEvents::TileNaturePlaceSuccess);
-			SoundSubsystem->StartSoundAtLocationByPath(
-				MLFMODEvents::TilePlant,
-				FTransform(HitTile->GetActorLocation()));
+			SoundSubsystem->StartSound2DByPath(
+				MLFMODEvents::TileNaturePlaceSuccess
+			);
 		}
 	}
 }
