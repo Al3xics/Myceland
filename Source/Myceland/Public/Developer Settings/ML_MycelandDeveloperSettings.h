@@ -195,17 +195,24 @@ public:
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Audio|Ambience Enviro", meta=(TitleProperty="Level"))
 	TArray<FML_LevelAmbiencePuzzleCount> AmbiencePuzzleCounts;
 
-	// ==================== Audio · Music Layers ====================
+	// ==================== Audio · Music Progression ====================
 
-	// Ordered list of FMOD event paths (event:/...), one looping stem per layer.
-	// Index 0 is the base bed and starts as soon as the music system starts; each further
-	// puzzle win unlocks and starts the next entry, stacked on top of what's already playing.
-	// On a reloaded save, StartMusicLayers() catches up immediately instead of restarting at layer 0.
-	UPROPERTY(EditAnywhere, config, Category="Audio|Music Layers")
-	TArray<FString> MusicLayerEventPaths;
+	// Ordered list of FMOD event paths (event:/...), one exclusive track per progression step.
+	// Only one plays at a time: index 0 ("Musique 1") plays from 0 puzzles won, index 1
+	// ("Musique 2") from 1 puzzle won, etc. Winning a puzzle switches the track instead of
+	// layering on top of it. Progress past the last entry just keeps the last track playing.
+	UPROPERTY(EditAnywhere, config, Category="Audio|Music Progression")
+	TArray<FString> MusicTrackEventPaths;
 
-	UPROPERTY(EditAnywhere, config, Category="Audio|Music Layers")
-	bool bAutoStartMusicLayers = true;
+	UPROPERTY(EditAnywhere, config, Category="Audio|Music Progression")
+	bool bAutoStartMusicProgression = true;
+
+	// ---------- Ancienne logique (layers additifs) — conservée en commentaire pour référence ----------
+	// UPROPERTY(EditAnywhere, config, Category="Audio|Music Layers")
+	// TArray<FString> MusicLayerEventPaths;
+	//
+	// UPROPERTY(EditAnywhere, config, Category="Audio|Music Layers")
+	// bool bAutoStartMusicLayers = true;
 
 
 
