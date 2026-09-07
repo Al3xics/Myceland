@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
+#include "FMODAudioComponent.h"
 #include "Tiles/ML_BoardSpawner.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMycelandAmbience, Log, All);
@@ -516,6 +517,7 @@ bool UML_AmbienceSubsystem::GetFixedMusicForCurrentLevel(FString& OutEventPath) 
 
 	return false;
 }
+
 FString UML_AmbienceSubsystem::GetCleanMapName() const
 {
 	const UWorld* World = GetWorld();
@@ -534,4 +536,65 @@ FString UML_AmbienceSubsystem::GetCleanMapName() const
 		}
 	}
 	return MapName;
+}
+void UML_AmbienceSubsystem::FadeOutMusic(float Duration)
+{
+	if (!IsValid(CurrentMusicHandle))
+		return;
+
+	UFMODAudioComponent* AudioComponent = CurrentMusicHandle->GetAudioComponent();
+	if (!IsValid(AudioComponent))
+		return;
+
+	if (!GetWorld())
+		return;
+
+	MusicFadeDuration = FMath::Max(Duration, 0.01f);
+	MusicFadeElapsed = 0.0f;
+
+	MusicFadeStartVolume = 1.0f;
+
+	GetWorld()->GetTimerManager().ClearTimer(MusicFadeTimerHandle);
+
+	GetWorld()->GetTimerManager().SetTimer(
+		MusicFadeTimerHandle,
+		this,
+		&UML_AmbienceSubsystem::UpdateMusicFade,
+		0.02f,
+		true
+	);
+}
+void UML_AmbienceSubsystem::UpdateMusicFade()
+{
+	if (!IsValid(CurrentMusicHandle))
+	{
+		GetWorld()->GetTimerManager().ClearTimer(MusicFadeTimerHandle);
+		return;
+	}
+
+	UFMODAudioComponent* AudioComponent = CurrentMusicHandle->GetAudioComponent();
+	if (!IsValid(AudioComponent))
+	{
+		GetWorld()->GetTimerManager().ClearTimer(MusicFadeTimerHandle);
+		return;
+	}
+
+	MusicFadeElapsed += 0.02f;
+
+	const float Alpha =
+		FMath::Clamp(MusicFadeElapsed / MusicFadeDuration, 0.0f, 1.0f);
+
+	const float NewVolume =
+		FMath::Lerp(MusicFadeStartVolume, 0.0f, Alpha);
+
+	AudioComponent->SetVolume(NewVolume);
+
+	if (Alpha >= 1.0f)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(MusicFadeTimerHandle);
+
+		CurrentMusicHandle->Stop();
+		CurrentMusicHandle = nullptr;
+		CurrentMusicTrackIndex = INDEX_NONE;
+	}
 }

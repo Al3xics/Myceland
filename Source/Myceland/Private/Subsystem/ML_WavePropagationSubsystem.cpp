@@ -525,15 +525,15 @@ void UML_WavePropagationSubsystem::FinishRing()
 	{
 		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 		{
-			if (CurrentNatureReactionCount > 0)
+			if (CurrentNatureReactionCount > 1)
 			{
 				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainNature);
 			}
-			else if (CurrentParasiteReactionCount > 0)
+			else if (CurrentParasiteReactionCount > 1)
 			{
 				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainParasite);
 			}
-			else if (CurrentWaterReactionCount > 0)
+			else if (CurrentWaterReactionCount > 1)
 			{
 				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainWater);
 			}

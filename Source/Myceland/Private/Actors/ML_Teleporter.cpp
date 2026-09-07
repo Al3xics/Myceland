@@ -197,10 +197,14 @@ void AML_Teleporter::OnTeleportTriggered()
             LogTemp,
             Warning,
             TEXT("ML_Teleporter '%s': no DestinationLevel set."),
-            *GetName());
+            *GetName()
+        );
 
         return;
     }
+
+    // Notify Blueprint that the teleporter was used.
+    OnTeleporterUsed.Broadcast();
 
     BeginAsyncTeleport();
 }

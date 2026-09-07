@@ -11,7 +11,7 @@ class UBoxComponent;
 class UInputAction;
 class UUserWidget;
 struct FStreamableHandle;
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTeleporterUsed);
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Teleporter : public AActor
 {
@@ -67,7 +67,9 @@ protected:
 
 public:
     AML_Teleporter();
-
+    // Fires when the player presses the teleport/interact input.
+    UPROPERTY(BlueprintAssignable, Category = "01 Teleporter|Events")
+    FOnTeleporterUsed OnTeleporterUsed;
     // ==================== COMPONENTS ====================
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
