@@ -4,6 +4,7 @@
 
 #include "Audio/ML_FMODEvents.h"
 #include "Components/SphereComponent.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Player/ML_PlayerCharacter.h"
@@ -45,7 +46,24 @@ void AML_Collectible::BeginPlay()
 void AML_Collectible::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StopWaitingForSourceParasite();
+
+	// Picked up or destroyed mid-flight: the Blueprint will never reach the end of its timeline, so report
+	// here instead. Without this the propagation gate would hold on an actor that can no longer answer.
+	NotifySpawnAnimationFinished();
+
 	Super::EndPlay(EndPlayReason);
+}
+
+void AML_Collectible::NotifySpawnAnimationFinished()
+{
+	if (bSpawnAnimationFinished) return;
+
+	bSpawnAnimationFinished = true;
+
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(SpawnAnimationFallbackTimer);
+
+	OnSpawnAnimationFinished.Broadcast(this);
 }
 
 void AML_Collectible::PrepareForSpawnSequence()
@@ -114,6 +132,24 @@ void AML_Collectible::BeginSpawnSequence()
 	}
 
 	StartSpawnAnimation();
+
+	// The end of the flight is reported by the Blueprint through NotifySpawnAnimationFinished. If that call
+	// is not wired, report by ourselves after roughly the flight duration: a wave waiting on us would
+	// otherwise stall until its own settle timeout, which is far longer and reads as a freeze.
+	const UML_MycelandDeveloperSettings* Settings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	if (Settings && Settings->CollectibleSpawnAnimationTimeout > 0.f)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(
+				SpawnAnimationFallbackTimer,
+				this,
+				&AML_Collectible::NotifySpawnAnimationFinished,
+				Settings->CollectibleSpawnAnimationTimeout,
+				false
+			);
+		}
+	}
 
 	// From here the flight owns the collision: off while flying, on when it lands. With no source parasite
 	// there is no flight, so nothing would ever turn it back on and the collectible would be unpickable.

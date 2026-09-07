@@ -7,9 +7,12 @@
 #include "ML_Collectible.generated.h"
 
 class AML_Tile;
+class AML_Collectible;
 class AML_PlayerCharacter;
 class AML_PlayerController;
 class USphereComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCollectibleSpawnAnimationFinished, AML_Collectible*, Collectible);
 
 UCLASS()
 class MYCELAND_API AML_Collectible : public AActor
@@ -26,7 +29,9 @@ private:
 
 	bool bSpawnSequenceStarted = false;
 	bool bHiddenUntilSpawnSequence = false;
+	bool bSpawnAnimationFinished = false;
 	FTimerHandle SpawnSequenceFallbackTimer;
+	FTimerHandle SpawnAnimationFallbackTimer;
 
 	UFUNCTION()
 	void HandleSourceParasiteReady(AML_Tile* Tile);
@@ -93,6 +98,21 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Myceland Collectible")
 	bool HasSpawnSequenceStarted() const { return bSpawnSequenceStarted; }
+
+	// Broadcast once the spawn flight is over, or when the collectible dies before finishing it. The wave
+	// propagation waits on this before starting a wave flagged bWaitForPendingVisuals, so the water no
+	// longer arrives while the energies are still flying.
+	UPROPERTY(BlueprintAssignable, Category="Myceland Collectible")
+	FOnCollectibleSpawnAnimationFinished OnSpawnAnimationFinished;
+
+	// Called by the collectible Blueprint at the end of the spawn flight, the counterpart of
+	// AML_Tile::NotifyParasiteReady. Idempotent, so it can be wired on several branches of the timeline
+	// without having to order them.
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
+	void NotifySpawnAnimationFinished();
+
+	UFUNCTION(BlueprintPure, Category="Myceland Collectible")
+	bool HasSpawnAnimationFinished() const { return bSpawnAnimationFinished; }
 
 	void InitOwningAxial(const FIntPoint& InAxial) { OwningAxial = InAxial; }
 	const FIntPoint& GetOwningAxial() const { return OwningAxial; }

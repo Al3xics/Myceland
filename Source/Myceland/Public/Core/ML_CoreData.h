@@ -292,6 +292,9 @@ struct FML_WavePriorityEntry
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="Delay before this wave starts, overriding InterWaveDelay. Negative keeps InterWaveDelay. Use 0 for a wave that is already paced by the animations it waits on, so the two delays do not stack."))
 	float DelayBeforeWave = -1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="Wait for the visuals the previous waves started (grass -> parasite transformations, collectible flights) to report being finished before starting this wave. DelayBeforeWave then applies once they settled, instead of running in parallel with them."))
+	bool bWaitForPendingVisuals = false;
 };
 
 USTRUCT(BlueprintType)

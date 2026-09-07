@@ -276,6 +276,14 @@ public:
 		meta=(ClampMin="0.0", Tooltip="Safety net for the collectible spawn: a collectible waits for its source parasite to report the end of its transformation animation, and starts anyway after this delay if the report never comes."))
 	float CollectibleSourceReadyTimeout = 4.f;
 
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Propagation",
+		meta=(ClampMin="0.0", Tooltip="Safety net for the end of the collectible spawn flight: the collectible Blueprint reports it with Notify Spawn Animation Finished, and the collectible reports by itself after this delay if the call is not wired. Keep it close to the real flight duration. 0 disables it, and the wave settle timeout then covers it much more coarsely."))
+	float CollectibleSpawnAnimationTimeout = 1.5f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Propagation",
+		meta=(ClampMin="0.0", Tooltip="Safety net for a wave flagged Wait For Pending Visuals: if a Blueprint never reports the end of its animation, the wave starts anyway after this delay. 0 disables the safety net entirely (the wave then waits forever, which is only ever a debugging aid)."))
+	float WaveVisualSettleTimeout = 6.f;
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback")
 	float UndoSpeed = 3.0f;
 
