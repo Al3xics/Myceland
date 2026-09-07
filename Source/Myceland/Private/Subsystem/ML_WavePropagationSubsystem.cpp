@@ -78,6 +78,10 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 	TM.ClearTimer(IntraWaveTimerHandle);
 	TM.ClearTimer(InterWaveTimerHandle);
 	TM.ClearTimer(TouchTimerHandle);
+
+	// Includes the visual settle timeout, and drops the gate flag with it: clearing the timer alone would
+	// leave a wave waiting on a report that nothing is scheduled to force anymore.
+	ClearPendingVisuals();
 }
 
 void UML_WavePropagationSubsystem::EndTileResolved()
@@ -122,6 +126,10 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	}
 	TotalReactionTileCount = 0;
 	bPlayAvatarSurpriseVocalThisAction = true;
+
+	// Animations may well outlive the propagation (a collectible is still landing); no wave is left to wait
+	// on them, so drop the bindings rather than carrying them into the next turn.
+	ClearPendingVisuals();
 
 	bIsResolvingTiles = false;
 
@@ -183,6 +191,7 @@ void UML_WavePropagationSubsystem::BeginTileResolvedInternal(AML_Tile* HitTile, 
 	PendingChangesIndex = 0;
 	bRingInProgress = false;
 	bTouchRingInProgress = false;
+	ClearPendingVisuals();
 
 	if (RollBackSubsystem)
 		RollBackSubsystem->BeginTurnRecord(HitTile);
@@ -299,6 +308,10 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 	            ParasitesThatAteGrass.Add(Tile);
 	        }
 			Tile->bConsumedGrass = true;
+
+			// The transformation starts now and ends several seconds later (GrassToParasiteDelay, then the
+			// parasite growth animation). A wave flagged bWaitForPendingVisuals waits on it.
+			TrackPendingParasiteVisual(Tile);
 	        TWeakObjectPtr<AML_Tile> WeakTile = Tile;
 	   
 
@@ -506,7 +519,12 @@ else
 			// per wave: the energies then cascade in the order the parasites finish. The spawn sound moved
 			// with the visual, inside BeginSpawnSequence.
 			if (IsValid(Collectible))
+			{
+				// Tracked before the wait is armed: WaitForSourceParasite can start the flight synchronously
+				// when the source parasite is already grown.
+				TrackPendingCollectibleVisual(Collectible);
 				Collectible->WaitForSourceParasite(DevSettings->CollectibleSourceReadyTimeout);
+			}
 
 			bCycleHasChanges = true;
 			bAnyChangeThisAction = true;
@@ -545,16 +563,50 @@ void UML_WavePropagationSubsystem::FinishRing()
 
 void UML_WavePropagationSubsystem::ScheduleNextPriority()
 {
+	// CurrentWaveIndex was already advanced in ProcessNextWave, so it points at the wave about to run.
 	// A wave whose pacing already comes from the animations it waits on (the collectibles wait on their
 	// source parasite) sets DelayBeforeWave to 0 so the two delays do not stack into a visible pause.
 	float Delay = DevSettings->InterWaveDelay;
+	bool bWaitForVisuals = false;
+
 	if (DevSettings->WavesPriority.IsValidIndex(CurrentWaveIndex))
 	{
-		const float Override = DevSettings->WavesPriority[CurrentWaveIndex].DelayBeforeWave;
+		const FML_WavePriorityEntry& NextWave = DevSettings->WavesPriority[CurrentWaveIndex];
+
+		const float Override = NextWave.DelayBeforeWave;
 		if (Override >= 0.f)
 			Delay = Override;
+
+		bWaitForVisuals = NextWave.bWaitForPendingVisuals;
 	}
 
+	// The next wave needs a settled board (water, which would otherwise reach a parasite still growing out
+	// of the grass). Hold here until every animation the previous waves started has reported, then apply
+	// the delay on top, so the wait and the delay never overlap.
+	if (bWaitForVisuals && HasPendingVisuals())
+	{
+		bWaitingForVisualSettle = true;
+		PendingVisualSettleDelay = Delay;
+
+		if (DevSettings->WaveVisualSettleTimeout > 0.f)
+		{
+			GetWorld()->GetTimerManager().SetTimer(
+				VisualSettleTimeoutHandle,
+				this,
+				&UML_WavePropagationSubsystem::ForceReleaseVisualGate,
+				DevSettings->WaveVisualSettleTimeout,
+				false
+			);
+		}
+
+		return;
+	}
+
+	StartNextWaveTimer(Delay);
+}
+
+void UML_WavePropagationSubsystem::StartNextWaveTimer(const float Delay)
+{
 	// A rate of 0 clears a timer instead of firing it: keep it schedulable so CancelAllWaveTimers still
 	// owns the teardown.
 	GetWorld()->GetTimerManager().SetTimer(
@@ -564,6 +616,113 @@ void UML_WavePropagationSubsystem::ScheduleNextPriority()
 		FMath::Max(Delay, 0.001f),
 		false
 	);
+}
+
+void UML_WavePropagationSubsystem::TrackPendingParasiteVisual(AML_Tile* Tile)
+{
+	// Called while the tile is still Grass: it becomes Parasite only after GrassToParasiteDelay, and the
+	// parasite Blueprint reports through NotifyParasiteReady at the end of its growth animation.
+	if (!IsValid(Tile)) return;
+
+	Tile->OnParasiteReady.AddUniqueDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+	PendingVisuals.Add(Tile);
+}
+
+void UML_WavePropagationSubsystem::TrackPendingCollectibleVisual(AML_Collectible* Collectible)
+{
+	// A collectible collected on its spawn frame has already reported through EndPlay: nothing to wait for.
+	if (!IsValid(Collectible) || Collectible->HasSpawnAnimationFinished()) return;
+
+	Collectible->OnSpawnAnimationFinished.AddUniqueDynamic(this, &UML_WavePropagationSubsystem::HandlePendingCollectibleFinished);
+	PendingVisuals.Add(Collectible);
+}
+
+bool UML_WavePropagationSubsystem::HasPendingVisuals()
+{
+	for (auto It = PendingVisuals.CreateIterator(); It; ++It)
+	{
+		UObject* Pending = It->Get();
+
+		// Destroyed mid-animation: it will never report.
+		if (!Pending)
+		{
+			It.RemoveCurrent();
+			continue;
+		}
+
+		// A pending grass -> parasite transition that was overridden (the tile turned into something else
+		// before its timer fired) has no parasite Blueprint left to report either.
+		if (AML_Tile* Tile = Cast<AML_Tile>(Pending))
+		{
+			const EML_TileType Type = Tile->GetCurrentType();
+			if (Type != EML_TileType::Grass && !UML_TileTypeTraits::IsParasiteType(Type))
+			{
+				Tile->OnParasiteReady.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+				It.RemoveCurrent();
+			}
+		}
+	}
+
+	return PendingVisuals.Num() > 0;
+}
+
+void UML_WavePropagationSubsystem::HandlePendingParasiteReady(AML_Tile* Tile)
+{
+	if (IsValid(Tile))
+		Tile->OnParasiteReady.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+
+	PendingVisuals.Remove(TWeakObjectPtr<UObject>(Tile));
+	TryReleaseVisualGate();
+}
+
+void UML_WavePropagationSubsystem::HandlePendingCollectibleFinished(AML_Collectible* Collectible)
+{
+	if (IsValid(Collectible))
+		Collectible->OnSpawnAnimationFinished.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingCollectibleFinished);
+
+	PendingVisuals.Remove(TWeakObjectPtr<UObject>(Collectible));
+	TryReleaseVisualGate();
+}
+
+void UML_WavePropagationSubsystem::TryReleaseVisualGate()
+{
+	if (!bWaitingForVisualSettle || HasPendingVisuals()) return;
+
+	bWaitingForVisualSettle = false;
+
+	if (GetWorld())
+		GetWorld()->GetTimerManager().ClearTimer(VisualSettleTimeoutHandle);
+
+	StartNextWaveTimer(PendingVisualSettleDelay);
+}
+
+void UML_WavePropagationSubsystem::ForceReleaseVisualGate()
+{
+	// A Blueprint never reported the end of its animation. Start the wave anyway rather than leaving the
+	// board locked: the water wave still catches the tiles stuck mid grass -> parasite transition (see
+	// UML_WaveWater), so this path degrades to the pre-gate behaviour instead of losing the reaction.
+	if (!bWaitingForVisualSettle) return;
+
+	bWaitingForVisualSettle = false;
+	StartNextWaveTimer(PendingVisualSettleDelay);
+}
+
+void UML_WavePropagationSubsystem::ClearPendingVisuals()
+{
+	for (const TWeakObjectPtr<UObject>& Pending : PendingVisuals)
+	{
+		if (AML_Tile* Tile = Cast<AML_Tile>(Pending.Get()))
+			Tile->OnParasiteReady.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+		else if (AML_Collectible* Collectible = Cast<AML_Collectible>(Pending.Get()))
+			Collectible->OnSpawnAnimationFinished.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingCollectibleFinished);
+	}
+
+	PendingVisuals.Empty();
+	bWaitingForVisualSettle = false;
+	PendingVisualSettleDelay = 0.f;
+
+	if (GetWorld())
+		GetWorld()->GetTimerManager().ClearTimer(VisualSettleTimeoutHandle);
 }
 
 void UML_WavePropagationSubsystem::ProcessNextWave()

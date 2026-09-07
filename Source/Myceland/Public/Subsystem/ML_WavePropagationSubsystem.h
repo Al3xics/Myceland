@@ -15,6 +15,7 @@ class UML_WinLoseSubsystem;
 class UML_RollBackSubsystem;
 class AML_PlayerController;
 class AML_Tile;
+class AML_Collectible;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUndoAnimating, bool, IsUndoAnimating);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnResetAnimating, bool, IsResetAnimating);
@@ -151,6 +152,43 @@ private:
 	void ProcessNextWave();
 	void EndTileResolved();
 	void BeginTileResolvedInternal(AML_Tile* HitTile, bool bPlayAvatarSurpriseVocal);
+
+	// =========================================================================
+	// Visual settle gate
+	//
+	// The scheduler paces on timers, the visuals pace on animations, and the two used to drift apart: a
+	// tile only *becomes* Parasite GrassToParasiteDelay after its change was applied, and its Blueprint
+	// then plays a growth animation on top of that, while the water wave was already scheduled from a flat
+	// InterWaveDelay. A wave flagged bWaitForPendingVisuals holds here until everything the previous waves
+	// started reports being done (AML_Tile::OnParasiteReady, AML_Collectible::OnSpawnAnimationFinished),
+	// so the water no longer swallows parasites that are still growing.
+	//
+	// Weak pointers rather than a counter: an actor destroyed mid-animation (an energy picked up in
+	// flight) can then simply be pruned instead of holding the gate until the timeout.
+	// =========================================================================
+
+	TSet<TWeakObjectPtr<UObject>> PendingVisuals;
+
+	bool bWaitingForVisualSettle = false;
+	float PendingVisualSettleDelay = 0.f;
+	FTimerHandle VisualSettleTimeoutHandle;
+
+	void TrackPendingParasiteVisual(AML_Tile* Tile);
+	void TrackPendingCollectibleVisual(AML_Collectible* Collectible);
+	void ClearPendingVisuals();
+
+	// Drops the entries that can no longer report, then says whether anything is still animating.
+	bool HasPendingVisuals();
+
+	void TryReleaseVisualGate();
+	void ForceReleaseVisualGate();
+	void StartNextWaveTimer(float Delay);
+
+	UFUNCTION()
+	void HandlePendingParasiteReady(AML_Tile* Tile);
+
+	UFUNCTION()
+	void HandlePendingCollectibleFinished(AML_Collectible* Collectible);
 
 	// =========================================================================
 	// Touch wave — pure visual feedback, no gameplay effect.
