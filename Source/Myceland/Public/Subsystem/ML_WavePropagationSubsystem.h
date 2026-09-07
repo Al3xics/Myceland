@@ -8,6 +8,7 @@
 
 class UML_CinematicSubsystem;
 struct FML_WaveChange;
+enum class EML_BoardActionReason : uint8;
 
 class UML_MycelandDeveloperSettings;
 class UML_WinLoseSubsystem;
@@ -66,7 +67,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Reset")
 	bool ResetAllActions_Animated();
 
-	bool ResetAllActions_ExcludingMoves_Animated();
 	void ResetAllActions_ExcludingMoves_Instant(class AML_BoardSpawner* Board);
 
 	void CancelAllWaveTimers();
@@ -186,6 +186,9 @@ private:
 
 	UFUNCTION()
 	void HandleRollbackResetAnimating(bool bIsAnimating);
+
+	// Holds (or releases) the board lock for the duration of a rollback animation.
+	void HoldBoardForRollback(bool bIsAnimating, EML_BoardActionReason Reason);
 
 	bool bRollbackDelegatesBound = false;
 };

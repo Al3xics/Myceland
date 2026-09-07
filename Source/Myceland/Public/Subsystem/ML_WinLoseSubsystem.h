@@ -29,6 +29,8 @@ class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Myceland|Win Lose")
+    void ForceBoardWin(AML_BoardSpawner* Board);
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnWin OnWin;
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")

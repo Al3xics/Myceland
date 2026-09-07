@@ -115,9 +115,16 @@ Plugins/**/Intermediate/*
 
 # End of https://www.toptal.com/developers/gitignore/api/unrealengine
 
-# FMOD Plugin - keep distributed binaries tracked for team compatibility.
+# FMOD Plugin - only Firelight's distributed binaries are tracked: they ship
+# with the plugin and cannot be compiled. The UnrealEditor-* DLLs and .modules
+# are built locally by each dev (MSVC output is not reproducible, so they show
+# up as modified after every build) and any project build regenerates them.
 !Plugins/FMODStudio/Binaries/
-!Plugins/FMODStudio/Binaries/**
+!Plugins/FMODStudio/Binaries/*/
+Plugins/FMODStudio/Binaries/*/*
+!Plugins/FMODStudio/Binaries/*/fmod*.dll
+!Plugins/FMODStudio/Binaries/*/fmod*.lib
+!Plugins/FMODStudio/Binaries/*/resonanceaudio.dll
 
 # FMOD Plugin - local debug symbols are too large for Git.
 Plugins/FMODStudio/Binaries/**/*.pdb

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{ba6caa4f-ddfa-46bf-ac1e-1111dbfa68bc}">
+		<property name="assetPath">
+			<value>Slip Away OST - Level 1.wav</value>
+		</property>
+		<property name="isStreaming">
+			<value>true</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>73.875</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{03b97852-04f0-4cb9-ae63-7dcd289cd534}</destination>
+		</relationship>
+	</object>
+</objects>

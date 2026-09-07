@@ -38,7 +38,7 @@ void UML_AmbienceSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 void UML_AmbienceSubsystem::Deinitialize()
 {
 	StopAmbience();
-	StopMusicLayers();
+	StopMusicProgression();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -126,7 +126,10 @@ void UML_AmbienceSubsystem::HandlePuzzleWon()
 		TotalPuzzleCount,
 		GetLivingAmbienceRatio());
 
-	UnlockNextMusicLayer();
+	SwitchToMusicTrackForCurrentProgress();
+
+	// ---------- Ancienne logique (layers additifs) — conservée en commentaire pour référence ----------
+	// UnlockNextMusicLayer();
 }
 
 void UML_AmbienceSubsystem::PlayNextAmbienceSound()
@@ -228,63 +231,44 @@ void UML_AmbienceSubsystem::SeedStateFromAlreadySolvedBoards()
 		StartAmbience();
 	}
 
-	if (DevSettings && DevSettings->bAutoStartMusicLayers)
+	if (DevSettings && DevSettings->bAutoStartMusicProgression)
 	{
-		StartMusicLayers();
+		StartMusicProgression();
 	}
+
+	// ---------- Ancienne logique (layers additifs) — conservée en commentaire pour référence ----------
+	// if (DevSettings && DevSettings->bAutoStartMusicLayers)
+	// {
+	// 	StartMusicLayers();
+	// }
 }
 
-void UML_AmbienceSubsystem::StartMusicLayers()
+void UML_AmbienceSubsystem::StartMusicProgression()
 {
-	if (!ActiveMusicLayerHandles.IsEmpty())
+	SwitchToMusicTrackForCurrentProgress();
+}
+
+void UML_AmbienceSubsystem::StopMusicProgression()
+{
+	if (IsValid(CurrentMusicHandle))
 	{
-		return;
+		CurrentMusicHandle->Stop();
 	}
 
+	CurrentMusicHandle = nullptr;
+	CurrentMusicTrackIndex = INDEX_NONE;
+}
+
+void UML_AmbienceSubsystem::SwitchToMusicTrackForCurrentProgress()
+{
 	if (!DevSettings)
 	{
 		DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 	}
 
-	if (!DevSettings || DevSettings->MusicLayerEventPaths.IsEmpty())
-	{
-		UE_LOG(LogMycelandAmbience, Warning, TEXT("Music layering has no FMOD event paths configured."));
-		return;
-	}
-
-	// Catch up to however many layers were already unlocked (e.g. on a reloaded save), then leave
-	// the rest to unlock one by one as future puzzles are won.
-	const int32 LayersToStart = FMath::Clamp(WonPuzzleCount + 1, 1, DevSettings->MusicLayerEventPaths.Num());
-	for (int32 i = 0; i < LayersToStart; ++i)
-	{
-		UnlockNextMusicLayer();
-	}
-}
-
-void UML_AmbienceSubsystem::StopMusicLayers()
-{
-	for (const TObjectPtr<UML_SoundPlaybackHandle>& Handle : ActiveMusicLayerHandles)
-	{
-		if (IsValid(Handle))
-		{
-			Handle->Stop();
-		}
-	}
-
-	ActiveMusicLayerHandles.Reset();
-}
-
-void UML_AmbienceSubsystem::UnlockNextMusicLayer()
-{
 	if (!DevSettings)
 	{
 		return;
-	}
-
-	const int32 NextLayerIndex = ActiveMusicLayerHandles.Num();
-	if (!DevSettings->MusicLayerEventPaths.IsValidIndex(NextLayerIndex))
-	{
-		return; // every configured layer is already playing
 	}
 
 	UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this);
@@ -293,13 +277,176 @@ void UML_AmbienceSubsystem::UnlockNextMusicLayer()
 		return;
 	}
 
-	const FString& EventPath = DevSettings->MusicLayerEventPaths[NextLayerIndex];
-	if (UML_SoundPlaybackHandle* Handle = SoundSubsystem->StartTrackedSound2DByPath(EventPath, FML_OnSoundFinished(), /*bAutoDestroy=*/false))
+	// ============================================================
+	// FIXED MUSIC LEVEL
+	// ============================================================
+
+	FString FixedMusicEventPath;
+
+	if (GetFixedMusicForCurrentLevel(FixedMusicEventPath))
 	{
-		ActiveMusicLayerHandles.Add(Handle);
-		UE_LOG(LogMycelandAmbience, Log, TEXT("Music layer %d unlocked: %s"), NextLayerIndex, *EventPath);
+		// INDEX_NONE - 1 is used internally to mean:
+		// "fixed level music is currently playing".
+		constexpr int32 FixedMusicIndex = INDEX_NONE - 1;
+
+		// Puzzle wins still call this function, but fixed music must
+		// never restart when that happens.
+		if (CurrentMusicTrackIndex == FixedMusicIndex && IsValid(CurrentMusicHandle))
+		{
+			return;
+		}
+
+		if (IsValid(CurrentMusicHandle))
+		{
+			CurrentMusicHandle->Stop();
+			CurrentMusicHandle = nullptr;
+		}
+
+		CurrentMusicHandle =
+			SoundSubsystem->StartTrackedSound2DByPath(
+				FixedMusicEventPath,
+				FML_OnSoundFinished(),
+				/*bAutoDestroy=*/false
+			);
+
+		CurrentMusicTrackIndex = FixedMusicIndex;
+
+		UE_LOG(
+			LogMycelandAmbience,
+			Log,
+			TEXT("Fixed level music started: %s"),
+			*FixedMusicEventPath
+		);
+
+		return;
 	}
+
+	// ============================================================
+	// NORMAL PUZZLE MUSIC PROGRESSION
+	// ============================================================
+
+	if (DevSettings->MusicTrackEventPaths.IsEmpty())
+	{
+		UE_LOG(
+			LogMycelandAmbience,
+			Warning,
+			TEXT("Music progression has no FMOD event paths configured.")
+		);
+
+		return;
+	}
+
+	const int32 TargetTrackIndex =
+		FMath::Clamp(
+			WonPuzzleCount,
+			0,
+			DevSettings->MusicTrackEventPaths.Num() - 1
+		);
+
+	if (TargetTrackIndex == CurrentMusicTrackIndex && IsValid(CurrentMusicHandle))
+	{
+		return;
+	}
+
+	if (IsValid(CurrentMusicHandle))
+	{
+		CurrentMusicHandle->Stop();
+		CurrentMusicHandle = nullptr;
+	}
+
+	const FString& EventPath =
+		DevSettings->MusicTrackEventPaths[TargetTrackIndex];
+
+	CurrentMusicHandle =
+		SoundSubsystem->StartTrackedSound2DByPath(
+			EventPath,
+			FML_OnSoundFinished(),
+			/*bAutoDestroy=*/false
+		);
+
+	CurrentMusicTrackIndex = TargetTrackIndex;
+
+	UE_LOG(
+		LogMycelandAmbience,
+		Log,
+		TEXT("Music progression switched to track %d: %s"),
+		TargetTrackIndex,
+		*EventPath
+	);
 }
+
+// ==================================================================================
+// Ancienne logique (layers additifs) — conservée en commentaire pour référence.
+// Elle démarrait un stem de plus par puzzle gagné et les empilait, au lieu de switcher
+// d'une piste exclusive à l'autre comme le fait SwitchToMusicTrackForCurrentProgress ci-dessus.
+// ==================================================================================
+//
+// void UML_AmbienceSubsystem::StartMusicLayers()
+// {
+// 	if (!ActiveMusicLayerHandles.IsEmpty())
+// 	{
+// 		return;
+// 	}
+//
+// 	if (!DevSettings)
+// 	{
+// 		DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+// 	}
+//
+// 	if (!DevSettings || DevSettings->MusicLayerEventPaths.IsEmpty())
+// 	{
+// 		UE_LOG(LogMycelandAmbience, Warning, TEXT("Music layering has no FMOD event paths configured."));
+// 		return;
+// 	}
+//
+// 	// Catch up to however many layers were already unlocked (e.g. on a reloaded save), then leave
+// 	// the rest to unlock one by one as future puzzles are won.
+// 	const int32 LayersToStart = FMath::Clamp(WonPuzzleCount + 1, 1, DevSettings->MusicLayerEventPaths.Num());
+// 	for (int32 i = 0; i < LayersToStart; ++i)
+// 	{
+// 		UnlockNextMusicLayer();
+// 	}
+// }
+//
+// void UML_AmbienceSubsystem::StopMusicLayers()
+// {
+// 	for (const TObjectPtr<UML_SoundPlaybackHandle>& Handle : ActiveMusicLayerHandles)
+// 	{
+// 		if (IsValid(Handle))
+// 		{
+// 			Handle->Stop();
+// 		}
+// 	}
+//
+// 	ActiveMusicLayerHandles.Reset();
+// }
+//
+// void UML_AmbienceSubsystem::UnlockNextMusicLayer()
+// {
+// 	if (!DevSettings)
+// 	{
+// 		return;
+// 	}
+//
+// 	const int32 NextLayerIndex = ActiveMusicLayerHandles.Num();
+// 	if (!DevSettings->MusicLayerEventPaths.IsValidIndex(NextLayerIndex))
+// 	{
+// 		return; // every configured layer is already playing
+// 	}
+//
+// 	UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this);
+// 	if (!SoundSubsystem)
+// 	{
+// 		return;
+// 	}
+//
+// 	const FString& EventPath = DevSettings->MusicLayerEventPaths[NextLayerIndex];
+// 	if (UML_SoundPlaybackHandle* Handle = SoundSubsystem->StartTrackedSound2DByPath(EventPath, FML_OnSoundFinished(), /*bAutoDestroy=*/false))
+// 	{
+// 		ActiveMusicLayerHandles.Add(Handle);
+// 		UE_LOG(LogMycelandAmbience, Log, TEXT("Music layer %d unlocked: %s"), NextLayerIndex, *EventPath);
+// 	}
+// }
 
 int32 UML_AmbienceSubsystem::GetConfiguredPuzzleCountForCurrentLevel() const
 {
@@ -331,7 +478,44 @@ int32 UML_AmbienceSubsystem::GetConfiguredPuzzleCountForCurrentLevel() const
 
 	return 0;
 }
+bool UML_AmbienceSubsystem::GetFixedMusicForCurrentLevel(FString& OutEventPath) const
+{
+	OutEventPath.Empty();
 
+	if (!DevSettings)
+	{
+		return false;
+	}
+
+	const FString CurrentMapName = GetCleanMapName();
+
+	for (const FML_LevelFixedMusic& Entry : DevSettings->FixedMusicLevels)
+	{
+		if (!Entry.Level.IsValid() || Entry.MusicEventPath.IsEmpty())
+		{
+			continue;
+		}
+
+		const TSoftObjectPtr<UWorld>* LevelAsset =
+			DevSettings->Levels.Find(Entry.Level);
+
+		if (!LevelAsset)
+		{
+			continue;
+		}
+
+		const FSoftObjectPath LevelPath =
+			LevelAsset->ToSoftObjectPath();
+
+		if (LevelPath.GetAssetName() == CurrentMapName)
+		{
+			OutEventPath = Entry.MusicEventPath;
+			return true;
+		}
+	}
+
+	return false;
+}
 FString UML_AmbienceSubsystem::GetCleanMapName() const
 {
 	const UWorld* World = GetWorld();

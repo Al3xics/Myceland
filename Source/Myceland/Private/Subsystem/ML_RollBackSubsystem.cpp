@@ -1,4 +1,4 @@
-// Copyright Myceland Team, All Rights Reserved.
+﻿// Copyright Myceland Team, All Rights Reserved.
 
 #include "Subsystem/ML_RollBackSubsystem.h"
 
@@ -13,6 +13,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_PlayerController.h"
+#include "Subsystem/ML_BoardActionSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_BoardSpawner.h"
@@ -1120,47 +1121,13 @@ bool UML_RollBackSubsystem::UndoSingleAction_Animated()
 	return false;
 }
 
-bool UML_RollBackSubsystem::ResetAllActions_ExcludingMoves_Animated()
-{
-	EnsureInitialized();
-	if (!PlayerController || !DevSettings) return false;
-	if (bIsUndoAnimating || bIsResetAllAnimating) return false;
-
-	UML_WavePropagationSubsystem* WaveSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>() : nullptr;
-	if (!WaveSubsystem || WaveSubsystem->IsResolvingTiles()) return false;
-
-	TArray<FML_ActionUndoRecord>* Stack = GetCurrentBoardStack();
-	if (!Stack) return false;
-
-	Stack->RemoveAll([](const FML_ActionUndoRecord& Action)
-	{
-		return Action.Type == EML_UndoActionType::Move;
-	});
-
-	if (Stack->Num() == 0) return false;
-
-	WaveSubsystem->CancelAllWaveTimers();
-	PlayerController->DisableInput(PlayerController);
-	ApplyResetTimeDilation(*Stack);
-
-	bIsResetAllAnimating = true;
-	OnResetAnimating.Broadcast(bIsResetAllAnimating);
-
-	const bool bStarted = UndoSingleAction_Animated();
-	if (!bStarted)
-	{
-		bIsResetAllAnimating = false;
-		ClearTimeDilation();
-		OnResetAnimating.Broadcast(bIsResetAllAnimating);
-		PlayerController->EnableInput(PlayerController);
-		return false;
-	}
-
-	return true;
-}
-
 void UML_RollBackSubsystem::ResetRuntimeState()
 {
+	// The animating flags are cleared silently here (no OnUndoAnimating / OnResetAnimating broadcast), so
+	// the board token taken when the animation started would never be released. Drop it explicitly.
+	if (UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+		BoardAction->EndBoardAction(this);
+
 	bIsResetAllAnimating = false;
 	bIsUndoUntilPlantAnimating = false;
 	bUndoUntilPlantReachedPlant = false;

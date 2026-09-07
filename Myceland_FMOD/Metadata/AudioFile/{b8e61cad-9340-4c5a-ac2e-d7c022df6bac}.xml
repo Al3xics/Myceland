@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{b8e61cad-9340-4c5a-ac2e-d7c022df6bac}">
+		<property name="assetPath">
+			<value>Slip Away OST - Main Theme Vocals.wav</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>101.08797916666667</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{03b97852-04f0-4cb9-ae63-7dcd289cd534}</destination>
+		</relationship>
+	</object>
+</objects>
