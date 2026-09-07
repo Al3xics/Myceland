@@ -285,6 +285,9 @@ struct FML_WavePriorityEntry
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="If true and this wave has no changes, the propagation will stop entirely. If false, continues to next wave."))
 	bool bCanStopHereIfNoChanges = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="Delay before this wave starts, overriding InterWaveDelay. Negative keeps InterWaveDelay. Use 0 for a wave that is already paced by the animations it waits on, so the two delays do not stack."))
+	float DelayBeforeWave = -1.f;
 };
 
 USTRUCT(BlueprintType)

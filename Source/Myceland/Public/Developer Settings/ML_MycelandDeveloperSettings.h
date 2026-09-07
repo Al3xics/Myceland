@@ -250,6 +250,10 @@ public:
 		meta=(ClampMin="0.0", Tooltip="Delay between Grass StartTransition and the tile becoming Parasite."))
 	float GrassToParasiteDelay = 0.5f;
 
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation",
+		meta=(ClampMin="0.0", Tooltip="Safety net for the collectible spawn: a collectible waits for its source parasite to report the end of its transformation animation, and starts anyway after this delay if the report never comes."))
+	float CollectibleSourceReadyTimeout = 4.f;
+
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
 	float UndoSpeed = 3.0f;
 

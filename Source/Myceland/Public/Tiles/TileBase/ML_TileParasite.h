@@ -20,6 +20,12 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Parasite|Propagation")
 	void Propagate(int32 NeighborIndex, AML_Tile* TargetTile);
 
+	// Call this from the parasite Blueprint when its spawn/transformation animation is visually over.
+	// It is what releases the collectible that this parasite caused to spawn, so the energy never flies
+	// out of a tile that is still turning. Idempotent: wiring it on several timelines is safe.
+	UFUNCTION(BlueprintCallable, Category = "Parasite|Propagation")
+	void NotifySpawnAnimationFinished();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

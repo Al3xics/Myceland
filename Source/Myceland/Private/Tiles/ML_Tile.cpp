@@ -176,6 +176,9 @@ void AML_Tile::UpdateClassAtRuntime(const EML_TileType NewTileType, const TSubcl
 
 	bConsumedGrass = (OldType == EML_TileType::Grass && NewTileType == EML_TileType::Parasite);
 
+	// The incoming child actor has not animated yet, whatever the outgoing one had reported.
+	bParasiteReady = false;
+
 	TileChildActor->SetChildActorClass(NewClass);
 
 	// Only touch collision/navigation when the blocking state actually changes:
@@ -201,12 +204,22 @@ void AML_Tile::UpdateClassAtRuntime_Silent(const EML_TileType NewTileType, const
 
 	CurrentType = NewTileType;
 
+	bParasiteReady = false;
+
 	TileChildActor->SetChildActorClass(NewClass);
 
 	if (UML_TileTypeTraits::IsBlocking(NewTileType) != bBlocked)
 		SetBlocked(!bBlocked);
 
 	// NO OnTileTypeChanged(OldType, NewTileType) in silent mode
+}
+
+void AML_Tile::NotifyParasiteReady()
+{
+	if (bParasiteReady) return;
+
+	bParasiteReady = true;
+	OnParasiteReady.Broadcast(this);
 }
 
 void AML_Tile::Initialize(UML_BiomeTileSet* InBiomeTileSet)

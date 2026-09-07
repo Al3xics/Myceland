@@ -2,6 +2,7 @@
 
 #include "EngineUtils.h"
 #include "TechArt/ML_ParasiteRootNetwork.h"
+#include "Tiles/ML_Tile.h"
 
 AML_TileParasite::AML_TileParasite()
 {
@@ -18,6 +19,14 @@ void AML_TileParasite::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	NotifyRootNetworksUnregistered();
 	Super::EndPlay(EndPlayReason);
+}
+
+void AML_TileParasite::NotifySpawnAnimationFinished()
+{
+	if (AML_Tile* OwnerTile = Cast<AML_Tile>(GetParentActor()))
+	{
+		OwnerTile->NotifyParasiteReady();
+	}
 }
 
 void AML_TileParasite::Tick(float DeltaTime)
