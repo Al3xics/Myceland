@@ -151,8 +151,39 @@ void UML_AmbienceSubsystem::PlayNextAmbienceSound()
 		return;
 	}
 
-	const float LivingRatio = GetLivingAmbienceRatio();
-	const bool bPickLiving = bCanPlayLiving && (!bCanPlayDead || FMath::FRand() < LivingRatio);
+	const EML_LevelAmbienceMode AmbienceMode =
+		GetAmbienceModeForCurrentLevel();
+
+	if (AmbienceMode == EML_LevelAmbienceMode::None)
+	{
+		StopAmbience();
+		return;
+	}
+
+	bool bPickLiving = false;
+
+	switch (AmbienceMode)
+	{
+	case EML_LevelAmbienceMode::DeadOnly:
+		bPickLiving = false;
+		break;
+
+	case EML_LevelAmbienceMode::LivingOnly:
+		bPickLiving = true;
+		break;
+
+	case EML_LevelAmbienceMode::Normal:
+	default:
+		{
+			const float LivingRatio = GetLivingAmbienceRatio();
+
+			bPickLiving =
+				bCanPlayLiving &&
+				(!bCanPlayDead || FMath::FRand() < LivingRatio);
+
+			break;
+		}
+	}
 	const TArray<FString>& EventPool = bPickLiving ? LivingEvents : DeadEvents;
 	const FString& EventPath = EventPool[FMath::RandRange(0, EventPool.Num() - 1)];
 
@@ -248,7 +279,42 @@ void UML_AmbienceSubsystem::StartMusicProgression()
 {
 	SwitchToMusicTrackForCurrentProgress();
 }
+void UML_AmbienceSubsystem::StartPendingMusicTrack()
+{
+	if (PendingMusicEventPath.IsEmpty())
+	{
+		return;
+	}
 
+	UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this);
+	if (!SoundSubsystem)
+	{
+		return;
+	}
+
+	const FString EventPath = PendingMusicEventPath;
+	const int32 TrackIndex = PendingMusicTrackIndex;
+
+	PendingMusicEventPath.Empty();
+	PendingMusicTrackIndex = INDEX_NONE;
+
+	CurrentMusicHandle =
+		SoundSubsystem->StartTrackedSound2DByPath(
+			EventPath,
+			FML_OnSoundFinished(),
+			/*bAutoDestroy=*/false
+		);
+
+	CurrentMusicTrackIndex = TrackIndex;
+
+	UE_LOG(
+		LogMycelandAmbience,
+		Log,
+		TEXT("Music progression started track %d after fade: %s"),
+		TrackIndex,
+		*EventPath
+	);
+}
 void UML_AmbienceSubsystem::StopMusicProgression()
 {
 	if (IsValid(CurrentMusicHandle))
@@ -349,23 +415,24 @@ void UML_AmbienceSubsystem::SwitchToMusicTrackForCurrentProgress()
 		return;
 	}
 
-	if (IsValid(CurrentMusicHandle))
-	{
-		CurrentMusicHandle->Stop();
-		CurrentMusicHandle = nullptr;
-	}
-
 	const FString& EventPath =
 		DevSettings->MusicTrackEventPaths[TargetTrackIndex];
 
-	CurrentMusicHandle =
-		SoundSubsystem->StartTrackedSound2DByPath(
-			EventPath,
-			FML_OnSoundFinished(),
-			/*bAutoDestroy=*/false
-		);
+	// Something is already playing:
+	// remember the new track and fade the current one out first.
+	if (IsValid(CurrentMusicHandle))
+	{
+		PendingMusicEventPath = EventPath;
+		PendingMusicTrackIndex = TargetTrackIndex;
 
-	CurrentMusicTrackIndex = TargetTrackIndex;
+		FadeOutMusic(MusicSwitchFadeDuration);
+		return;
+	}
+
+	// Nothing currently playing, start immediately.
+	PendingMusicEventPath = EventPath;
+	PendingMusicTrackIndex = TargetTrackIndex;
+	StartPendingMusicTrack();
 
 	UE_LOG(
 		LogMycelandAmbience,
@@ -596,5 +663,43 @@ void UML_AmbienceSubsystem::UpdateMusicFade()
 		CurrentMusicHandle->Stop();
 		CurrentMusicHandle = nullptr;
 		CurrentMusicTrackIndex = INDEX_NONE;
+
+		StartPendingMusicTrack();
 	}
+}
+
+EML_LevelAmbienceMode UML_AmbienceSubsystem::GetAmbienceModeForCurrentLevel() const
+{
+	if (!DevSettings)
+	{
+		return EML_LevelAmbienceMode::Normal;
+	}
+
+	const FString CurrentMapName = GetCleanMapName();
+
+	for (const FML_LevelFixedAmbience& Entry : DevSettings->FixedAmbienceLevels)
+	{
+		if (!Entry.Level.IsValid())
+		{
+			continue;
+		}
+
+		const TSoftObjectPtr<UWorld>* LevelAsset =
+			DevSettings->Levels.Find(Entry.Level);
+
+		if (!LevelAsset)
+		{
+			continue;
+		}
+
+		const FSoftObjectPath LevelPath =
+			LevelAsset->ToSoftObjectPath();
+
+		if (LevelPath.GetAssetName() == CurrentMapName)
+		{
+			return Entry.Mode;
+		}
+	}
+
+	return EML_LevelAmbienceMode::Normal;
 }

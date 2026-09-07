@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "UObject/ObjectKey.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "ML_AmbienceSubsystem.generated.h"
 
 class AML_BoardSpawner;
@@ -71,7 +72,7 @@ public:
 private:
 	UPROPERTY()
 	const UML_MycelandDeveloperSettings* DevSettings = nullptr;
-
+	EML_LevelAmbienceMode GetAmbienceModeForCurrentLevel() const;
 	UPROPERTY()
 	TObjectPtr<UML_WinLoseSubsystem> WinLoseSubsystem = nullptr;
 
@@ -80,7 +81,10 @@ private:
 	TObjectPtr<UML_SoundPlaybackHandle> CurrentMusicHandle = nullptr;
 
 	int32 CurrentMusicTrackIndex = INDEX_NONE;
-
+	FString PendingMusicEventPath;
+	int32 PendingMusicTrackIndex = INDEX_NONE;
+	void StartPendingMusicTrack();
+	float MusicSwitchFadeDuration = 1.0f;
 	// ---------- Ancienne logique (layers additifs) — conservée en commentaire pour référence ----------
 	// UPROPERTY()
 	// TArray<TObjectPtr<UML_SoundPlaybackHandle>> ActiveMusicLayerHandles;
