@@ -27,6 +27,26 @@ struct FML_LevelAmbiencePuzzleCount
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ambience", meta=(ClampMin="1"))
 	int32 PuzzleCount = 1;
 };
+UENUM(BlueprintType)
+enum class EML_LevelAmbienceMode : uint8
+{
+	Normal      UMETA(DisplayName="Normal Progression"),
+	DeadOnly    UMETA(DisplayName="Dead Only"),
+	LivingOnly  UMETA(DisplayName="Living Only"),
+	None        UMETA(DisplayName="None")
+};
+
+USTRUCT(BlueprintType)
+struct FML_LevelFixedAmbience
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ambience", meta=(Categories="Level"))
+	FGameplayTag Level;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ambience")
+	EML_LevelAmbienceMode Mode = EML_LevelAmbienceMode::Normal;
+};
 USTRUCT(BlueprintType)
 struct FML_LevelFixedMusic
 {
@@ -226,7 +246,16 @@ public:
 
 	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Audio|Ambience Enviro", meta=(TitleProperty="Level"))
 	TArray<FML_LevelAmbiencePuzzleCount> AmbiencePuzzleCounts;
-
+	// Levels configured here override the normal dead -> living
+	// puzzle-based environmental ambience progression.
+	UPROPERTY(
+		EditAnywhere,
+		config,
+		BlueprintReadOnly,
+		Category="Audio|Ambience Enviro",
+		meta=(TitleProperty="Level")
+	)
+	TArray<FML_LevelFixedAmbience> FixedAmbienceLevels;
 	// ==================== Audio · Music Progression ====================
 
 	// Ordered list of FMOD event paths (event:/...), one exclusive track per progression step.

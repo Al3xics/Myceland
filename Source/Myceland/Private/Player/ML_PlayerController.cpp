@@ -535,7 +535,7 @@ void AML_PlayerController::BeginPlay()
 	GetWorld()->GetSubsystem<UML_RollBackSubsystem>()->EnsureInitialized();
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
 
-	ShowLoadingScreen();
+	//ShowLoadingScreen();
 }
 
 void AML_PlayerController::ShowLoadingScreen()
