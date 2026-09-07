@@ -25,6 +25,7 @@
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
+#include "UI/ML_WidgetBase.h"
 
 class UML_WavePropagationSubsystem;
 
@@ -530,6 +531,50 @@ void AML_PlayerController::BeginPlay()
 	GetWorld()->GetSubsystem<UML_WavePropagationSubsystem>()->EnsureInitialized();
 	GetWorld()->GetSubsystem<UML_RollBackSubsystem>()->EnsureInitialized();
 	DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+
+	ShowLoadingScreen();
+}
+
+void AML_PlayerController::ShowLoadingScreen()
+{
+	if (!LoadingScreenClass)
+		return;
+
+	LoadingScreenInstance = CreateWidget<UML_WidgetBase>(this, LoadingScreenClass);
+	if (!LoadingScreenInstance)
+		return;
+
+	// High Z-order so it draws over everything (HUD, board, etc.) while the level settles on load.
+	LoadingScreenInstance->AddToViewport(9999);
+
+	// Block gameplay input so the player can't move (or plant, pan the camera, etc.) behind the
+	// splash. Same lever the cinematic / rollback / board-action systems use. Restored in
+	// HideLoadingScreen. Movement is also gated by bInCinematicMode in the handlers, so a narrative
+	// cinematic that starts within the window keeps movement blocked even after we re-enable input.
+	DisableInput(this);
+
+	// Auto-hide after LoadingScreenDuration. A duration <= 0 keeps it up until HideLoadingScreen
+	// is called manually (e.g. from Blueprint once real loading finishes).
+	if (LoadingScreenDuration > 0.f)
+	{
+		GetWorldTimerManager().SetTimer(
+			LoadingScreenTimerHandle, this, &AML_PlayerController::HideLoadingScreen,
+			LoadingScreenDuration, /*bLoop=*/false);
+	}
+}
+
+void AML_PlayerController::HideLoadingScreen()
+{
+	GetWorldTimerManager().ClearTimer(LoadingScreenTimerHandle);
+
+	if (LoadingScreenInstance)
+	{
+		LoadingScreenInstance->RemoveFromParent();
+		LoadingScreenInstance = nullptr;
+
+		// Restore the gameplay input suspended in ShowLoadingScreen.
+		EnableInput(this);
+	}
 }
 
 void AML_PlayerController::PlayerTick(float DeltaTime)

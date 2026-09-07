@@ -17,6 +17,7 @@
 #include "ML_PlayerController.generated.h"
 
 class AML_CameraRail;
+class UML_WidgetBase;
 class UML_MycelandDeveloperSettings;
 class UEnhancedInputLocalPlayerSubsystem;
 struct FInputActionValue;
@@ -62,6 +63,21 @@ private:
 
 	// Cursor position saved when switching to gamepad, restored when showing the cursor again.
 	FVector2D LockedCursorPos = FVector2D::ZeroVector;
+
+	// ==================== Loading Screen ====================
+
+	// Live splash instance (created in BeginPlay via ShowLoadingScreen, removed by HideLoadingScreen).
+	UPROPERTY(Transient)
+	TObjectPtr<UML_WidgetBase> LoadingScreenInstance = nullptr;
+
+	FTimerHandle LoadingScreenTimerHandle;
+
+	// Creates the loading splash (if LoadingScreenClass is set), adds it on top of the viewport, and
+	// arms the auto-hide timer. No-op when LoadingScreenClass is unset.
+	void ShowLoadingScreen();
+
+	// Removes the loading splash from the viewport and clears the auto-hide timer. Safe to call twice.
+	void HideLoadingScreen();
 
 	// ==================== Movement - Path Tick & Callbacks ====================
 
@@ -179,6 +195,18 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
 	float ShortPressThreshold = 0.5f;
+
+	// ==================== Loading Screen ====================
+
+	// Splash widget shown on load (level begin) and hidden after LoadingScreenDuration seconds.
+	// Assign WB_LoadingScreen (or any UML_WidgetBase) in the controller Blueprint's Class Defaults.
+	// Leave unset to disable the splash entirely.
+	UPROPERTY(EditDefaultsOnly, Category = "Myceland|Loading Screen")
+	TSubclassOf<UML_WidgetBase> LoadingScreenClass;
+
+	// How long the splash stays up, in seconds. <= 0 keeps it up until HideLoadingScreen is called.
+	UPROPERTY(EditDefaultsOnly, Category = "Myceland|Loading Screen", meta = (ClampMin = "0.0"))
+	float LoadingScreenDuration = 10.f;
 
 public:
 	// ==================== Tile Query ====================
