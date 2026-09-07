@@ -60,6 +60,13 @@ void AML_HubBoardSpawner::BeginPlay()
 	{
 		if (PuzzleID.IsValid() && SaveSys->IsPuzzleSolved(PuzzleID.GetTagName()))
 		{
+			// Re-establish the hub's solved runtime flag on load. The base BeginPlay would normally
+			// do this in its auto-restore branch, but the hub opts out (ShouldAutoRestoreSolvedGrid
+			// == false), so it never ran for the hub. Setting it here makes the hub restore like any
+			// other solved board — including having its nature zones revived in
+			// AML_PlayerCharacter::ApplySavedSpawnPosition, which gates on bIsPuzzleSolved.
+			bIsPuzzleSolved = true;
+
 			TArray<AActor*> PathsToSpawn = GetAssociatedWaterPaths();
 			GetWorld()->GetTimerManager().SetTimerForNextTick([PathsToSpawn]()
 			{
@@ -308,7 +315,15 @@ void AML_HubBoardSpawner::FinalizeTileChanges(int32 EntryIndex)
 	PersistHubGrid(/*bMarkSolved=*/bFullyRevitalized);
 
 	if (bFullyRevitalized)
+	{
+		// Treat the hub as a solved board once fully revitalized: the base class never sets this
+		// for the hub (it opts out of the auto-restore that normally does), so set it here. This
+		// makes the hub eligible for the same on-load restore path as any other solved board —
+		// e.g. AML_PlayerCharacter::ApplySavedSpawnPosition revives its associated nature zones.
+		bIsPuzzleSolved = true;
+
 		OnHubAllTilesPlaced.Broadcast();
+	}
 
 	if (!IsValid(WinLoseSubsystem)) return;
 	WinLoseSubsystem->TriggerConnectedGoalAnimationForBoard(this);
