@@ -20,6 +20,7 @@ class AML_CameraRail;
 class UML_WidgetBase;
 class UML_MycelandDeveloperSettings;
 class UEnhancedInputLocalPlayerSubsystem;
+class UEnhancedInputComponent;
 struct FInputActionValue;
 class AML_PlayerCharacter;
 class AML_BoardSpawner;
@@ -109,6 +110,22 @@ private:
 	// ==================== Input Mapping ====================
 
 	UEnhancedInputLocalPlayerSubsystem* GetEnhancedInputSubsystem() const;
+
+	// ==================== Cheats ====================
+	// Demo-only, and entirely gated on Enable Cheats in the Myceland Developer Settings: with it off
+	// nothing below is mapped or bound, so the cheat keys do not exist at all.
+
+	/** Maps the cheat toggle IMC for the whole session. Never removed - including during a cinematic,
+	 *  so the skip cheat stays reachable. */
+	void ApplyCheatToggleInputMappingContext();
+
+	void OnCheatToggle();
+	void OnCheatTeleportSlot(const FInputActionValue& Value);
+	void OnCheatLevelSlot(const FInputActionValue& Value);
+	void OnCheatWinPuzzle();
+	void OnCheatInfiniteEnergy();
+	void OnCheatExitBoard();
+	void OnCheatSkipNarrative();
 
 	// ==================== Delegates ====================
 
@@ -284,6 +301,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
 	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, float BlendExp = 0.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
 
+	/**
+	 * Makes the camera match where the player currently stands: the board's associated camera while
+	 * inside a board, the closest camera rail otherwise. Used at possession, and after a teleport —
+	 * rails hand over through their trigger boxes, which a teleport never crosses, so without this
+	 * the player lands under whatever camera they had before.
+	 */
+	void ApplyCameraForCurrentLocation(float BlendTime = 0.f);
+
 	// ==================== Movement Control ====================
 
 	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
@@ -302,6 +327,16 @@ public:
 
 	void NotifyGrassPlantStarted(AML_Tile* TargetTile);
 	
+	/**
+	 * Binds the cheat actions declared in the Dev Settings (nothing to wire in Blueprint).
+	 *
+	 * Called by AML_PlayerCharacter with the PAWN's input component on purpose, not with the
+	 * controller's: the loading screen, the board lock, the cinematics and the rollback all call
+	 * DisableInput on the controller, which takes its input component off the input stack. Bound
+	 * there, the cheats would be dead in exactly the situations they exist to get you out of.
+	 */
+	void BindCheatActions(UEnhancedInputComponent* EnhancedInputComponent);
+
 	void UpdateCursorVisibility(const bool bVisible);
 	void NotifyCinematicModeChanged(const bool bInCinematicMode);
 
@@ -352,6 +387,13 @@ public:
 
 	/** Stops NavMesh movement and cancels any pending board entry. Called when a cinematic interrupts navigation. */
 	void CancelPendingNavigation();
+
+	/**
+	 * Hard-stops every in-progress movement: the navmesh move, a pending board entry AND the
+	 * tile-by-tile board path. Used by the cheat teleport - without dropping the board path, the
+	 * queued movement keeps ticking and walks the player back from wherever they were teleported.
+	 */
+	void CancelAllMovementForTeleport();
 	AML_Tile* FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const;
 	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
 	void SetForcedHoverTile(AML_Tile* Tile);

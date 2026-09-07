@@ -16,12 +16,15 @@
 #include "Components/SplineComponent.h"
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
+#include "InputAction.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Input/ML_InputDeviceManager.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_BoardActionSubsystem.h"
+#include "Subsystem/ML_CheatSubsystem.h"
 #include "Subsystem/ML_WavePropagationSubsystem.h"
 #include "Subsystem/ML_SoundSubsystem.h"
 #include "Tiles/ML_Tile.h"
@@ -629,6 +632,7 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 		// Apply cursor visibility + map the gameplay IMCs (mouse/keyboard + gamepad).
 		UpdateCursorVisibility(InputDeviceManager->GetCurrentDevice() == EML_InputDevice::MouseKeyboard);
 		ApplyGameplayInputMappingContext();
+		ApplyCheatToggleInputMappingContext();
 
 		MycelandCharacter->UpdateCurrentTile();
 		// Start inside the board only if the player stands on one AND that board's transition is enabled;
@@ -642,28 +646,8 @@ void AML_PlayerController::OnPossess(APawn* aPawn)
 			: EML_PlayerMovementMode::FreeMovement;
 		TransitionComponent->SwitchToMode(InitialMode);
 
-		switch (InitialMode)
-		{
-			case EML_PlayerMovementMode::InsideBoard:
-				{
-					ACameraActor* CameraBoard = MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()->GetAssociatedCamera();
-					ensureMsgf(IsValid(CameraBoard), TEXT("No camera associated to board %s found. Make sure there sis one associated."), *MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()->GetName());
-					SetViewTarget(CameraBoard);
-					break;
-				}
-			case EML_PlayerMovementMode::FreeMovement:
-				{
-					// Make the closest camera rail the active camera
-					AML_CameraRail* CameraRail = FindClosestCameraRailFromPlayer(MycelandCharacter->GetActorLocation());
-					ensureMsgf(IsValid(CameraRail), TEXT("No camera rail found for player %s. Make sure there is one in the level."), *MycelandCharacter->GetName());
-					BlendToViewTarget(CameraRail, 0.f);
-					break;
-				}
-
-			case EML_PlayerMovementMode::EnteringBoard:
-			case EML_PlayerMovementMode::ExitingBoard:
-				break;
-		}
+		// Board camera when spawning inside a board, closest rail otherwise. 0s: no blend on spawn.
+		ApplyCameraForCurrentLocation(0.f);
 
 		// Always start hover timer for cursor glow
 		HoverPreviewComponent->StartHoverPreviewTimer();
@@ -767,6 +751,35 @@ void AML_PlayerController::OnSkipNarrativeLine()
 }
 
 // ==================== Camera ====================
+
+void AML_PlayerController::ApplyCameraForCurrentLocation(float BlendTime)
+{
+	if (!IsValid(MycelandCharacter))
+		return;
+
+	AML_BoardSpawner* Board = IsValid(MycelandCharacter->CurrentTileOn)
+		? MycelandCharacter->CurrentTileOn->GetBoardSpawnerFromTile()
+		: nullptr;
+
+	// Same rule as the movement mode: a board whose transition is disabled is never entered, so the
+	// player keeps the free-movement camera even while physically standing on its tiles.
+	if (IsValid(Board) && Board->IsBoardTransitionEnabled())
+	{
+		ACameraActor* BoardCamera = Board->GetAssociatedCamera();
+		ensureMsgf(IsValid(BoardCamera), TEXT("No camera associated to board %s found. Make sure there is one associated."), *Board->GetName());
+
+		if (IsValid(BoardCamera))
+			BlendToViewTarget(BoardCamera, BlendTime);
+
+		return;
+	}
+
+	AML_CameraRail* CameraRail = FindClosestCameraRailFromPlayer(MycelandCharacter->GetActorLocation());
+	ensureMsgf(IsValid(CameraRail), TEXT("No camera rail found for player %s. Make sure there is one in the level."), *MycelandCharacter->GetName());
+
+	if (IsValid(CameraRail))
+		BlendToViewTarget(CameraRail, BlendTime);
+}
 
 void AML_PlayerController::BlendToViewTarget(AActor* NewViewTarget, float BlendTime, float BlendExp, EViewTargetBlendFunction BlendFunc)
 {
@@ -884,6 +897,101 @@ UEnhancedInputLocalPlayerSubsystem* AML_PlayerController::GetEnhancedInputSubsys
 	if (!IsLocalController()) return nullptr;
 	ULocalPlayer* LP = GetLocalPlayer();
 	return LP ? LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
+}
+
+// ==================== Cheats ====================
+
+void AML_PlayerController::ApplyCheatToggleInputMappingContext()
+{
+	const UML_MycelandDeveloperSettings* Settings = DevSettings
+		? DevSettings
+		: UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+
+	if (!Settings || !Settings->bEnableCheats)
+		return;
+
+	UEnhancedInputLocalPlayerSubsystem* InputSub = GetEnhancedInputSubsystem();
+	if (!InputSub)
+		return;
+
+	int32 Priority = 0;
+	if (UInputMappingContext* ToggleIMC = Settings->GetInputMappingContext(EInputMappingType::CheatToggle, Priority))
+		InputSub->AddMappingContext(ToggleIMC, Priority);
+}
+
+void AML_PlayerController::BindCheatActions(UEnhancedInputComponent* EIC)
+{
+	const UML_MycelandDeveloperSettings* Settings = DevSettings
+		? DevSettings
+		: UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+
+	if (!Settings || !Settings->bEnableCheats || !EIC)
+		return;
+
+	if (UInputAction* Action = Settings->CheatToggleAction.LoadSynchronous())
+		EIC->BindAction(Action, ETriggerEvent::Started, this, &AML_PlayerController::OnCheatToggle);
+
+	if (UInputAction* Action = Settings->CheatTeleportSlotAction.LoadSynchronous())
+		EIC->BindAction(Action, ETriggerEvent::Started, this, &AML_PlayerController::OnCheatTeleportSlot);
+
+	if (UInputAction* Action = Settings->CheatLevelSlotAction.LoadSynchronous())
+		EIC->BindAction(Action, ETriggerEvent::Started, this, &AML_PlayerController::OnCheatLevelSlot);
+
+	if (UInputAction* Action = Settings->CheatWinPuzzleAction.LoadSynchronous())
+		EIC->BindAction(Action, ETriggerEvent::Started, this, &AML_PlayerController::OnCheatWinPuzzle);
+
+	if (UInputAction* Action = Settings->CheatInfiniteEnergyAction.LoadSynchronous())
+		EIC->BindAction(Action, ETriggerEvent::Started, this, &AML_PlayerController::OnCheatInfiniteEnergy);
+
+	if (UInputAction* Action = Settings->CheatExitBoardAction.LoadSynchronous())
+		EIC->BindAction(Action, ETriggerEvent::Started, this, &AML_PlayerController::OnCheatExitBoard);
+
+	if (UInputAction* Action = Settings->CheatSkipNarrativeAction.LoadSynchronous())
+		EIC->BindAction(Action, ETriggerEvent::Started, this, &AML_PlayerController::OnCheatSkipNarrative);
+}
+
+void AML_PlayerController::OnCheatToggle()
+{
+	if (UML_CheatSubsystem* Cheats = UML_CheatSubsystem::Get(this))
+		Cheats->ToggleCheatMode();
+}
+
+void AML_PlayerController::OnCheatTeleportSlot(const FInputActionValue& Value)
+{
+	// One Axis1D action covers all nine slots: each key mapping carries a Scalar modifier whose
+	// value IS the slot number, so the pressed key arrives here as a plain 1..9.
+	if (UML_CheatSubsystem* Cheats = UML_CheatSubsystem::Get(this))
+		Cheats->Cheat_TeleportToSlot(FMath::RoundToInt(Value.Get<float>()));
+}
+
+void AML_PlayerController::OnCheatLevelSlot(const FInputActionValue& Value)
+{
+	if (UML_CheatSubsystem* Cheats = UML_CheatSubsystem::Get(this))
+		Cheats->Cheat_OpenLevelSlot(FMath::RoundToInt(Value.Get<float>()));
+}
+
+void AML_PlayerController::OnCheatWinPuzzle()
+{
+	if (UML_CheatSubsystem* Cheats = UML_CheatSubsystem::Get(this))
+		Cheats->Cheat_WinCurrentPuzzle();
+}
+
+void AML_PlayerController::OnCheatInfiniteEnergy()
+{
+	if (UML_CheatSubsystem* Cheats = UML_CheatSubsystem::Get(this))
+		Cheats->Cheat_ToggleInfiniteEnergy();
+}
+
+void AML_PlayerController::OnCheatExitBoard()
+{
+	if (UML_CheatSubsystem* Cheats = UML_CheatSubsystem::Get(this))
+		Cheats->Cheat_ExitBoard();
+}
+
+void AML_PlayerController::OnCheatSkipNarrative()
+{
+	if (UML_CheatSubsystem* Cheats = UML_CheatSubsystem::Get(this))
+		Cheats->Cheat_SkipNarrative();
 }
 
 void AML_PlayerController::ApplyGameplayInputMappingContext()
@@ -1060,6 +1168,24 @@ void AML_PlayerController::CancelPendingNavigation()
 	StopNavMeshMovement();
 	if (TransitionComponent)
 		TransitionComponent->CancelPendingBoardEntry();
+}
+
+void AML_PlayerController::CancelAllMovementForTeleport()
+{
+	CancelPendingNavigation();
+
+	// Also drop the tile-by-tile board path: CancelPendingNavigation only covers the navmesh side,
+	// and a leftover board path would keep being ticked toward its old destination.
+	CurrentPathWorld.Reset();
+	CurrentPathIndex = 0;
+	SetIsMoving(false);
+
+	// A hold-to-leave-the-board in progress would keep ticking against the border tile we just
+	// teleported away from.
+	CancelExitHold();
+
+	ClearPathHoverPreview();
+	ClearForcedHoverTile();
 }
 
 AML_Tile* AML_PlayerController::FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const
