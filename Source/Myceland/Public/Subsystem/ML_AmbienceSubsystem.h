@@ -47,7 +47,8 @@ public:
 	// Starts (or re-syncs) the music track matching the current puzzle-win count.
 	UFUNCTION(BlueprintCallable, Category="Myceland|Audio|Music")
 	void StartMusicProgression();
-
+	UFUNCTION(BlueprintCallable, Category="Myceland|Audio|Music")
+	void FadeOutMusic(float Duration = 1.0f);
 	// Stops whatever music track is currently playing.
 	UFUNCTION(BlueprintCallable, Category="Myceland|Audio|Music")
 	void StopMusicProgression();
@@ -88,7 +89,13 @@ private:
 
 	FTimerHandle AmbienceTimerHandle;
 	FTimerHandle SeedStateTimerHandle;
+	FTimerHandle MusicFadeTimerHandle;
 
+	float MusicFadeElapsed = 0.0f;
+	float MusicFadeDuration = 1.0f;
+	float MusicFadeStartVolume = 1.0f;
+
+	void UpdateMusicFade();
 	int32 WonPuzzleCount = 0;
 	int32 TotalPuzzleCount = 0;
 	bool bAmbienceRunning = false;
