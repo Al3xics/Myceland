@@ -491,16 +491,22 @@ else
 			Collectible->SetSourceParasite(Change.SourceParasite);
 			Change.Neighbor->CollectibleActor = Collectible;
 
+			// Before FinishSpawning, because BeginPlay is where the pickup overlap fires: a collectible
+			// landing on the tile the player stands on was collected on its first frame, unseen.
+			Collectible->PrepareForSpawnSequence();
+
 			// Finish spawning
 			Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
 
 			if (RollBackSubsystem)
 				RollBackSubsystem->RecordSpawnedActor(Collectible, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);
 
-			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
-			{
-				SoundSubsystem->StartSound2DByPath(MLFMODEvents::EnergySpawn);
-			}
+			// The wave resolves faster than the grass -> parasite transformation that triggered it, so the
+			// collectible stays hidden until its own source parasite is done. Per collectible rather than
+			// per wave: the energies then cascade in the order the parasites finish. The spawn sound moved
+			// with the visual, inside BeginSpawnSequence.
+			if (IsValid(Collectible))
+				Collectible->WaitForSourceParasite(DevSettings->CollectibleSourceReadyTimeout);
 
 			bCycleHasChanges = true;
 			bAnyChangeThisAction = true;
@@ -539,11 +545,23 @@ void UML_WavePropagationSubsystem::FinishRing()
 
 void UML_WavePropagationSubsystem::ScheduleNextPriority()
 {
+	// A wave whose pacing already comes from the animations it waits on (the collectibles wait on their
+	// source parasite) sets DelayBeforeWave to 0 so the two delays do not stack into a visible pause.
+	float Delay = DevSettings->InterWaveDelay;
+	if (DevSettings->WavesPriority.IsValidIndex(CurrentWaveIndex))
+	{
+		const float Override = DevSettings->WavesPriority[CurrentWaveIndex].DelayBeforeWave;
+		if (Override >= 0.f)
+			Delay = Override;
+	}
+
+	// A rate of 0 clears a timer instead of firing it: keep it schedulable so CancelAllWaveTimers still
+	// owns the teardown.
 	GetWorld()->GetTimerManager().SetTimer(
 		InterWaveTimerHandle,
 		this,
 		&UML_WavePropagationSubsystem::ProcessNextWave,
-		DevSettings->InterWaveDelay,
+		FMath::Max(Delay, 0.001f),
 		false
 	);
 }

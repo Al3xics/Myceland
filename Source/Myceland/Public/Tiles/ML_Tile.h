@@ -22,6 +22,7 @@ class UNavModifierComponent;
 enum class EML_TileType : uint8;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileParasiteReady, AML_Tile*, Tile);
 
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Tile : public AActor
@@ -61,6 +62,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bHasCollectible = false;
+
+	// Reset on every type change: it describes the child actor currently on the tile, not the tile itself.
+	bool bParasiteReady = false;
 	
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bIsBorderTile = false;
@@ -201,4 +205,18 @@ public:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;
+
+	// A tile only *becomes* Parasite after GrassToParasiteDelay, and the parasite Blueprint then plays its
+	// growth animation on top of that. Anything that must appear to come out of a finished parasite (the
+	// collectible flight) waits on this instead of guessing a duration.
+	UPROPERTY(BlueprintAssignable, Category="Myceland Tile|Parasite")
+	FOnTileParasiteReady OnParasiteReady;
+
+	UFUNCTION(BlueprintPure, Category="Myceland Tile|Parasite")
+	bool IsParasiteReady() const { return bParasiteReady; }
+
+	// Called by the parasite Blueprint at the end of its transformation animation. Idempotent, so it can be
+	// wired on several timelines without ordering the branches.
+	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Parasite")
+	void NotifyParasiteReady();
 };
