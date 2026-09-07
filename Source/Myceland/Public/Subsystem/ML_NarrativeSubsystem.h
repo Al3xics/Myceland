@@ -49,8 +49,11 @@ private:
 	bool bPlayerMovementFinished = false;
 
 	AML_PlayerController* GetPlayerController() const;
-	void PlayNextLine();
+	// bIgnorePreDelay starts the next line right away: used by the skip, where waiting out
+	// the PreDelay would leave the screen blank and make the key press feel ignored.
+	void PlayNextLine(bool bIgnorePreDelay = false);
 	void StartLine(const FDialogueLine& Line);
+	void ScheduleSilentLineEnd(const FDialogueLine& Line);
 	void OnLineFinished();
 	void CleanupCurrentSequence();
 	void SetupCinematicMode();

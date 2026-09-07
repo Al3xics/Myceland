@@ -106,7 +106,7 @@ public:
 
 
 
-	// ==================== User Settings (Graphics whitelists) ====================
+	// ==================== User Settings · Graphics whitelists ====================
 
 	// Resolutions offered in the graphics settings dropdown. The saved resolution
 	// snaps to the closest entry when the game boots (ValidateSettings).
@@ -131,19 +131,19 @@ public:
 
 
 
-	// ==================== Tick Rates ====================
+	// ==================== Performance · Tick Rates ====================
 
 	// Every cursor detection timer shares this rate: tile hover preview (glow + path preview)
 	// and ground hover detection (board exit).
-	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the cursor detection timers (tile hover preview + ground hover). 30 Hz is enough for cursor feedback."))
+	UPROPERTY(EditAnywhere, config, Category="Performance|Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the cursor detection timers (tile hover preview + ground hover). 30 Hz is enough for cursor feedback."))
 	float CursorDetectionTickRate = 30.f;
 
 	// Rate of the exit hold progression timer (the hold-to-leave-the-board gauge).
-	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the exit hold progression timer (hold-to-leave-the-board gauge)."))
+	UPROPERTY(EditAnywhere, config, Category="Performance|Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the exit hold progression timer (hold-to-leave-the-board gauge)."))
 	float ExitHoldTickRate = 60.f;
 
 	// Rate of the turn-toward-tile rotation timer (character turning to face the plant target).
-	UPROPERTY(EditAnywhere, config, Category="Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the turn-toward-tile rotation timer (character turning to face the plant target)."))
+	UPROPERTY(EditAnywhere, config, Category="Performance|Tick Rates", meta=(ClampMin="1.0", Units="Hz", Tooltip="Rate of the turn-toward-tile rotation timer (character turning to face the plant target)."))
 	float TurnTowardTileTickRate = 60.f;
 
 	// Timer-ready intervals (seconds). Clamped so a bad config value can never yield a zero/negative rate.
@@ -153,13 +153,33 @@ public:
 
 
 
-	// ==================== UI ====================
+	// ==================== UI · Win / Lose ====================
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI|Win Lose")
 	float TimeShowWinUI = 3.f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI")
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="UI|Win Lose")
 	float DelayBeforeShowLoseUI = 0.f;
+
+
+
+	// ==================== Narrative ====================
+
+	// A dialogue line that has an FMOD event lasts as long as that event. Without one, its
+	// duration is derived from the subtitle length, so a silent line stays readable instead of
+	// starting and ending in the same frame (see UML_NarrativeSubsystem::StartLine).
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Narrative|Subtitles", meta=(ClampMin="1.0", Tooltip="Reading speed used to time a dialogue line that has no FMOD event: duration = subtitle length / this value."))
+	float SubtitleCharsPerSecond = 15.f;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Narrative|Subtitles", meta=(ClampMin="0.0", Tooltip="Floor applied to the computed duration, so a very short line (\"What...\") still stays on screen long enough to be read."))
+	float MinSubtitleDuration = 1.5f;
+
+	// Seconds a dialogue line stays on screen when no sound is there to time it.
+	// PreDelay and PostDelay are applied on top of this by the narrative subsystem.
+	float GetSubtitleDuration(const FText& Subtitle) const
+	{
+		return FMath::Max(Subtitle.ToString().Len() / FMath::Max(SubtitleCharsPerSecond, 1.f), MinSubtitleDuration);
+	}
 
 
 
@@ -231,72 +251,72 @@ public:
 
 
 
-	// ==================== Wave Propagation ====================
+	// ==================== Gameplay · Propagation & Rollback ====================
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Propagation")
 	TArray<FML_WavePriorityEntry> WavesPriority;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation", meta=(Tooltip="Delay between each global waves (grass, DELAY, parasite, DELAY, water, DELAY, etc..."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Propagation", meta=(Tooltip="Delay between each global waves (grass, DELAY, parasite, DELAY, water, DELAY, etc..."))
 	float InterWaveDelay = 1.f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category="Wave Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category="Gameplay|Propagation", meta=(Tooltip="Delay between each tiles in a wave (tile distance 1 (from clicked tile), DELAY, distance 2, DELAY, etc...)"))
 	float IntraWaveDelay = 0.3f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation",
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Propagation",
 	meta=(ClampMin="0.0", Tooltip="Delay before a tile visually becomes Grass."))
 	float GrassSpawnDelay = 0.3f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation",
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Propagation",
 		meta=(ClampMin="0.0", Tooltip="Delay between Grass StartTransition and the tile becoming Parasite."))
 	float GrassToParasiteDelay = 0.5f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Wave Propagation",
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Propagation",
 		meta=(ClampMin="0.0", Tooltip="Safety net for the collectible spawn: a collectible waits for its source parasite to report the end of its transformation animation, and starts anyway after this delay if the report never comes."))
 	float CollectibleSourceReadyTimeout = 4.f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback")
 	float UndoSpeed = 3.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Undo Until Plant", Tooltip="When enabled, undo keeps going through Move actions until it also undoes the next Plant action."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback", meta=(DisplayName="Undo Until Plant", Tooltip="When enabled, undo keeps going through Move actions until it also undoes the next Plant action."))
 	bool bUndoUntilPlant = false;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation")
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback")
 	float ResetSpeed = 3.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Use Dynamic Rollback Speed", Tooltip="When enabled, undo and reset speeds are computed from the current rollback stack to target Reset Target Duration. When disabled, Undo Speed and Reset Speed are used directly."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback", meta=(DisplayName="Use Dynamic Rollback Speed", Tooltip="When enabled, undo and reset speeds are computed from the current rollback stack to target Reset Target Duration. When disabled, Undo Speed and Reset Speed are used directly."))
 	bool bUseDynamicRollBackSpeed = true;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Rollback Minimum Speed", ClampMin="0.01", Tooltip="Minimum time dilation used by animated undo and reset."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback", meta=(DisplayName="Rollback Minimum Speed", ClampMin="0.01", Tooltip="Minimum time dilation used by animated undo and reset."))
 	float RollBackMinSpeed = 3.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(DisplayName="Rollback Maximum Speed", ClampMin="0.01", Tooltip="Maximum time dilation used by animated undo and reset. Limits movement speed to prevent the player from overshooting tiles or leaving the board."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback", meta=(DisplayName="Rollback Maximum Speed", ClampMin="0.01", Tooltip="Maximum time dilation used by animated undo and reset. Limits movement speed to prevent the player from overshooting tiles or leaving the board."))
 	float RollBackMaxSpeed = 20.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Waves Propagation", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Rollback", meta=(ClampMin="0.1", Tooltip="Target real-time duration for a full animated reset. The reset time dilation is computed from the current undo stack so larger stacks rewind faster."))
 	float ResetTargetDuration = 4.0f;
 
 
-	// ==================== Frame Budgets ====================
+	// ==================== Performance · Frame Budgets ====================
 	// Per-frame CPU budgets (milliseconds) for the subsystems that time-slice their
 	// work across frames. When the work of one step exceeds the budget, the
 	// remainder continues on the following frames.
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the wave propagation may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Performance|Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the wave propagation may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
 	float WavePropagationFrameBudgetMs = 2.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the animated undo/reset may spend reverting tiles and destroying spawned actors in a single frame. When an undo wave group is bigger than the budget, the remainder continues on the following frames."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Performance|Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the animated undo/reset may spend reverting tiles and destroying spawned actors in a single frame. When an undo wave group is bigger than the budget, the remainder continues on the following frames."))
 	float RollbackFrameBudgetMs = 8.0f;
 
-	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the win propagation wave may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Performance|Frame Budgets", meta=(ClampMin="0.1", Tooltip="Max CPU time (milliseconds) the win propagation wave may spend applying tile changes in a single frame. When a ring has more tiles than fit in the budget, the remaining tiles are applied on the following frames."))
 	float WinFrameBudgetMs = 2.0f;
 
 
-	// ==================== Win ====================
+	// ==================== Gameplay · Win ====================
 
-	UPROPERTY(EditAnywhere,Category = "WinLose")
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Win")
 	float WinDelay = 0.5f;
 
-	UPROPERTY(EditAnywhere,Category = "WinLose", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Win", meta=(ToolTip="Delay between each glow tile to show the win path (connected goals)."))
 	float WinTileDelay = 0.1f;
 
 
