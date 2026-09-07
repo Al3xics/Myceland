@@ -310,18 +310,24 @@ void AML_HubBoardSpawner::FinalizeTileChanges(int32 EntryIndex)
 	const bool bFullyRevitalized = PuzzleEntries.Num() > 0 && AppliedEntryIndices.Num() == PuzzleEntries.Num();
 
 	// The tiles (and any wave propagation they triggered) have now settled — this is the
-	// definitive change we persist. Marking the hub solved only happens once every entry
-	// is placed, so the hub becomes the respawn anchor only when fully revitalized.
+	// definitive change we persist. Marking the hub solved in the save only happens once
+	// every entry is placed, so the hub becomes the respawn anchor only when fully
+	// revitalized. On a later reload this alone is enough for BeginPlay's solved-restore
+	// block to re-derive bIsPuzzleSolved from the save record and revive nature zones.
 	PersistHubGrid(/*bMarkSolved=*/bFullyRevitalized);
 
 	if (bFullyRevitalized)
 	{
-		// Treat the hub as a solved board once fully revitalized: the base class never sets this
-		// for the hub (it opts out of the auto-restore that normally does), so set it here. This
-		// makes the hub eligible for the same on-load restore path as any other solved board —
-		// e.g. AML_PlayerCharacter::ApplySavedSpawnPosition revives its associated nature zones.
-		bIsPuzzleSolved = true;
-
+		// Deliberately NOT setting bIsPuzzleSolved=true here: that flag is what
+		// ForceBoardWin() checks to avoid firing the win sequence twice, and the hub's
+		// *official* win (ForceWin(), called once the player actually collects the final
+		// energy / the bloom VFX reaches WinningTile) can happen well after all entries are
+		// placed. Setting it early here raced ForceWin() and reliably won in packaged builds
+		// (bloom/VFX assets take real time to load/spawn on first use there, unlike in the
+		// editor where they're already resident), silently blocking ForceBoardWin() from ever
+		// running FireWinSequence()/OnWin for the hub. It isn't needed for the on-load restore
+		// either — PersistHubGrid above already marks the hub solved in the save, and that's
+		// what BeginPlay's solved-restore block actually checks on reload.
 		OnHubAllTilesPlaced.Broadcast();
 	}
 
@@ -508,7 +514,7 @@ int32 AML_HubBoardSpawner::FindEntryIndexForBoard(const AML_BoardSpawner* Board)
 
 	return INDEX_NONE;
 }
-void AML_HubBoardSpawner::ForceWin()
+void AML_HubBoardSpawner::ForceWin() // called in BP HubSpawner
 {
 	if (!GetWorld())
 		return;
