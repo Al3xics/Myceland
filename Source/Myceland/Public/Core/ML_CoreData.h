@@ -31,7 +31,11 @@ UENUM(BlueprintType)
 enum class EInputMappingType : uint8
 {
 	Cinematic,
-	Teleport
+	Teleport,
+	// Demo cheat mode (UML_CheatSubsystem): the toggle IMC stays mapped for the whole session,
+	// the cheat IMC is only mapped while the mode is active.
+	CheatToggle,
+	Cheat
 };
 
 UENUM(BlueprintType)

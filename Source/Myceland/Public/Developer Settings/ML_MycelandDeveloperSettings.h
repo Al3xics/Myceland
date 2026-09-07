@@ -11,6 +11,8 @@
 
 class AML_Collectible;
 class UML_PropagationWaves;
+class UInputAction;
+class UUserWidget;
 
 USTRUCT(BlueprintType)
 struct FML_LevelAmbiencePuzzleCount
@@ -320,6 +322,77 @@ public:
 	float WinTileDelay = 0.1f;
 
 
+	// ==================== Cheats ====================
+	// Demo-only cheat mode (see UML_CheatSubsystem). Everything below is inert while Enable Cheats is
+	// off: the toggle key is never even mapped, so a shipped build cannot open the mode at all.
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats", meta=(DisplayName="Enable Cheats", Tooltip="Master switch for the demo cheat mode. Leave OFF in the shipped build: while off the cheat toggle is never mapped and every cheat is a no-op."))
+	bool bEnableCheats = false;
+
+	// Mapped for the whole session and never removed - including during cinematics, so the skip cheat
+	// stays reachable. Must contain ONLY the toggle action, on a combo hard to press by accident.
+	UPROPERTY(EditAnywhere, config, Category="Cheats|IMC", meta=(Tooltip="IMC holding only the cheat mode toggle. Mapped for the whole session, so bind it to a deliberate combo (e.g. Ctrl+Alt+C via Chorded Action)."))
+	FML_InputMappingEntry CheatToggleInputMappingContext;
+
+	// Mapped only while cheat mode is active, at a high priority. The cheat keys do not exist outside
+	// cheat mode, so simple keys here can never clash with gameplay.
+	UPROPERTY(EditAnywhere, config, Category="Cheats|IMC", meta=(Tooltip="IMC holding every cheat action. Mapped only while cheat mode is active, so simple keys are safe here. Give it a priority above the gameplay IMCs."))
+	FML_InputMappingEntry CheatInputMappingContext;
+
+	// ---------- Cheats - Actions ----------
+	// Bound in C++ by AML_PlayerController::BindCheatActions, so nothing has to be wired in Blueprint.
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Actions", meta=(Tooltip="Opens / closes cheat mode. Belongs to the Cheat Toggle IMC."))
+	TSoftObjectPtr<UInputAction> CheatToggleAction;
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Actions", meta=(Tooltip="Axis1D. Teleports to the cheat teleport point whose Slot equals the action value: one mapping per key, each carrying a Scalar modifier of 1, 2, 3... So a single action covers all nine slots."))
+	TSoftObjectPtr<UInputAction> CheatTeleportSlotAction;
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Actions", meta=(Tooltip="Axis1D. Opens the Nth level of the Levels map, same Scalar modifier trick as the teleport slots."))
+	TSoftObjectPtr<UInputAction> CheatLevelSlotAction;
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Actions", meta=(Tooltip="Solves the board the player stands on and fires its win sequence."))
+	TSoftObjectPtr<UInputAction> CheatWinPuzzleAction;
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Actions", meta=(Tooltip="Toggles infinite energy."))
+	TSoftObjectPtr<UInputAction> CheatInfiniteEnergyAction;
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Actions", meta=(Tooltip="Unstuck: teleports the player to the closest cheat teleport point (a PlayerStart if there is none)."))
+	TSoftObjectPtr<UInputAction> CheatExitBoardAction;
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Actions", meta=(Tooltip="Ends the running cinematic and dialogue sequence outright."))
+	TSoftObjectPtr<UInputAction> CheatSkipNarrativeAction;
+
+	// ---------- Cheats - UI ----------
+
+	// Optional: cheat mode works without it, you just get no on-screen list.
+	UPROPERTY(EditAnywhere, config, Category="Cheats|UI", meta=(Tooltip="Widget listing the available cheats, shown while cheat mode is active. Optional - the keys still work without it."))
+	TSoftClassPtr<UUserWidget> CheatOverlayWidgetClass;
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|UI", meta=(Tooltip="Z-order of the cheat overlay. High enough to draw over the HUD and the menus."))
+	int32 CheatOverlayZOrder = 1000;
+
+	// The key text of the fixed cheats is read back from the IMC, but a single Axis1D action covers
+	// nine keys at once, so the slot lists cannot resolve theirs the same way: they are formatted
+	// from these instead. {0} is the slot number. Only worth touching if you rebind the slot keys.
+	// The toggle is a chord (Ctrl+Alt+C and the like) and Enhanced Input reports the chord modifiers
+	// as separate actions, so querying the IMC would only give back the final key. Written by hand here.
+	UPROPERTY(EditAnywhere, config, Category="Cheats|UI", meta=(Tooltip="Combo shown in the overlay for closing cheat mode. Written by hand because chord modifiers cannot be read back from the IMC."))
+	FString CheatToggleKeyText = TEXT("Ctrl+Alt+C");
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|UI", meta=(Tooltip="How the teleport slot keys are displayed in the overlay. {0} is the slot number."))
+	FString CheatTeleportSlotKeyFormat = TEXT("{0}");
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|UI", meta=(Tooltip="How the level slot keys are displayed in the overlay. {0} is the slot number."))
+	FString CheatLevelSlotKeyFormat = TEXT("F{0}");
+
+	// ---------- Cheats - Gameplay ----------
+
+	UPROPERTY(EditAnywhere, config, Category="Cheats|Gameplay", meta=(ClampMin="1", Tooltip="Energy stock the infinite-energy cheat floors the player at. Every path that would lower it (planting, changing board, a rollback) is clamped back up to this value."))
+	int32 CheatInfiniteEnergyAmount = 99;
+
+
+
 	// ==================== Helper ====================
 	UFUNCTION(BlueprintCallable, Category="Myceland Settings")
 	static void SetIntraWaveDelay(float NewDelay)
@@ -344,6 +417,12 @@ public:
 		{
 			case EInputMappingType::Teleport:
 				Entry = &TeleportInputMappingContext;
+				break;
+			case EInputMappingType::CheatToggle:
+				Entry = &CheatToggleInputMappingContext;
+				break;
+			case EInputMappingType::Cheat:
+				Entry = &CheatInputMappingContext;
 				break;
 			case EInputMappingType::Cinematic:
 			default:

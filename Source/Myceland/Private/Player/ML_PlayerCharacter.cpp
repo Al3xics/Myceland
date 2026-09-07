@@ -4,6 +4,7 @@
 #include "Player/ML_PlayerCharacter.h"
 
 #include "Components/CapsuleComponent.h"
+#include "EnhancedInputComponent.h"
 #include "EngineUtils.h"
 #include "FMODAudioComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -229,4 +230,12 @@ void AML_PlayerCharacter::Tick(float DeltaTime)
 void AML_PlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	// Demo cheat mode, and a no-op unless Enable Cheats is ticked in the Myceland Developer Settings.
+	// Bound on the PAWN's input component rather than the controller's: the loading screen, the board
+	// lock, the cinematics and the rollback all call DisableInput on the controller, which drops its
+	// input component from the input stack. Bound there, the cheats would go dead in exactly the
+	// situations they exist to get you out of - a cinematic to skip, a board that stays locked.
+	if (AML_PlayerController* MycelandPlayerController = Cast<AML_PlayerController>(GetController()))
+		MycelandPlayerController->BindCheatActions(Cast<UEnhancedInputComponent>(PlayerInputComponent));
 }
