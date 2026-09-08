@@ -62,7 +62,14 @@
 			<destination>{5c124223-6acc-40ef-bd4c-ac75584bd2b3}</destination>
 		</relationship>
 	</object>
-	<object class="EventAutomatableProperties" id="{93e2b064-9ff4-4ecd-b41a-21bdebb658a2}" />
+	<object class="EventAutomatableProperties" id="{93e2b064-9ff4-4ecd-b41a-21bdebb658a2}">
+		<property name="maxVoices">
+			<value>4</value>
+		</property>
+		<property name="voiceStealing">
+			<value>3</value>
+		</property>
+	</object>
 	<object class="MarkerTrack" id="{c660326b-e901-4fdb-8939-991a5ca6d31d}" />
 	<object class="GroupTrack" id="{4bac8111-7242-4565-81ef-fdceda35efce}">
 		<relationship name="modules">
@@ -373,7 +380,7 @@
 			<value>0.11382152852529605</value>
 		</property>
 		<property name="value">
-			<value>10</value>
+			<value>-6.5</value>
 		</property>
 	</object>
 	<object class="AutomationPoint" id="{0845cdb5-4315-44b7-8eab-b806e97a39f7}">
@@ -381,7 +388,7 @@
 			<value>0.35999999999999999</value>
 		</property>
 		<property name="value">
-			<value>9.99999619</value>
+			<value>-6.50000381</value>
 		</property>
 	</object>
 	<object class="AutomationPoint" id="{4c57e7f0-8418-4b0e-8e0b-dac36edcdba7}">
@@ -389,7 +396,7 @@
 			<value>0.54000000000000004</value>
 		</property>
 		<property name="value">
-			<value>10</value>
+			<value>-6.5</value>
 		</property>
 	</object>
 	<object class="AutomationPoint" id="{86b5335c-7ae9-4195-a19a-ec5db4e178af}">

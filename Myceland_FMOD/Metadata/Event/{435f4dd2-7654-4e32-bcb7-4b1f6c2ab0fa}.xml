@@ -76,7 +76,7 @@
 	</object>
 	<object class="EventMixerMaster" id="{b46fd402-02c0-4994-80bc-38c383e83cff}">
 		<property name="volume">
-			<value>-4.5</value>
+			<value>-24</value>
 		</property>
 		<property name="pitch">
 			<value>-10</value>

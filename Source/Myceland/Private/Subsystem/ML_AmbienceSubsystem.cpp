@@ -410,10 +410,15 @@ void UML_AmbienceSubsystem::SwitchToMusicTrackForCurrentProgress()
 			DevSettings->MusicTrackEventPaths.Num() - 1
 		);
 
-	if (TargetTrackIndex == CurrentMusicTrackIndex && IsValid(CurrentMusicHandle))
-	{
-		return;
-	}
+	const bool bHasReachedLastTrack =
+        TargetTrackIndex == DevSettings->MusicTrackEventPaths.Num() - 1;
+    
+    if (TargetTrackIndex == CurrentMusicTrackIndex &&
+        IsValid(CurrentMusicHandle) &&
+        !bHasReachedLastTrack)
+    {
+        return;
+    }
 
 	const FString& EventPath =
 		DevSettings->MusicTrackEventPaths[TargetTrackIndex];
