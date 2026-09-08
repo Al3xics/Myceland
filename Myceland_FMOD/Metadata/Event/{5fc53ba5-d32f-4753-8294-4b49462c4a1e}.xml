@@ -2,7 +2,7 @@
 <objects serializationModel="Studio.02.03.00">
 	<object class="Event" id="{5fc53ba5-d32f-4753-8294-4b49462c4a1e}">
 		<property name="name">
-			<value>VA_Tree_ThankYou</value>
+			<value>VA_Tree_YouDont</value>
 		</property>
 		<property name="outputFormat">
 			<value>0</value>
@@ -66,11 +66,18 @@
 	</object>
 	<object class="MarkerTrack" id="{ded50913-68d6-4a9e-8fe1-b9dd29bca619}" />
 	<object class="GroupTrack" id="{b5c834a9-50c1-4f51-a0ee-59f58e71e7f8}">
+		<relationship name="modules">
+			<destination>{e6a05d35-a24f-42a1-9ddc-f3c53cf7216b}</destination>
+		</relationship>
 		<relationship name="mixerGroup">
 			<destination>{3ff5175f-f20f-4594-8c45-d67e8bb595af}</destination>
 		</relationship>
 	</object>
-	<object class="Timeline" id="{ada8611c-190a-43a2-b86b-3c5c84f0c098}" />
+	<object class="Timeline" id="{ada8611c-190a-43a2-b86b-3c5c84f0c098}">
+		<relationship name="modules">
+			<destination>{e6a05d35-a24f-42a1-9ddc-f3c53cf7216b}</destination>
+		</relationship>
+	</object>
 	<object class="EventMixerMaster" id="{5507e168-74fe-4dad-a1dc-cbe73420c299}">
 		<property name="volume">
 			<value>-6</value>
@@ -91,6 +98,14 @@
 		</relationship>
 	</object>
 	<object class="MixerBusPanner" id="{90aabaea-805a-4ca9-a734-cff6e955439c}" />
+	<object class="EventSound" id="{e6a05d35-a24f-42a1-9ddc-f3c53cf7216b}">
+		<property name="length">
+			<value>56</value>
+		</property>
+		<relationship name="event">
+			<destination>{e9c42160-0cde-4562-80bf-a24bc0d55a0b}</destination>
+		</relationship>
+	</object>
 	<object class="EventMixerGroup" id="{3ff5175f-f20f-4594-8c45-d67e8bb595af}">
 		<property name="name">
 			<value>Audio 1</value>
