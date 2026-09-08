@@ -233,7 +233,20 @@ void AML_BoardSpawner::BeginPlay()
 #endif
 
 	// ---- Save / Load integration ----
-	if (!PuzzleID.IsValid()) return;
+	if (!PuzzleID.IsValid())
+	{
+#if !UE_BUILD_SHIPPING
+		// Loud on purpose: a board without an ID silently opts out of the whole save path — it is never
+		// marked solved, so it never reloads as solved and never opens the boards that list it in their
+		// Required Puzzles. A level re-saved from a stale editor state has already dropped these once,
+		// and the only symptom was a puzzle that would not open two playthroughs later.
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Save] Board '%s' has no PuzzleID — it will never be saved nor count as solved, and any "
+			     "board that requires it stays locked. Set its Puzzle ID in the Details panel (ML- Hex Grid)."),
+			*GetName());
+#endif
+		return;
+	}
 
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
 	if (!SaveSys) return;
