@@ -58,12 +58,21 @@ void UML_SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 				return;
 			}
 
+			// The console splits on spaces and keeps any quotes the user typed, so strip them
+			// rather than letting a stray " end up in a file name.
+			auto Unquote = [](const FString& In)
+			{
+				FString Out = In;
+				Out.TrimQuotesInline();
+				return Out.TrimStartAndEnd();
+			};
+
 			// Everything after the name is the label, so it can contain spaces unquoted.
 			FString Label;
 			for (int32 i = 1; i < Args.Num(); ++i)
-				Label += (i > 1 ? TEXT(" ") : TEXT("")) + Args[i];
+				Label += (i > 1 ? TEXT(" ") : TEXT("")) + Unquote(Args[i]);
 
-			ExportActiveSlotAsDemo(Args[0], Label);
+			ExportActiveSlotAsDemo(Unquote(Args[0]), Label);
 		}),
 		ECVF_Default);
 #endif
@@ -382,7 +391,17 @@ bool UML_SaveSubsystem::ExportActiveSlotAsDemo(const FString& DemoName, const FS
 		return false;
 	}
 
-	if (DemoName.IsEmpty()) return false;
+	// DemoName becomes a file name, so refuse anything the filesystem would reject instead of
+	// failing later on with a generic write error (a quote or a space is the usual mistake:
+	// the label goes in the *second* argument, unquoted).
+	if (DemoName.IsEmpty() || DemoName != FPaths::MakeValidFileName(DemoName))
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Save] '%s' is not a usable demo save name. Use a plain name with no spaces or quotes, ")
+			TEXT("and put the displayed label after it: ml.ExportDemoSave Demo_B Demo - Playtest Level 2"),
+			*DemoName);
+		return false;
+	}
 
 	// The label only belongs to the exported copy, so restore the live object afterwards.
 	const FString PreviousDisplayName = SaveObject->DisplayName;
