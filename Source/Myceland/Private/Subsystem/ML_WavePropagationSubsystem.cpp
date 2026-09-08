@@ -92,7 +92,7 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	// is unknown (first wave before CheckWinLose resolved it), keep the old behavior.
 	AML_BoardSpawner* WaveBoard = IsValid(CurrentOriginTile) ? CurrentOriginTile->GetBoardSpawnerFromTile() : nullptr;
 	const bool bWaveOnOtherBoard = IsValid(WaveBoard) && IsValid(WinLoseSubsystem->CurrentBoardSpawner) && WaveBoard != WinLoseSubsystem->CurrentBoardSpawner;
-
+	const bool bPlayerWasDead = WinLoseSubsystem && WinLoseSubsystem->bIsPlayerDead;
 	if (!bWaveOnOtherBoard)
 	{
 		WinLoseSubsystem->CheckWinLose();
@@ -103,7 +103,7 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 			WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 	}
 
-	if (bPlayAvatarSurpriseVocalThisAction && TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
+	if (bPlayAvatarSurpriseVocalThisAction && TotalReactionTileCount > 0 && !bPlayerWasDead)
 	{
 		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 		{
