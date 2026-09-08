@@ -3,24 +3,95 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Save System/ML_GameSaveData.h"
 #include "ML_SaveSubsystem.generated.h"
 
 class UML_GameSave;
+class IConsoleObject;
 
+/**
+ * Owns the player's save data and decides which slot it is written to.
+ *
+ * Slots
+ *   A slot is one continuous playthrough, not a point in time: every solve, grid snapshot and
+ *   narrative trigger writes straight through to the active slot's file. Normal slots live in
+ *   Saved/SaveGames and are created by CreateNewGameSlot / deleted by DeleteSlot.
+ *
+ * Demo saves
+ *   The .sav files under Content/DemoSaves are packaged with the build (see
+ *   DirectoriesToAlwaysStageAsNonUFS in DefaultGame.ini) and are strictly read-only: they are
+ *   loaded from their own directory into memory and never become the active slot. Continuing
+ *   one duplicates it into a fresh normal slot first, so the demo file itself can never be
+ *   overwritten no matter how long the session runs.
+ */
 UCLASS()
 class MYCELAND_API UML_SaveSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
 public:
-	// Automatically called when the GameInstance starts; loads or creates the save file.
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 
-	// Flush the in-memory save object to disk.
+	// Flush the in-memory save object to the active slot. No-op when no slot is active, and
+	// hard-refuses to write while a demo save is loaded (see the class comment).
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
 	void SaveToDisk();
+
+	// ==================== Slots ====================
+
+	// Every slot the player can pick from: the packaged demo saves first (alphabetical), then
+	// the normal slots newest-first. Reads each file, so call it when the list opens, not per tick.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Slots")
+	TArray<FML_SaveSlotInfo> GetAllSaveSlots() const;
+
+	// Creates a blank slot, makes it active and writes it. Returns its SlotName, or an empty
+	// string when the slot limit is already reached (branch on that in the menu).
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Slots")
+	FString CreateNewGameSlot();
+
+	// Loads InSlotName and makes it the active slot, so gameplay resumes from it.
+	// A demo slot is duplicated into a new normal slot first and the copy becomes active.
+	// OutLevelTag is the level to open; feed it to UML_UIManagerSubsystem::OpenLevelByTag.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Slots")
+	bool ContinueFromSlot(const FString& InSlotName, FGameplayTag& OutLevelTag);
+
+	// Deletes a normal slot's file. Returns false for a demo slot, which is never deletable.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Slots")
+	bool DeleteSlot(const FString& InSlotName);
+
+	UFUNCTION(BlueprintPure, Category="Myceland Save|Slots")
+	FString GetActiveSlotName() const { return ActiveSlotName; }
+
+	// Number of normal slots the player is allowed to keep at once (demo saves don't count).
+	UFUNCTION(BlueprintPure, Category="Myceland Save|Slots")
+	int32 GetMaxSaveSlots() const { return MaxSaveSlots; }
+
+	// Activates the fallback slot if — and only if — no slot has been chosen yet. Called when a
+	// gameplay level loads, so entering a level straight from the editor (skipping the menu)
+	// still saves and restores instead of silently discarding everything.
+	void EnsureActiveSlot();
+
+	// ==================== Level ====================
+
+	// Level this save resumes into (None until a level has been loaded at least once).
+	UFUNCTION(BlueprintPure, Category="Myceland Save|Level")
+	FGameplayTag GetCurrentLevel() const;
+
+	// Records the level the player is in, refreshes the slot's display label and saves.
+	// Called from UML_GameInstance on every gameplay level load.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Level")
+	void SetCurrentLevel(FGameplayTag LevelTag, const FString& InDisplayName);
+
+	// ==================== Demo authoring (dev only) ====================
+
+	// Writes the active slot to Content/DemoSaves/<DemoName>.sav so it ships with the build.
+	// Label overrides the row shown in the slot list; pass empty to keep the level name.
+	// Also available in the console as: ml.ExportDemoSave <Name> [Label]
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Demo")
+	bool ExportActiveSlotAsDemo(const FString& DemoName, const FString& Label);
 
 	// ==================== Settings ====================
 
@@ -104,9 +175,46 @@ public:
 	void ClearAllNarrativeTriggersPlayed(bool bWriteToDisk = true);
 
 private:
+	// Directory holding the packaged read-only demo saves, and the prefix that marks their
+	// SlotName so a demo can never be mistaken for a writable slot.
+	static FString GetDemoSaveDir();
+	static const FString DemoSlotPrefix;
+
+	// Auto-generated names for normal slots ("Slot_1", "Slot_2", …).
+	static const FString SlotNamePrefix;
+
+	// Slot the very first New Game predates: the single hardcoded file the game used before
+	// slots existed. Also the fallback when a gameplay level is entered without picking a slot.
+	static const FString FallbackSlotName;
+
+	static const int32 UserIndex;
+	static const int32 MaxSaveSlots;
+
+	static bool IsDemoSlotID(const FString& InSlotName);
+
+	// Loads a packaged demo save by its bare name (no "demo:" prefix) straight from
+	// Content/DemoSaves. Deliberately not routed through UGameplayStatics slot helpers, which
+	// would look in Saved/SaveGames and could be written back to.
+	static UML_GameSave* LoadDemoSave(const FString& DemoName);
+
+	// Reads one save file's metadata into a UI row. Returns false when it can't be read.
+	static bool MakeSlotInfo(const UML_GameSave* Save, const FString& InSlotName, bool bReadOnly, FML_SaveSlotInfo& OutInfo);
+
+	// First unused "Slot_N", or an empty string once MaxSaveSlots normal slots exist.
+	FString GenerateNewSlotName() const;
+
+	// Points the subsystem at a slot once SaveObject already holds the matching data (loaded,
+	// freshly created, or duplicated from a demo). Also applies the editor-only narrative
+	// trigger reset, which has to happen per activated slot rather than once at startup.
+	void SetActiveSlot(const FString& InSlotName);
+
 	UPROPERTY()
 	UML_GameSave* SaveObject = nullptr;
 
-	static const FString SlotName;
-	static const int32   UserIndex;
+	// Empty until New Game / Continue picks one, or a gameplay level falls back (EnsureActiveSlot).
+	FString ActiveSlotName;
+
+#if !UE_BUILD_SHIPPING
+	IConsoleObject* ExportDemoSaveCommand = nullptr;
+#endif
 };

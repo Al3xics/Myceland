@@ -2,34 +2,108 @@
 
 #include "Save System/ML_SaveSubsystem.h"
 #include "Save System/ML_GameSave.h"
+#include "Core/ML_GameplayTags.h"
+#include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
-const FString UML_SaveSubsystem::SlotName  = TEXT("MycelandSave");
-const int32   UML_SaveSubsystem::UserIndex = 0;
+const FString UML_SaveSubsystem::DemoSlotPrefix   = TEXT("demo:");
+const FString UML_SaveSubsystem::SlotNamePrefix   = TEXT("Slot_");
+const FString UML_SaveSubsystem::FallbackSlotName = TEXT("MycelandSave");
+const int32   UML_SaveSubsystem::UserIndex        = 0;
+const int32   UML_SaveSubsystem::MaxSaveSlots     = 10;
 
 #if WITH_EDITOR
 static TAutoConsoleVariable<bool> CVarResetNarrativeTriggersInEditor(
 	TEXT("ml.ResetNarrativeTriggersInEditor"),
 	true,
-	TEXT("Editor only: clear the saved narrative-trigger flags when the save subsystem starts, ")
+	TEXT("Editor only: clear the saved narrative-trigger flags when a save slot is activated, ")
 	TEXT("so play-once cinematics replay on every session. Set to 0 to keep them persisted."),
 	ECVF_Default);
 #endif
+
+FString UML_SaveSubsystem::GetDemoSaveDir()
+{
+	// Staged raw next to the cooked content by DirectoriesToAlwaysStageAsNonUFS in
+	// DefaultGame.ini, so the same path resolves in the editor and in a packaged build.
+	return FPaths::ProjectContentDir() / TEXT("DemoSaves");
+}
+
+bool UML_SaveSubsystem::IsDemoSlotID(const FString& InSlotName)
+{
+	return InSlotName.StartsWith(DemoSlotPrefix);
+}
 
 void UML_SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	if (UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex))
+	// Deliberately no save is loaded here: the menu runs before any slot is picked, and
+	// loading one at startup would silently make it the target of every later write.
+	// New Game / Continue set the slot, and EnsureActiveSlot covers entering a gameplay
+	// level directly from the editor.
+
+#if !UE_BUILD_SHIPPING
+	ExportDemoSaveCommand = IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("ml.ExportDemoSave"),
+		TEXT("Write the active save slot to Content/DemoSaves/<Name>.sav so it ships with the build. ")
+		TEXT("Usage: ml.ExportDemoSave <Name> [Label shown in the slot list]"),
+		FConsoleCommandWithArgsDelegate::CreateWeakLambda(this, [this](const TArray<FString>& Args)
+		{
+			if (Args.Num() == 0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[Save] Usage: ml.ExportDemoSave <Name> [Label]"));
+				return;
+			}
+
+			// Everything after the name is the label, so it can contain spaces unquoted.
+			FString Label;
+			for (int32 i = 1; i < Args.Num(); ++i)
+				Label += (i > 1 ? TEXT(" ") : TEXT("")) + Args[i];
+
+			ExportActiveSlotAsDemo(Args[0], Label);
+		}),
+		ECVF_Default);
+#endif
+}
+
+void UML_SaveSubsystem::Deinitialize()
+{
+#if !UE_BUILD_SHIPPING
+	if (ExportDemoSaveCommand)
 	{
-		SaveObject = Cast<UML_GameSave>(UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex));
+		IConsoleManager::Get().UnregisterConsoleObject(ExportDemoSaveCommand);
+		ExportDemoSaveCommand = nullptr;
+	}
+#endif
+
+	Super::Deinitialize();
+}
+
+void UML_SaveSubsystem::SaveToDisk()
+{
+	if (!SaveObject || ActiveSlotName.IsEmpty()) return;
+
+	// Belt and braces: ContinueFromSlot already duplicates a demo before activating it, so the
+	// active slot should never be one. If that ever changes, fail loudly rather than overwrite
+	// a demo file the whole presentation depends on.
+	if (IsDemoSlotID(ActiveSlotName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Save] Refused to write to read-only demo slot '%s'."), *ActiveSlotName);
+		return;
 	}
 
-	if (!SaveObject)
-	{
-		SaveObject = Cast<UML_GameSave>(UGameplayStatics::CreateSaveGameObject(UML_GameSave::StaticClass()));
-	}
+	SaveObject->LastSaveTime = FDateTime::Now();
+	UGameplayStatics::SaveGameToSlot(SaveObject, ActiveSlotName, UserIndex);
+}
+
+// ==================== Slots ====================
+
+void UML_SaveSubsystem::SetActiveSlot(const FString& InSlotName)
+{
+	ActiveSlotName = InSlotName;
 
 #if WITH_EDITOR
 	// Narrative triggers are the one piece of progression we deliberately drop when playing
@@ -42,10 +116,263 @@ void UML_SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #endif
 }
 
-void UML_SaveSubsystem::SaveToDisk()
+bool UML_SaveSubsystem::MakeSlotInfo(const UML_GameSave* Save, const FString& InSlotName, bool bReadOnly, FML_SaveSlotInfo& OutInfo)
 {
-	if (!SaveObject) return;
-	UGameplayStatics::SaveGameToSlot(SaveObject, SlotName, UserIndex);
+	if (!Save) return false;
+
+	OutInfo.SlotName     = InSlotName;
+	OutInfo.DisplayName  = Save->DisplayName.IsEmpty() ? InSlotName : Save->DisplayName;
+	OutInfo.LastSaveTime = Save->LastSaveTime;
+	OutInfo.CurrentLevel = FGameplayTag::RequestGameplayTag(Save->CurrentLevelTagName, /*ErrorIfNotFound=*/false);
+	OutInfo.bIsReadOnly  = bReadOnly;
+	return true;
+}
+
+UML_GameSave* UML_SaveSubsystem::LoadDemoSave(const FString& DemoName)
+{
+	// Read the bytes ourselves rather than going through the slot helpers: those resolve into
+	// Saved/SaveGames, which is exactly the directory a demo must never end up in.
+	TArray<uint8> Bytes;
+	const FString Path = GetDemoSaveDir() / (DemoName + TEXT(".sav"));
+	if (!FFileHelper::LoadFileToArray(Bytes, *Path))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Save] Could not read demo save '%s'."), *Path);
+		return nullptr;
+	}
+
+	return Cast<UML_GameSave>(UGameplayStatics::LoadGameFromMemory(Bytes));
+}
+
+TArray<FML_SaveSlotInfo> UML_SaveSubsystem::GetAllSaveSlots() const
+{
+	IFileManager& FileManager = IFileManager::Get();
+
+	// ---- Packaged demo saves (read-only) ----
+	TArray<FML_SaveSlotInfo> DemoSlots;
+	{
+		TArray<FString> Files;
+		FileManager.FindFiles(Files, *(GetDemoSaveDir() / TEXT("*.sav")), /*Files=*/true, /*Directories=*/false);
+
+		for (const FString& File : Files)
+		{
+			const FString DemoName = FPaths::GetBaseFilename(File);
+
+			FML_SaveSlotInfo Info;
+			if (MakeSlotInfo(LoadDemoSave(DemoName), DemoSlotPrefix + DemoName, /*bReadOnly=*/true, Info))
+				DemoSlots.Add(Info);
+		}
+
+		DemoSlots.Sort([](const FML_SaveSlotInfo& A, const FML_SaveSlotInfo& B)
+		{
+			return A.DisplayName < B.DisplayName;
+		});
+	}
+
+	// ---- Normal slots on disk ----
+	TArray<FML_SaveSlotInfo> PlayerSlots;
+	{
+		TArray<FString> Files;
+		FileManager.FindFiles(Files, *(FPaths::ProjectSavedDir() / TEXT("SaveGames") / TEXT("*.sav")), true, false);
+
+		for (const FString& File : Files)
+		{
+			const FString Slot = FPaths::GetBaseFilename(File);
+
+			FML_SaveSlotInfo Info;
+			const UML_GameSave* Save = Cast<UML_GameSave>(UGameplayStatics::LoadGameFromSlot(Slot, UserIndex));
+			if (MakeSlotInfo(Save, Slot, /*bReadOnly=*/false, Info))
+				PlayerSlots.Add(Info);
+		}
+
+		PlayerSlots.Sort([](const FML_SaveSlotInfo& A, const FML_SaveSlotInfo& B)
+		{
+			return A.LastSaveTime > B.LastSaveTime;
+		});
+	}
+
+	// Demos first: they are the fixed entry points, the player's own saves scroll below them.
+	TArray<FML_SaveSlotInfo> Result = MoveTemp(DemoSlots);
+	Result.Append(PlayerSlots);
+	return Result;
+}
+
+FString UML_SaveSubsystem::GenerateNewSlotName() const
+{
+	for (int32 i = 1; i <= MaxSaveSlots; ++i)
+	{
+		const FString Candidate = SlotNamePrefix + FString::FromInt(i);
+		if (!UGameplayStatics::DoesSaveGameExist(Candidate, UserIndex))
+			return Candidate;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Save] Slot limit reached (%d). Delete a slot before creating another."), MaxSaveSlots);
+	return FString();
+}
+
+FString UML_SaveSubsystem::CreateNewGameSlot()
+{
+	const FString NewSlot = GenerateNewSlotName();
+	if (NewSlot.IsEmpty()) return FString();
+
+	// A brand-new save object is the reset: no puzzle records, no solve order, no played
+	// narrative triggers, progression back to W1L0. Boards re-capture their authored grid
+	// through EnsureInitialGridSaved on their next BeginPlay.
+	SaveObject = Cast<UML_GameSave>(UGameplayStatics::CreateSaveGameObject(UML_GameSave::StaticClass()));
+	if (!SaveObject) return FString();
+
+	SaveObject->DisplayName         = TEXT("New Game");
+	SaveObject->CurrentLevelTagName = ML_GameplayTags::Level_World1_Level0.GetTag().GetTagName();
+
+	SetActiveSlot(NewSlot);
+	SaveToDisk();
+
+	UE_LOG(LogTemp, Log, TEXT("[Save] Created new game slot '%s'."), *NewSlot);
+	return NewSlot;
+}
+
+bool UML_SaveSubsystem::ContinueFromSlot(const FString& InSlotName, FGameplayTag& OutLevelTag)
+{
+	OutLevelTag = FGameplayTag::EmptyTag;
+	if (InSlotName.IsEmpty()) return false;
+
+	const bool bIsDemo = IsDemoSlotID(InSlotName);
+
+	UML_GameSave* Loaded = bIsDemo
+		? LoadDemoSave(InSlotName.RightChop(DemoSlotPrefix.Len()))
+		: Cast<UML_GameSave>(UGameplayStatics::LoadGameFromSlot(InSlotName, UserIndex));
+
+	if (!Loaded)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Save] Could not load slot '%s'."), *InSlotName);
+		return false;
+	}
+
+	FString TargetSlot = InSlotName;
+
+	if (bIsDemo)
+	{
+		// The demo file stays exactly as packaged: the session continues in a fresh copy, so
+		// every later autosave lands there instead. Failing here (slot limit) is better than
+		// falling back to writing into the demo.
+		TargetSlot = GenerateNewSlotName();
+		if (TargetSlot.IsEmpty()) return false;
+
+		Loaded->DisplayName = FString::Printf(TEXT("%s - %s"),
+			*Loaded->DisplayName, *FDateTime::Now().ToString(TEXT("%d/%m %H:%M")));
+	}
+
+	SaveObject = Loaded;
+	SetActiveSlot(TargetSlot);
+	SaveToDisk();
+
+	OutLevelTag = FGameplayTag::RequestGameplayTag(SaveObject->CurrentLevelTagName, /*ErrorIfNotFound=*/false);
+	if (!OutLevelTag.IsValid())
+		OutLevelTag = ML_GameplayTags::Level_World1_Level0;
+
+	UE_LOG(LogTemp, Log, TEXT("[Save] Continuing '%s' in slot '%s' (level '%s')."),
+		*InSlotName, *TargetSlot, *OutLevelTag.ToString());
+
+	return true;
+}
+
+bool UML_SaveSubsystem::DeleteSlot(const FString& InSlotName)
+{
+	if (InSlotName.IsEmpty()) return false;
+
+	if (IsDemoSlotID(InSlotName))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Save] Demo slot '%s' cannot be deleted."), *InSlotName);
+		return false;
+	}
+
+	if (!UGameplayStatics::DeleteGameInSlot(InSlotName, UserIndex))
+		return false;
+
+	// Deleting the slot we are playing leaves nothing to write to; drop it rather than
+	// silently recreating the file on the next autosave.
+	if (ActiveSlotName == InSlotName)
+	{
+		ActiveSlotName.Empty();
+		SaveObject = nullptr;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Save] Deleted slot '%s'."), *InSlotName);
+	return true;
+}
+
+void UML_SaveSubsystem::EnsureActiveSlot()
+{
+	if (!ActiveSlotName.IsEmpty()) return;
+
+	if (UGameplayStatics::DoesSaveGameExist(FallbackSlotName, UserIndex))
+		SaveObject = Cast<UML_GameSave>(UGameplayStatics::LoadGameFromSlot(FallbackSlotName, UserIndex));
+
+	if (!SaveObject)
+		SaveObject = Cast<UML_GameSave>(UGameplayStatics::CreateSaveGameObject(UML_GameSave::StaticClass()));
+
+	SetActiveSlot(FallbackSlotName);
+
+	UE_LOG(LogTemp, Log, TEXT("[Save] No slot picked (level entered without the menu) — using fallback slot '%s'."),
+		*FallbackSlotName);
+}
+
+// ==================== Level ====================
+
+FGameplayTag UML_SaveSubsystem::GetCurrentLevel() const
+{
+	if (!SaveObject) return FGameplayTag::EmptyTag;
+	return FGameplayTag::RequestGameplayTag(SaveObject->CurrentLevelTagName, /*ErrorIfNotFound=*/false);
+}
+
+void UML_SaveSubsystem::SetCurrentLevel(FGameplayTag LevelTag, const FString& InDisplayName)
+{
+	if (!SaveObject || !LevelTag.IsValid()) return;
+
+	const FName NewTagName = LevelTag.GetTagName();
+	const bool bUnchanged = SaveObject->CurrentLevelTagName == NewTagName
+		&& SaveObject->DisplayName == InDisplayName;
+	if (bUnchanged) return;
+
+	SaveObject->CurrentLevelTagName = NewTagName;
+	if (!InDisplayName.IsEmpty())
+		SaveObject->DisplayName = InDisplayName;
+
+	SaveToDisk();
+}
+
+// ==================== Demo authoring (dev only) ====================
+
+bool UML_SaveSubsystem::ExportActiveSlotAsDemo(const FString& DemoName, const FString& Label)
+{
+	if (!SaveObject)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Save] Nothing to export: no save is loaded."));
+		return false;
+	}
+
+	if (DemoName.IsEmpty()) return false;
+
+	// The label only belongs to the exported copy, so restore the live object afterwards.
+	const FString PreviousDisplayName = SaveObject->DisplayName;
+	if (!Label.IsEmpty())
+		SaveObject->DisplayName = Label;
+
+	TArray<uint8> Bytes;
+	bool bSuccess = UGameplayStatics::SaveGameToMemory(SaveObject, Bytes);
+
+	if (bSuccess)
+	{
+		const FString Dir = GetDemoSaveDir();
+		IFileManager::Get().MakeDirectory(*Dir, /*Tree=*/true);
+		bSuccess = FFileHelper::SaveArrayToFile(Bytes, *(Dir / (DemoName + TEXT(".sav"))));
+	}
+
+	SaveObject->DisplayName = PreviousDisplayName;
+
+	UE_LOG(LogTemp, Log, TEXT("[Save] Export of demo save '%s' %s."),
+		*DemoName, bSuccess ? TEXT("succeeded") : TEXT("FAILED"));
+
+	return bSuccess;
 }
 
 // ==================== Settings ====================

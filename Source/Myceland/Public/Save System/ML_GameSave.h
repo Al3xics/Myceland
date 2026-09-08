@@ -13,6 +13,25 @@ class MYCELAND_API UML_GameSave : public USaveGame
 	GENERATED_BODY()
 
 public:
+	// ==================== Slot metadata ====================
+	// Filled by the save subsystem, never by gameplay. Read back without loading the whole
+	// session so the save-slot list can show a meaningful row per slot.
+
+	// Label shown in the save-slot list. Refreshed from the current level on every level load,
+	// or replaced by the label passed to ExportActiveSlotAsDemo for a packaged demo save.
+	UPROPERTY(SaveGame)
+	FString DisplayName;
+
+	// Wall-clock time of the last write. Sorts the slot list newest-first.
+	UPROPERTY(SaveGame)
+	FDateTime LastSaveTime;
+
+	// Level the player was in when this slot was last written; "Continue" reopens it through
+	// UML_UIManagerSubsystem::OpenLevelByTag. Stored as the tag's FName rather than an
+	// FGameplayTag so it round-trips through the SaveGame archive as plain data.
+	UPROPERTY(SaveGame)
+	FName CurrentLevelTagName;
+
 	// General game settings (brightness, volume, resolution, …)
 	UPROPERTY(SaveGame)
 	FML_GameSaveData Settings;

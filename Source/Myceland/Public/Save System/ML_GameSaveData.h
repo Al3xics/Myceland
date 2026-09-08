@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/ML_CoreData.h"
+#include "GameplayTagContainer.h"
 #include "ML_GameSaveData.generated.h"
 
 USTRUCT(BlueprintType)
@@ -75,4 +76,34 @@ struct FML_PuzzleSaveRecord
 	// Board state at the moment the player won (empty until the puzzle is solved).
 	UPROPERTY(SaveGame, BlueprintReadWrite)
 	TArray<FML_TileSaveEntry> SolvedGrid;
+};
+
+// One row of the save-slot list, built by UML_SaveSubsystem::GetAllSaveSlots for the UI.
+// Purely a read model: the authoritative data always lives in the UML_GameSave objects.
+USTRUCT(BlueprintType)
+struct FML_SaveSlotInfo
+{
+	GENERATED_BODY()
+
+	// Technical identifier to pass back to ContinueFromSlot / DeleteSlot. Never shown to the
+	// player. Normal slots use their file name ("Slot_3"); packaged demo saves are prefixed
+	// with "demo:" so the two can never be confused, whatever their file is called.
+	UPROPERTY(BlueprintReadOnly, Category="Myceland Save")
+	FString SlotName;
+
+	// Human-readable label for the UI (level name, or the label given to ExportActiveSlotAsDemo).
+	UPROPERTY(BlueprintReadOnly, Category="Myceland Save")
+	FString DisplayName;
+
+	UPROPERTY(BlueprintReadOnly, Category="Myceland Save")
+	FDateTime LastSaveTime;
+
+	// Level this slot resumes into. Feed it straight to UIManager::OpenLevelByTag.
+	UPROPERTY(BlueprintReadOnly, Category="Myceland Save")
+	FGameplayTag CurrentLevel;
+
+	// True for the demo saves packaged in Content/DemoSaves. They can never be written to or
+	// deleted: continuing one duplicates it into a fresh normal slot first.
+	UPROPERTY(BlueprintReadOnly, Category="Myceland Save")
+	bool bIsReadOnly = false;
 };
