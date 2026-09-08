@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
 #include "Actors/ML_WaterNavPath.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Player/ML_HexPathfinder.h"
@@ -51,6 +52,103 @@ void AML_BoardSpawner::SetBoardTransitionEnabled(bool bEnabled)
 	if (!bBoardTransitionEnabled)
 		if (AML_PlayerController* PC = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()))
 			PC->NotifyBoardTransitionDisabled(this);
+}
+
+// ==================== Board Locks (Required Puzzles) ====================
+
+// Solved state of a board, read from the save when it has an ID — authoritative and independent of
+// the order boards run BeginPlay in — and falling back to its runtime flag otherwise.
+static bool IsBoardSolvedNow(const AML_BoardSpawner* Board, const UML_SaveSubsystem* SaveSys)
+{
+	if (!IsValid(Board))
+		return false;
+
+	if (SaveSys && Board->PuzzleID.IsValid())
+		return SaveSys->IsPuzzleSolved(Board->PuzzleID.GetTagName());
+
+	return Board->bIsPuzzleSolved;
+}
+
+EML_BoardLockAction AML_BoardSpawner::ResolveLockAction(bool bPrerequisitesSolved, bool bLockedByRule, bool bIsSolved)
+{
+	// Still waiting on a prerequisite: lock it, unless the rule already did.
+	if (!bPrerequisitesSolved)
+		return bLockedByRule ? EML_BoardLockAction::None : EML_BoardLockAction::Lock;
+
+	// Open, and the rule is holding nothing: leave the board's switches alone.
+	if (!bLockedByRule)
+		return EML_BoardLockAction::None;
+
+	// The prerequisites are met, so hand the switches back — unless the board was solved while it was
+	// locked (a cheat win, or a save restored underneath): a solved board stays off like any other.
+	return bIsSolved ? EML_BoardLockAction::Release : EML_BoardLockAction::Unlock;
+}
+
+bool AML_BoardSpawner::ArePrerequisitesSolved() const
+{
+	const UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+
+	for (const TObjectPtr<AML_BoardSpawner>& Required : RequiredPuzzles)
+	{
+		// An empty slot (or a board pointing at itself) is an authoring mistake, not a lock — skipping it
+		// keeps the board playable instead of stranding it behind a prerequisite that can never be solved.
+		if (!IsValid(Required) || Required == this)
+			continue;
+
+		if (!IsBoardSolvedNow(Required, SaveSys))
+			return false;
+	}
+
+	return true;
+}
+
+void AML_BoardSpawner::RefreshLockState()
+{
+	// Opt-in: a board with no Required Puzzles keeps whatever its switches are set to. That is what
+	// makes this safe for the hub and for every board authored before the rule existed — the rule can
+	// only ever take back what it switched off itself.
+	if (RequiredPuzzles.IsEmpty())
+		return;
+
+	// A disabled rule reads as "every prerequisite is solved", so turning the setting off in Project
+	// Settings gives their switches back to the boards it had locked instead of stranding them.
+	const bool bRuleEnabled = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->bLockUnreachedPuzzleBoards;
+	const bool bPrerequisitesSolved = !bRuleEnabled || ArePrerequisitesSolved();
+
+	switch (ResolveLockAction(bPrerequisitesSolved, bLockedByPrerequisites, IsBoardSolvedNow(this, GetSaveSubsystem())))
+	{
+	case EML_BoardLockAction::Lock:
+		bLockedByPrerequisites = true;
+		SetGlowEnabled(false);
+		SetBoardTransitionEnabled(false);
+		break;
+
+	case EML_BoardLockAction::Unlock:
+		bLockedByPrerequisites = false;
+		SetGlowEnabled(true);
+		SetBoardTransitionEnabled(true);
+		break;
+
+	case EML_BoardLockAction::Release:
+		bLockedByPrerequisites = false;
+		break;
+
+	case EML_BoardLockAction::None:
+		break;
+	}
+}
+
+void AML_BoardSpawner::RefreshAllBoardLockStates(UWorld* World)
+{
+	if (!World) return;
+
+	// Any board can be listed as a prerequisite of any other, so a solve/reset is re-evaluated by all
+	// of them rather than by a chain the boards would have to know about.
+	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
+	{
+		if (AML_BoardSpawner* Board = *It; IsValid(Board))
+			Board->RefreshLockState();
+	}
 }
 
 // ==================== Myceland Board Exits (gamepad) ====================
@@ -114,6 +212,10 @@ void AML_BoardSpawner::BeginPlay()
 	// At runtime, only initialize tiles that already exist in the level.
 	// Never spawn new ones — the designer may have intentionally deleted some tiles.
 	UpdateCurrentGrid(false);
+
+	// Before the save block below, which returns early for a board without a PuzzleID: the lock reads the
+	// save for its PREREQUISITES, so it applies to any board the designer gated, ID or not.
+	RefreshLockState();
 
 #if !UE_BUILD_SHIPPING
 	if (PuzzleID.IsValid())
@@ -779,6 +881,10 @@ void AML_BoardSpawner::HandlePuzzleWon()
 	if (!SaveSys) return;
 
 	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid(), GetLevelKey());
+
+	// This board is only now recorded as solved, so run the pass from here rather than from each board's
+	// own win handler: every board sees the new save state, whatever order they were bound in.
+	RefreshAllBoardLockStates(GetWorld());
 }
 
 void AML_BoardSpawner::DebugAutoWin()
@@ -884,6 +990,10 @@ void AML_BoardSpawner::ReplayPuzzle()
 		if (ResetIDs.Contains(Board->PuzzleID.GetTagName()))
 			Board->RestoreToInitialState();
 	}
+
+	// The cascade just un-solved this puzzle and everything after it, so boards gated on any of them
+	// close back — otherwise a reset would leave the rest of the level open behind it.
+	RefreshAllBoardLockStates(World);
 }
 
 void AML_BoardSpawner::AnalyzeCurrentPuzzle()

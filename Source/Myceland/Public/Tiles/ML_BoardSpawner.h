@@ -27,6 +27,17 @@ class AML_Tile;
 // filling it never allocates heap memory, unlike a regular TArray.
 using FML_TileNeighbors = TArray<AML_Tile*, TInlineAllocator<6>>;
 
+// What the prerequisite rule must do to a board's switches this pass (see RefreshLockState).
+// Release exists so the rule can forget a board it had locked without switching anything back on:
+// a board that got solved while locked must stay off, exactly like any other solved board.
+enum class EML_BoardLockAction : uint8
+{
+	None,
+	Lock,
+	Unlock,
+	Release
+};
+
 // All categories below are prefixed "ML- " so typing "ML" in the Details panel search box
 // filters the panel down to this class's own categories. The Details panel sorts categories by
 // declaration order, never by name, so the prefix is for searching only — don't expect it to sort.
@@ -82,6 +93,19 @@ private:
 	// free movement, and there is no exit-hold. The board movement system is fully disabled for it.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="ML- Board Switches", meta=(AllowPrivateAccess="true"))
 	bool bBoardTransitionEnabled = true;
+
+	// Boards that must be solved before this one opens. Leave empty (the default) and the board is
+	// never locked — it keeps whatever its switches are set to, which is what every existing board
+	// and the hub rely on. Fill it and the board starts glow-less and non-enterable until all of
+	// them are solved, so a puzzle the player has not reached yet stops glowing under the cursor.
+	// Solved state is read from the save, so the order boards run BeginPlay in does not matter.
+	UPROPERTY(EditInstanceOnly, Category="ML- Board Switches", meta=(AllowPrivateAccess="true", DisplayName="Required Puzzles"))
+	TArray<TObjectPtr<AML_BoardSpawner>> RequiredPuzzles;
+
+	// True while THIS rule is what turned the switches off, so unlocking only ever gives back what
+	// the rule took: a board switched off by a designer, by a win, or by Blueprint is never
+	// re-enabled behind their back.
+	bool bLockedByPrerequisites = false;
 
 	// Generators
 	void UpdateCurrentGrid(bool bAllowSpawn = true);
@@ -245,6 +269,23 @@ public:
 	/** Enables/disables this board's entry/exit (tile-by-tile) system. Ejects the player to free movement when turning OFF while they are inside. */
 	UFUNCTION(BlueprintCallable, Category="ML- Board Switches")
 	void SetBoardTransitionEnabled(bool bEnabled);
+
+	/** True once every board in RequiredPuzzles is solved (always true when the list is empty). */
+	UFUNCTION(BlueprintPure, Category="ML- Board Switches")
+	bool ArePrerequisitesSolved() const;
+
+	/** Pushes this board's lock state (glow + board entry) from its prerequisites. No-op when the
+	 *  list is empty or while Lock Unreached Puzzle Boards is off in the developer settings. */
+	void RefreshLockState();
+
+	/** Runs RefreshLockState() on every board of the world. Called after a win or a reset is
+	 *  committed to the save, so boards gated on the puzzle that just changed follow immediately. */
+	static void RefreshAllBoardLockStates(UWorld* World);
+
+	/** What the prerequisite rule must do this pass, from the facts that decide it. Pure (no world
+	 *  access) so the rule stays in one place and can be unit-tested; RefreshLockState() gathers the
+	 *  facts and applies the answer. */
+	static EML_BoardLockAction ResolveLockAction(bool bPrerequisitesSolved, bool bLockedByRule, bool bIsSolved);
 
 	// ==================== ML- Board Exits (gamepad) ====================
 

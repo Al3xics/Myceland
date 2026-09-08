@@ -359,6 +359,16 @@ public:
 	float WinTileDelay = 0.1f;
 
 
+	// ==================== Gameplay · Progression ====================
+
+	// Locks the puzzle boards a level has not reached yet. Which board waits for which is authored per
+	// board, in its Required Puzzles list (ML- Board Switches) — see AML_BoardSpawner::RefreshLockState.
+	// Turning this off gives their switches back to every board the rule had locked, so it is a safe way
+	// to play a level as if nothing were gated.
+	UPROPERTY(EditAnywhere, config, BlueprintReadOnly, Category="Gameplay|Progression", meta=(DisplayName="Lock Unreached Puzzle Boards", Tooltip="When enabled, a board that lists Required Puzzles shows no hover glow and cannot be entered until all of them are solved. A board with an empty Required Puzzles list is never locked."))
+	bool bLockUnreachedPuzzleBoards = true;
+
+
 	// ==================== Cheats ====================
 	// Demo-only cheat mode (see UML_CheatSubsystem). Everything below is inert while Enable Cheats is
 	// off: the toggle key is never even mapped, so a shipped build cannot open the mode at all.
