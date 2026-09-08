@@ -101,6 +101,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	UML_NarrativeSequence* GetCurrentSequence() const { return CurrentSequence; }
 
+	// The trigger that started the running sequence, or null when none is playing. Lets a
+	// trigger tell its own sequence end apart from another trigger's when both reuse the
+	// same UML_NarrativeSequence asset. Still valid while OnSequenceEnd is broadcast.
+	UFUNCTION(BlueprintPure, Category="Narrative")
+	AML_NarrativeTrigger* GetCurrentTrigger() const { return CurrentNarrativeTrigger; }
+
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	int32 GetCurrentLineIndex() const { return CurrentLineIndex; }
 

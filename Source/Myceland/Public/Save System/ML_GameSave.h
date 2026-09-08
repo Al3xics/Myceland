@@ -63,9 +63,15 @@ public:
 	UPROPERTY(SaveGame)
 	FName LastSolvedPuzzleID;
 
-	// Narrative triggers that have already played, keyed by their level-placed actor
-	// name. Restored into AML_NarrativeTrigger::bHasBeenPlayed on BeginPlay so a
-	// play-once cinematic never replays after loading a save.
+	// Every play-once story beat this playthrough has already seen, keyed by an FName:
+	// narrative triggers ("Trigger.<Level>.<Actor>"), their unlock flag ("....CanPlay"),
+	// and Blueprint-driven one-shot cinematics ("Cine.W1L0.Start"). Read and written
+	// through UML_SaveSubsystem's story-beat API, so a new play-once moment needs a new
+	// key here, not a new save field.
+	//
+	// The field keeps its original name on purpose: renaming a SaveGame property makes
+	// existing .sav files - the packaged demo saves included - silently deserialize it
+	// as empty, which would replay everything once for every current save.
 	UPROPERTY(SaveGame)
 	TSet<FName> PlayedNarrativeTriggers;
 };

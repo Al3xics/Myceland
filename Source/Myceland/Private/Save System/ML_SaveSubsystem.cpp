@@ -15,15 +15,6 @@ const FString UML_SaveSubsystem::FallbackSlotName = TEXT("MycelandSave");
 const int32   UML_SaveSubsystem::UserIndex        = 0;
 const int32   UML_SaveSubsystem::MaxSaveSlots     = 10;
 
-#if WITH_EDITOR
-static TAutoConsoleVariable<bool> CVarResetNarrativeTriggersInEditor(
-	TEXT("ml.ResetNarrativeTriggersInEditor"),
-	true,
-	TEXT("Editor only: clear the saved narrative-trigger flags when a save slot is activated, ")
-	TEXT("so play-once cinematics replay on every session. Set to 0 to keep them persisted."),
-	ECVF_Default);
-#endif
-
 FString UML_SaveSubsystem::GetDemoSaveDir()
 {
 	// Staged raw next to the cooked content by DirectoriesToAlwaysStageAsNonUFS in
@@ -75,6 +66,24 @@ void UML_SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			ExportActiveSlotAsDemo(Unquote(Args[0]), Label);
 		}),
 		ECVF_Default);
+
+	// Replaces the old ml.ResetNarrativeTriggersInEditor CVar, which cleared the flags on every
+	// slot activation - Continue included, whose SaveToDisk then wrote the wipe straight back
+	// into the slot file. Replaying a narration in dev is now asked for, not the default.
+	ResetStoryBeatsCommand = IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("ml.ResetStoryBeats"),
+		TEXT("Forget every play-once story beat in the active slot (narrations, level intros) ")
+		TEXT("so they all play again on the next level load."),
+		FConsoleCommandDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (!SaveObject)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[Save] No active slot - nothing to reset."));
+				return;
+			}
+			ClearAllStoryBeats();
+		}),
+		ECVF_Default);
 #endif
 }
 
@@ -85,6 +94,12 @@ void UML_SaveSubsystem::Deinitialize()
 	{
 		IConsoleManager::Get().UnregisterConsoleObject(ExportDemoSaveCommand);
 		ExportDemoSaveCommand = nullptr;
+	}
+
+	if (ResetStoryBeatsCommand)
+	{
+		IConsoleManager::Get().UnregisterConsoleObject(ResetStoryBeatsCommand);
+		ResetStoryBeatsCommand = nullptr;
 	}
 #endif
 
@@ -113,16 +128,6 @@ void UML_SaveSubsystem::SaveToDisk()
 void UML_SaveSubsystem::SetActiveSlot(const FString& InSlotName)
 {
 	ActiveSlotName = InSlotName;
-
-#if WITH_EDITOR
-	// Narrative triggers are the one piece of progression we deliberately drop when playing
-	// from the editor: a play-once cinematic would otherwise never be seen again once it fired.
-	// The whole block is compiled out of cooked builds (WITH_EDITOR == 0), so a player's
-	// triggers always persist. In-memory only — the disk file is left untouched until the
-	// next regular save.
-	if (CVarResetNarrativeTriggersInEditor.GetValueOnGameThread())
-		ClearAllNarrativeTriggersPlayed(/*bWriteToDisk=*/false);
-#endif
 }
 
 bool UML_SaveSubsystem::MakeSlotInfo(const UML_GameSave* Save, const FString& InSlotName, bool bReadOnly, FML_SaveSlotInfo& OutInfo)
@@ -170,11 +175,6 @@ TArray<FML_SaveSlotInfo> UML_SaveSubsystem::GetAllSaveSlots() const
 			if (MakeSlotInfo(LoadDemoSave(DemoName), DemoSlotPrefix + DemoName, /*bReadOnly=*/true, Info))
 				DemoSlots.Add(Info);
 		}
-
-		DemoSlots.Sort([](const FML_SaveSlotInfo& A, const FML_SaveSlotInfo& B)
-		{
-			return A.DisplayName < B.DisplayName;
-		});
 	}
 
 	// ---- Normal slots on disk ----
@@ -192,16 +192,22 @@ TArray<FML_SaveSlotInfo> UML_SaveSubsystem::GetAllSaveSlots() const
 			if (MakeSlotInfo(Save, Slot, /*bReadOnly=*/false, Info))
 				PlayerSlots.Add(Info);
 		}
-
-		PlayerSlots.Sort([](const FML_SaveSlotInfo& A, const FML_SaveSlotInfo& B)
-		{
-			return A.LastSaveTime > B.LastSaveTime;
-		});
 	}
 
-	// Demos first: they are the fixed entry points, the player's own saves scroll below them.
 	TArray<FML_SaveSlotInfo> Result = MoveTemp(DemoSlots);
 	Result.Append(PlayerSlots);
+
+	// One rule for the whole list, so the UI can render it in order without sorting again:
+	// demos first (they are the fixed entry points, the player's own saves scroll below them),
+	// then newest-first within each group - the row the player most likely wants is at the top.
+	Result.Sort([](const FML_SaveSlotInfo& A, const FML_SaveSlotInfo& B)
+	{
+		if (A.bIsReadOnly != B.bIsReadOnly)
+			return A.bIsReadOnly;
+
+		return A.LastSaveTime > B.LastSaveTime;
+	});
+
 	return Result;
 }
 
@@ -591,43 +597,65 @@ void UML_SaveSubsystem::SetProgressionState(EML_ProgressionState NewState)
 	SaveToDisk();
 }
 
-// ==================== Narrative Triggers ====================
+// ==================== Story beats ====================
 
-void UML_SaveSubsystem::SetNarrativeTriggerPlayed(FName TriggerID)
+bool UML_SaveSubsystem::HasStoryBeatPlayed(FName BeatID) const
 {
-	if (!SaveObject || TriggerID.IsNone()) return;
+	if (!SaveObject || BeatID.IsNone()) return false;
+	return SaveObject->PlayedNarrativeTriggers.Contains(BeatID);
+}
+
+void UML_SaveSubsystem::MarkStoryBeatPlayed(FName BeatID)
+{
+	if (!SaveObject || BeatID.IsNone()) return;
 
 	bool bAlreadyPresent = false;
-	SaveObject->PlayedNarrativeTriggers.Add(TriggerID, &bAlreadyPresent);
+	SaveObject->PlayedNarrativeTriggers.Add(BeatID, &bAlreadyPresent);
 
 	// Avoid a redundant disk write if it was already recorded.
 	if (!bAlreadyPresent)
 		SaveToDisk();
 }
 
-void UML_SaveSubsystem::ClearNarrativeTriggerPlayed(FName TriggerID)
+void UML_SaveSubsystem::ClearStoryBeatPlayed(FName BeatID)
 {
-	if (!SaveObject || TriggerID.IsNone()) return;
+	if (!SaveObject || BeatID.IsNone()) return;
 
-	if (SaveObject->PlayedNarrativeTriggers.Remove(TriggerID) > 0)
+	if (SaveObject->PlayedNarrativeTriggers.Remove(BeatID) > 0)
 		SaveToDisk();
 }
 
-bool UML_SaveSubsystem::IsNarrativeTriggerPlayed(FName TriggerID) const
-{
-	if (!SaveObject || TriggerID.IsNone()) return false;
-	return SaveObject->PlayedNarrativeTriggers.Contains(TriggerID);
-}
-
-void UML_SaveSubsystem::ClearAllNarrativeTriggersPlayed(bool bWriteToDisk)
+void UML_SaveSubsystem::ClearAllStoryBeats(bool bWriteToDisk)
 {
 	if (!SaveObject || SaveObject->PlayedNarrativeTriggers.IsEmpty()) return;
 
-	UE_LOG(LogTemp, Log, TEXT("[Save] Cleared %d played narrative trigger(s)."),
+	UE_LOG(LogTemp, Log, TEXT("[Save] Cleared %d played story beat(s)."),
 		SaveObject->PlayedNarrativeTriggers.Num());
 
 	SaveObject->PlayedNarrativeTriggers.Empty();
 
 	if (bWriteToDisk)
 		SaveToDisk();
+}
+
+// ==================== Narrative triggers (legacy names) ====================
+
+void UML_SaveSubsystem::SetNarrativeTriggerPlayed(FName TriggerID)
+{
+	MarkStoryBeatPlayed(TriggerID);
+}
+
+void UML_SaveSubsystem::ClearNarrativeTriggerPlayed(FName TriggerID)
+{
+	ClearStoryBeatPlayed(TriggerID);
+}
+
+bool UML_SaveSubsystem::IsNarrativeTriggerPlayed(FName TriggerID) const
+{
+	return HasStoryBeatPlayed(TriggerID);
+}
+
+void UML_SaveSubsystem::ClearAllNarrativeTriggersPlayed(bool bWriteToDisk)
+{
+	ClearAllStoryBeats(bWriteToDisk);
 }

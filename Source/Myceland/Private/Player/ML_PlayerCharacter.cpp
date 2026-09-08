@@ -193,11 +193,17 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 	}
 
 	// ---- Step 2: spawn board replays OnWin; every other solved board revives its nature zones ----
-	// The board the player was teleported onto (SpawnBoard) re-fires its OnWin — the win reactions that
-	// need the player present run there. Every OTHER board the save marks solved instead directly
-	// revitalizes its nature zones via Revive() (a BlueprintNativeEvent authored in the nature-zone
-	// Blueprint), with no OnWin, since the player isn't standing on them. If placement failed
-	// (SpawnBoard == null), no board replays OnWin and all solved boards just revive.
+	// Every solved board revitalizes its nature zones directly through Revive() (a
+	// BlueprintNativeEvent authored in the nature-zone Blueprint). During a real win the zones are
+	// woken one by one by event tracks inside the win LevelSequence, but that cinematic is
+	// deliberately skipped on load (see UML_WinLoseSubsystem::IsReplayingWinForLoad), so the
+	// revival has to be driven from here instead.
+	//
+	// The board the player was teleported onto (SpawnBoard) ALSO re-fires its OnWin, because the
+	// rest of the win reactions only run for it: water paths spawning, the obstacle being
+	// destroyed, steles switching state, outlines hiding, and - the one that would strand the
+	// player if it were skipped - its exit grounds being enabled. If placement failed
+	// (SpawnBoard == null) no board replays OnWin and every solved board just revives.
 	UML_WinLoseSubsystem* WinLose = World->GetSubsystem<UML_WinLoseSubsystem>();
 	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
 	{
@@ -205,18 +211,13 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 		if (!IsValid(Board) || !Board->PuzzleID.IsValid()) continue;
 		if (!SaveSys->IsPuzzleSolved(Board->PuzzleID.GetTagName())) continue;
 
-		if (Board == SpawnBoard)
+		if (Board == SpawnBoard && WinLose)
+			WinLose->ReplayOnWinForBoard(Board);
+
+		for (AActor* ZoneActor : Board->GetAssociatedNatureZones())
 		{
-			if (WinLose)
-				WinLose->ReplayOnWinForBoard(Board);
-		}
-		else
-		{
-			for (AActor* ZoneActor : Board->GetAssociatedNatureZones())
-			{
-				if (AML_NatureZone* Zone = Cast<AML_NatureZone>(ZoneActor))
-					Zone->Revive();
-			}
+			if (AML_NatureZone* Zone = Cast<AML_NatureZone>(ZoneActor))
+				Zone->Revive();
 		}
 	}
 }

@@ -42,8 +42,9 @@ public:
 
 	// ==================== Slots ====================
 
-	// Every slot the player can pick from: the packaged demo saves first (alphabetical), then
-	// the normal slots newest-first. Reads each file, so call it when the list opens, not per tick.
+	// Every slot the player can pick from, in display order: the packaged demo saves first, then
+	// the player's own slots, each group newest-first. Ready to feed straight to a scroll box.
+	// Reads each file, so call it when the list opens, not per tick.
 	UFUNCTION(BlueprintCallable, Category="Myceland Save|Slots")
 	TArray<FML_SaveSlotInfo> GetAllSaveSlots() const;
 
@@ -162,22 +163,42 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
 	void SetProgressionState(EML_ProgressionState NewState);
 
-	// ==================== Narrative Triggers ====================
+	// ==================== Story beats ====================
+	//
+	// A "story beat" is anything that must play once per playthrough and never again: a
+	// narrative trigger, a level-intro cinematic, a trigger being unlocked. They all share
+	// one set of FName keys so a new play-once moment needs no new save field - just a key.
+	// Prefix keys by kind ("Trigger.<Level>.<Actor>", "Cine.W1L0.Start") to keep them unique.
 
-	// Records that a narrative trigger has played (keyed by its level-placed name) and saves.
+	// True once the beat has played. Beats that never played (and an absent save) return false.
+	UFUNCTION(BlueprintPure, Category="Myceland Save|Story Beats")
+	bool HasStoryBeatPlayed(FName BeatID) const;
+
+	// Records the beat as played and saves. No-op (and no write) if it was already recorded.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Story Beats")
+	void MarkStoryBeatPlayed(FName BeatID);
+
+	// Forgets one beat (e.g. a trigger reset) so it can play again, and saves.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Story Beats")
+	void ClearStoryBeatPlayed(FName BeatID);
+
+	// Forgets every beat so the whole playthrough's play-once moments fire again.
+	// Dev tool: also exposed as the console command ml.ResetStoryBeats.
+	UFUNCTION(BlueprintCallable, Category="Myceland Save|Story Beats")
+	void ClearAllStoryBeats(bool bWriteToDisk = true);
+
+	// ==================== Narrative Triggers (legacy names) ====================
+	// Thin wrappers over the story-beat API, kept so existing Blueprint call sites still work.
+
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
 	void SetNarrativeTriggerPlayed(FName TriggerID);
 
-	// Clears a narrative trigger's played flag (e.g. on ResetTrigger) and saves.
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
 	void ClearNarrativeTriggerPlayed(FName TriggerID);
 
-	// Returns true if the narrative trigger has already played.
 	UFUNCTION(BlueprintPure, Category="Myceland Save")
 	bool IsNarrativeTriggerPlayed(FName TriggerID) const;
 
-	// Clears every narrative trigger's played flag so all play-once cinematics can fire again.
-	// Done automatically at startup in the editor (see Initialize); never in a cooked build.
 	UFUNCTION(BlueprintCallable, Category="Myceland Save")
 	void ClearAllNarrativeTriggersPlayed(bool bWriteToDisk = true);
 
@@ -215,8 +236,7 @@ private:
 	FString GenerateNewSlotName() const;
 
 	// Points the subsystem at a slot once SaveObject already holds the matching data (loaded,
-	// freshly created, or duplicated from a demo). Also applies the editor-only narrative
-	// trigger reset, which has to happen per activated slot rather than once at startup.
+	// freshly created, or duplicated from a demo).
 	void SetActiveSlot(const FString& InSlotName);
 
 	UPROPERTY()
@@ -227,5 +247,6 @@ private:
 
 #if !UE_BUILD_SHIPPING
 	IConsoleObject* ExportDemoSaveCommand = nullptr;
+	IConsoleObject* ResetStoryBeatsCommand = nullptr;
 #endif
 };

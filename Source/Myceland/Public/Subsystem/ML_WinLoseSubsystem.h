@@ -41,6 +41,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Myceland|Win Lose")
 	void ReplayOnWinForBoard(AML_BoardSpawner* Board);
 
+	// True only while ReplayOnWinForBoard is broadcasting, i.e. inside a OnWin that is restoring a
+	// save rather than reacting to an actual solve. Listeners that rebuild state (water paths, exit
+	// grounds, steles, progression) should ignore it and run as usual; listeners that are a
+	// *reaction* to winning - the win cinematic, the victory animation - should branch on it and
+	// skip. Read it BEFORE any Delay: it is false again as soon as the broadcast returns.
+	UFUNCTION(BlueprintPure, Category="Myceland WinLose")
+	bool IsReplayingWinForLoad() const { return bIsReplayingWinForLoad; }
+
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnWin OnWin;
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
@@ -204,6 +212,9 @@ private:
 
 	int32 QueueReadIndex = 0;
 	bool bPendingClearWinPath = false;
+
+	// Set for the duration of ReplayOnWinForBoard's broadcast only. See IsReplayingWinForLoad.
+	bool bIsReplayingWinForLoad = false;
 
 	static const FIntPoint HexDirs[6];
 

@@ -570,7 +570,12 @@ void UML_WinLoseSubsystem::ReplayOnWinForBoard(AML_BoardSpawner* Board)
 	// Listeners read CurrentBoardSpawner to know which board won — point it at Board, then fire OnWin
 	// only. No FireWinSequence side-effects (victory sound / ClearWinPath / deferred OnWinPathSettled).
 	CurrentBoardSpawner = Board;
+
+	// Lets listeners tell this replay apart from a real solve, so the ones that are a reaction to
+	// winning (the win cinematic) can sit it out while the ones that rebuild state still run.
+	bIsReplayingWinForLoad = true;
 	OnWin.Broadcast();
+	bIsReplayingWinForLoad = false;
 }
 
 void UML_WinLoseSubsystem::FireWinSequence()
