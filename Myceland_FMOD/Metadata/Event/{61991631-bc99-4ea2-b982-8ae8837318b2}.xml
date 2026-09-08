@@ -76,7 +76,7 @@
 	</object>
 	<object class="EventMixerMaster" id="{2c4cadaa-a20c-4fbc-b900-c1b6c431fcfc}">
 		<property name="volume">
-			<value>-13</value>
+			<value>-28.5</value>
 		</property>
 		<relationship name="modulators">
 			<destination>{a90e0217-1e07-4c57-b0cc-1424dc3270f8}</destination>
@@ -182,7 +182,7 @@
 			<value>-80</value>
 		</property>
 		<property name="curveShape">
-			<value>-0.154894307</value>
+			<value>-0.413556665</value>
 		</property>
 	</object>
 	<object class="AutomationPoint" id="{fcdf46eb-50b1-449d-b78c-de37d3706e7d}">
@@ -193,7 +193,7 @@
 			<value>-10</value>
 		</property>
 		<property name="curveShape">
-			<value>1</value>
+			<value>-0.522610545</value>
 		</property>
 	</object>
 	<object class="AutomationPoint" id="{e0a5e639-6888-4c71-9b40-f8f62199efed}">
