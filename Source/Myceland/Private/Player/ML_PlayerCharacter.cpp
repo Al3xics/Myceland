@@ -12,6 +12,7 @@
 #include "Player/ML_PlayerController.h"
 #include "Save System/ML_SaveSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
+#include "TechArt/ML_NatureZone.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 
@@ -124,10 +125,9 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 	if (!World) return;
 
 	// ---- Step 1: teleport onto the last solved board's first exit tile and sync CurrentTileOn ----
-	// bPlaced gates the cinematic replay below: if we never land on a valid tile, CurrentTileOn stays
-	// null and replaying the win cinematics would reproduce the very "Accessed None ... CurrentTileOn"
-	// error we're preventing (BP_ProgressionManager reads it on OnCinematicFinished), so we skip them.
-	bool bPlaced = false;
+	// Also records SpawnBoard (the board we land on): in Step 2 that board replays OnWin, while every
+	// other solved board just revives its nature zones. Stays null if no walkable spawn tile exists.
+	AML_BoardSpawner* SpawnBoard = nullptr;
 	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
 	{
 		AML_BoardSpawner* Board = *It;
@@ -186,27 +186,36 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 		// Force the tile lookup NOW (synchronously) instead of waiting for the movement-based check
 		// in Tick, so CurrentTileOn points at the tile we just landed on before any cinematic plays.
 		UpdateCurrentTile();
-		bPlaced = true;
+		SpawnBoard = Board;
 
 		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] Restored spawn to walkable tile of puzzle '%s'."), *LastPuzzle.ToString());
 		break;
 	}
 
-	// ---- Step 2: replay the OnWin event for every solved board ----
-	// Re-fire each solved board's OnWin through the WinLose subsystem so all the normal win reactions
-	// run on load (nature-zone revitalization, ambience, win propagation, BP progression, ...) — the
-	// same listeners a real win uses, keyed off CurrentBoardSpawner. Gated on bPlaced so CurrentTileOn
-	// is valid first: some OnWin listeners (e.g. BP_ProgressionManager) read the player's current tile.
-	if (bPlaced)
+	// ---- Step 2: spawn board replays OnWin; every other solved board revives its nature zones ----
+	// The board the player was teleported onto (SpawnBoard) re-fires its OnWin — the win reactions that
+	// need the player present run there. Every OTHER board the save marks solved instead directly
+	// revitalizes its nature zones via Revive() (a BlueprintNativeEvent authored in the nature-zone
+	// Blueprint), with no OnWin, since the player isn't standing on them. If placement failed
+	// (SpawnBoard == null), no board replays OnWin and all solved boards just revive.
+	UML_WinLoseSubsystem* WinLose = World->GetSubsystem<UML_WinLoseSubsystem>();
+	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
 	{
-		if (UML_WinLoseSubsystem* WinLose = World->GetSubsystem<UML_WinLoseSubsystem>())
-		{
-			for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
-			{
-				AML_BoardSpawner* Board = *It;
-				if (!IsValid(Board) || !Board->bIsPuzzleSolved) continue;
+		AML_BoardSpawner* Board = *It;
+		if (!IsValid(Board) || !Board->PuzzleID.IsValid()) continue;
+		if (!SaveSys->IsPuzzleSolved(Board->PuzzleID.GetTagName())) continue;
 
+		if (Board == SpawnBoard)
+		{
+			if (WinLose)
 				WinLose->ReplayOnWinForBoard(Board);
+		}
+		else
+		{
+			for (AActor* ZoneActor : Board->GetAssociatedNatureZones())
+			{
+				if (AML_NatureZone* Zone = Cast<AML_NatureZone>(ZoneActor))
+					Zone->Revive();
 			}
 		}
 	}
