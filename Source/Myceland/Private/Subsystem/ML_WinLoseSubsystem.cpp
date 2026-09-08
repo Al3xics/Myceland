@@ -561,6 +561,18 @@ void UML_WinLoseSubsystem::ForceBoardWin(AML_BoardSpawner* Board)
 
 	FireWinSequence();
 }
+
+void UML_WinLoseSubsystem::ReplayOnWinForBoard(AML_BoardSpawner* Board)
+{
+	if (!IsValid(Board))
+		return;
+
+	// Listeners read CurrentBoardSpawner to know which board won — point it at Board, then fire OnWin
+	// only. No FireWinSequence side-effects (victory sound / ClearWinPath / deferred OnWinPathSettled).
+	CurrentBoardSpawner = Board;
+	OnWin.Broadcast();
+}
+
 void UML_WinLoseSubsystem::FireWinSequence()
 {
 	OnWin.Broadcast();

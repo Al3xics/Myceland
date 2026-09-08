@@ -31,6 +31,16 @@ class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
 public:
 	UFUNCTION(BlueprintCallable, Category="Myceland|Win Lose")
     void ForceBoardWin(AML_BoardSpawner* Board);
+
+	// Re-fires ONLY the OnWin event for an already-solved board — used on load to replay every normal
+	// win reaction (nature-zone revitalization, ambience, win propagation, BP progression, ...) through
+	// the exact same listeners a real win uses. Sets CurrentBoardSpawner so listeners key off Board,
+	// then broadcasts OnWin. Deliberately does NOT run the rest of the win sequence: no victory sound,
+	// no ClearWinPath, and no OnWinPathSettled — so AML_BoardSpawner::HandlePuzzleWon (bound to
+	// OnWinPathSettled) never re-saves or re-appends the solve order.
+	UFUNCTION(BlueprintCallable, Category="Myceland|Win Lose")
+	void ReplayOnWinForBoard(AML_BoardSpawner* Board);
+
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnWin OnWin;
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")

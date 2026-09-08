@@ -11,7 +11,7 @@
 #include "Player/ML_HexPathfinder.h"
 #include "Player/ML_PlayerController.h"
 #include "Save System/ML_SaveSubsystem.h"
-#include "TechArt/ML_NatureZone.h"
+#include "Subsystem/ML_WinLoseSubsystem.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 
@@ -192,22 +192,21 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 		break;
 	}
 
-	// ---- Step 2: revive the nature zones of every solved board ----
-	// Instead of replaying the win cinematics on load, we directly revitalize each solved board's
-	// nature zones. Revive() is a BlueprintNativeEvent authored in the nature-zone Blueprint, so the
-	// grown foliage is restored instantly without the camera-hijacking cinematics. Gated on bPlaced
-	// so CurrentTileOn is valid first (keeps BP_ProgressionManager from reading a null tile).
+	// ---- Step 2: replay the OnWin event for every solved board ----
+	// Re-fire each solved board's OnWin through the WinLose subsystem so all the normal win reactions
+	// run on load (nature-zone revitalization, ambience, win propagation, BP progression, ...) — the
+	// same listeners a real win uses, keyed off CurrentBoardSpawner. Gated on bPlaced so CurrentTileOn
+	// is valid first: some OnWin listeners (e.g. BP_ProgressionManager) read the player's current tile.
 	if (bPlaced)
 	{
-		for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
+		if (UML_WinLoseSubsystem* WinLose = World->GetSubsystem<UML_WinLoseSubsystem>())
 		{
-			AML_BoardSpawner* Board = *It;
-			if (!IsValid(Board) || !Board->bIsPuzzleSolved) continue;
-
-			for (AActor* ZoneActor : Board->GetAssociatedNatureZones())
+			for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
 			{
-				if (AML_NatureZone* Zone = Cast<AML_NatureZone>(ZoneActor))
-					Zone->Revive();
+				AML_BoardSpawner* Board = *It;
+				if (!IsValid(Board) || !Board->bIsPuzzleSolved) continue;
+
+				WinLose->ReplayOnWinForBoard(Board);
 			}
 		}
 	}
