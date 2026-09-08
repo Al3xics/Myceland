@@ -196,8 +196,26 @@ TArray<FML_SaveSlotInfo> UML_SaveSubsystem::GetAllSaveSlots() const
 	return Result;
 }
 
+int32 UML_SaveSubsystem::CountPlayerSlots()
+{
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files,
+		*(FPaths::ProjectSavedDir() / TEXT("SaveGames") / TEXT("*.sav")), /*Files=*/true, /*Directories=*/false);
+	return Files.Num();
+}
+
 FString UML_SaveSubsystem::GenerateNewSlotName() const
 {
+	// The limit counts every file the slot list shows, not just the auto-named Slot_N ones:
+	// the legacy MycelandSave is a playthrough like any other and takes a place. Counting only
+	// free Slot_N names would let the player past the limit by exactly that one slot.
+	// Demo saves live outside this directory and never count.
+	if (CountPlayerSlots() >= MaxSaveSlots) return FString();
+
+	// Guaranteed to find one: fewer than MaxSaveSlots files exist, so at most MaxSaveSlots - 1
+	// of these names can be taken.
+	// Stays silent on failure: CanCreateNewGameSlot polls this every time the menu is shown,
+	// so the "limit reached" warning belongs to the callers that actually wanted a new slot.
 	for (int32 i = 1; i <= MaxSaveSlots; ++i)
 	{
 		const FString Candidate = SlotNamePrefix + FString::FromInt(i);
@@ -205,14 +223,22 @@ FString UML_SaveSubsystem::GenerateNewSlotName() const
 			return Candidate;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[Save] Slot limit reached (%d). Delete a slot before creating another."), MaxSaveSlots);
 	return FString();
+}
+
+bool UML_SaveSubsystem::CanCreateNewGameSlot() const
+{
+	return !GenerateNewSlotName().IsEmpty();
 }
 
 FString UML_SaveSubsystem::CreateNewGameSlot()
 {
 	const FString NewSlot = GenerateNewSlotName();
-	if (NewSlot.IsEmpty()) return FString();
+	if (NewSlot.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Save] Slot limit reached (%d). Delete a slot before creating another."), MaxSaveSlots);
+		return FString();
+	}
 
 	// A brand-new save object is the reset: no puzzle records, no solve order, no played
 	// narrative triggers, progression back to W1L0. Boards re-capture their authored grid
@@ -255,7 +281,13 @@ bool UML_SaveSubsystem::ContinueFromSlot(const FString& InSlotName, FGameplayTag
 		// every later autosave lands there instead. Failing here (slot limit) is better than
 		// falling back to writing into the demo.
 		TargetSlot = GenerateNewSlotName();
-		if (TargetSlot.IsEmpty()) return false;
+		if (TargetSlot.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Save] Slot limit reached (%d) — cannot duplicate demo '%s'. Delete a slot first."),
+				MaxSaveSlots, *InSlotName);
+			return false;
+		}
 
 		Loaded->DisplayName = FString::Printf(TEXT("%s - %s"),
 			*Loaded->DisplayName, *FDateTime::Now().ToString(TEXT("%d/%m %H:%M")));
