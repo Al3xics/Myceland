@@ -50,7 +50,7 @@ private:
 	static inline const FIntPoint DefaultResolutionPx = FIntPoint(1920, 1080);
 	static constexpr int32 DefaultResolutionValue = 2;
 	static constexpr float DefaultResolutionScale = 70.0f;
-	static constexpr EWindowMode::Type DefaultWindowMode = EWindowMode::Windowed;
+	static constexpr EWindowMode::Type DefaultWindowMode = EWindowMode::Fullscreen;
 	static constexpr bool DefaultVSync = false;
 	static constexpr int32 DefaultFrameLimit = 1;
 	static constexpr float DefaultFrameRateLimit = 60.0f;
@@ -139,6 +139,7 @@ private:
 
 	UWorld* GetWorld() const;
 	FIntPoint GetClosestValidResolution(FIntPoint DesiredResolution) const;
+	FIntPoint GetNativeDefaultResolution() const;
 
 	void LoadResolution();
 	void LoadFrameLimit();

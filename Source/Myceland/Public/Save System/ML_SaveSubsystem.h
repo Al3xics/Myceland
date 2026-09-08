@@ -47,6 +47,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Myceland Save|Slots")
 	TArray<FML_SaveSlotInfo> GetAllSaveSlots() const;
 
+	// True while there is still room for another playthrough. Drives the New Game button's
+	// enabled state, so the player is told up front rather than clicking a button that no-ops.
+	// Demo saves are packaged content and never count against the limit.
+	UFUNCTION(BlueprintPure, Category="Myceland Save|Slots")
+	bool CanCreateNewGameSlot() const;
+
 	// Creates a blank slot, makes it active and writes it. Returns its SlotName, or an empty
 	// string when the slot limit is already reached (branch on that in the menu).
 	UFUNCTION(BlueprintCallable, Category="Myceland Save|Slots")
@@ -65,7 +71,8 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Save|Slots")
 	FString GetActiveSlotName() const { return ActiveSlotName; }
 
-	// Number of normal slots the player is allowed to keep at once (demo saves don't count).
+	// How many writable slots the player may keep at once. Counts every row of the slot list
+	// except the packaged demo saves, which live outside Saved/SaveGames and are never touched.
 	UFUNCTION(BlueprintPure, Category="Myceland Save|Slots")
 	int32 GetMaxSaveSlots() const { return MaxSaveSlots; }
 
@@ -200,7 +207,11 @@ private:
 	// Reads one save file's metadata into a UI row. Returns false when it can't be read.
 	static bool MakeSlotInfo(const UML_GameSave* Save, const FString& InSlotName, bool bReadOnly, FML_SaveSlotInfo& OutInfo);
 
-	// First unused "Slot_N", or an empty string once MaxSaveSlots normal slots exist.
+	// How many writable slots exist on disk — i.e. how many rows the slot list shows for the
+	// player's own saves. This is what MaxSaveSlots is measured against.
+	static int32 CountPlayerSlots();
+
+	// First unused "Slot_N", or an empty string once MaxSaveSlots writable slots exist.
 	FString GenerateNewSlotName() const;
 
 	// Points the subsystem at a slot once SaveObject already holds the matching data (loaded,

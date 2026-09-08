@@ -6,6 +6,9 @@
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "FMODStudioModule.h"
 #include "FMOD/fmod_studio.hpp"
+#include "Framework/Application/SlateApplication.h"
+#include "GenericPlatform/GenericApplication.h"
+#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "MycelandSettings"
 
@@ -83,6 +86,52 @@ FIntPoint UML_GameUserSettings::GetClosestValidResolution(FIntPoint DesiredResol
 	return ClosestResolution;
 }
 
+FIntPoint UML_GameUserSettings::GetNativeDefaultResolution() const
+{
+	EnsureValidListsInitialized();
+
+	FDisplayMetrics DisplayMetrics;
+	if (FSlateApplication::IsInitialized())
+		FSlateApplication::Get().GetInitialDisplayMetrics(DisplayMetrics);
+	else
+		FDisplayMetrics::RebuildDisplayMetrics(DisplayMetrics);
+
+	// PrimaryDisplayWidth/Height is the resolution the desktop currently runs at; the primary
+	// monitor entry carries the panel's native one (same lookup as UGameEngine::DetermineGameWindowResolution).
+	FIntPoint NativeResolution(DisplayMetrics.PrimaryDisplayWidth, DisplayMetrics.PrimaryDisplayHeight);
+	for (const FMonitorInfo& Monitor : DisplayMetrics.MonitorInfo)
+	{
+		if (!Monitor.bIsPrimary)
+			continue;
+
+		const FIntPoint MonitorResolution = Monitor.MaxResolution != FIntPoint::ZeroValue
+			? Monitor.MaxResolution
+			: FIntPoint(Monitor.NativeWidth, Monitor.NativeHeight);
+
+		if (MonitorResolution.X > 0 && MonitorResolution.Y > 0)
+			NativeResolution = MonitorResolution;
+
+		break;
+	}
+
+	if (NativeResolution.X <= 0 || NativeResolution.Y <= 0)
+		return DefaultResolutionPx;
+
+	// Largest whitelisted resolution the panel can display natively. Area-closest is not enough
+	// here: an ultrawide has no exact entry, and rendering above the panel is worse than below it.
+	FIntPoint BestFit = FIntPoint::ZeroValue;
+	for (const FIntPoint& Resolution : ValidResolutions)
+	{
+		if (Resolution.X > NativeResolution.X || Resolution.Y > NativeResolution.Y)
+			continue;
+
+		if (Resolution.X * Resolution.Y > BestFit.X * BestFit.Y)
+			BestFit = Resolution;
+	}
+
+	return BestFit != FIntPoint::ZeroValue ? BestFit : GetClosestValidResolution(NativeResolution);
+}
+
 void UML_GameUserSettings::LoadResolution()
 {
 	EnsureValidListsInitialized();
@@ -132,8 +181,12 @@ UML_GameUserSettings::UML_GameUserSettings()
 void UML_GameUserSettings::InitValues()
 {
 	// Graphics (wrappers - defaults)
-	ResolutionValue = DefaultResolutionValue;
-	ResolutionPx = DefaultResolutionPx;
+	// The resolution defaults to the monitor rather than a hardcoded 1080p: this runs on the
+	// first launch (no saved ini) and on a full reset, both cases where the player chose nothing.
+	ResolutionPx = GetNativeDefaultResolution();
+	ResolutionValue = ValidResolutions.IndexOfByKey(ResolutionPx);
+	if (ResolutionValue == INDEX_NONE)
+		ResolutionValue = DefaultResolutionValue;
 	ResolutionScale = DefaultResolutionScale;
 	WindowMode = DefaultWindowMode;
 	bVSync = DefaultVSync;
@@ -441,7 +494,7 @@ void UML_GameUserSettings::ResetMycelandSettingToDefault(const EMLSettingCategor
 	switch (Setting)
 	{
 		case EMLSettingCategory::Graphics:
-			ResolutionPx = AreValidResolutionsInitialized() ? GetClosestValidResolution(DefaultResolutionPx) : DefaultResolutionPx;
+			ResolutionPx = GetNativeDefaultResolution();
 			ResolutionValue = ValidResolutions.IndexOfByKey(ResolutionPx);
 			if (ResolutionValue == INDEX_NONE) ResolutionValue = DefaultResolutionValue;
 			ResolutionScale = DefaultResolutionScale;
@@ -482,11 +535,18 @@ void UML_GameUserSettings::ResetMycelandSettingToDefault(const EMLSettingCategor
 
 void UML_GameUserSettings::ValidateSettings()
 {
+	// An invalid saved version means there is nothing to load: a true first launch (or an engine
+	// settings version bump). Super wipes everything through SetToDefaults() right below, so this
+	// is the only point where the difference is still visible.
+	const bool bFirstLaunch = !IsVersionValid();
+
 	Super::ValidateSettings();
 
 	EnsureValidListsInitialized();
 
-	// Snap an out-of-whitelist saved resolution (first run, monitor change, hand-edited ini).
+	bool bPushedResolutionChange = false;
+
+	// Snap an out-of-whitelist saved resolution (monitor change, hand-edited ini).
 	// At boot the engine runs this before creating the game window, so the window opens
 	// directly at the snapped resolution instead of the invalid saved one.
 	if (AreValidResolutionsInitialized())
@@ -499,9 +559,28 @@ void UML_GameUserSettings::ValidateSettings()
 
 			// Push the change to the system resolution outside the editor (no-op in PIE).
 			if (!GIsEditor)
+			{
 				RequestResolutionChange(SnappedResolution.X, SnappedResolution.Y, Super::GetFullscreenMode(), false);
+				bPushedResolutionChange = true;
+			}
 		}
 	}
+
+	// First launch: UGameUserSettings::PreloadResolutionSettings() sized the window from the engine
+	// defaults (borderless, desktop resolution) because no ini existed yet to read. Push the defaults
+	// SetToDefaults() just picked instead, so the very first session already runs in the game's window
+	// mode at the monitor's resolution. Overrides stay enabled so -windowed / -ResX still win.
+	if (bFirstLaunch && !GIsEditor)
+	{
+		RequestResolutionChange(ResolutionPx.X, ResolutionPx.Y, WindowMode);
+		bPushedResolutionChange = true;
+	}
+
+	// RequestResolutionChange only writes the r.setres cvar: GSystemResolution, which the game window
+	// is built from, is refreshed by the cvar sinks. Without this the sinks would first run a tick
+	// later, once the window already exists with the values we are replacing.
+	if (bPushedResolutionChange)
+		IConsoleManager::Get().CallAllConsoleVariableSinks();
 
 	if (AreValidFrameLimitsInitialized())
 	{
