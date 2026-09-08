@@ -166,7 +166,7 @@ public:
 	UPROPERTY(EditAnywhere, Category="ML- Hex Grid")
 	TSubclassOf<AML_TileBase> WaterChangeTile;
 
-	UPROPERTY(BlueprintReadWrite)
+  UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category="ML- Debug", Transient)
     bool bIsPuzzleSolved = false;
 
 	UFUNCTION(CallInEditor, Category="ML- Hex Grid", meta=(DisplayName="Update Current Grid"))
