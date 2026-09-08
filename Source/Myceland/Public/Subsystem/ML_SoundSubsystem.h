@@ -46,6 +46,9 @@ private:
 
 	void Initialize(UML_SoundSubsystem* InSoundSubsystem, UFMODAudioComponent* InAudioComponent, const FML_OnSoundFinished& InOnFinishedCallback);
 
+	/** Unbind from the audio component and forget it. The subsystem owns its destruction. */
+	void ReleaseComponent();
+
 	UFUNCTION()
 	void HandleEventStopped();
 };
@@ -59,7 +62,22 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UML_SoundPlaybackHandle>> ActivePlaybackHandles;
 
+	/** Every component CreateTrackedSound registers, tracked independently of the handles: a tracked sound
+	 * that ends or is stopped without bAutoDestroy loses its handle but keeps its registered component. */
+	UPROPERTY()
+	TArray<TObjectPtr<UFMODAudioComponent>> TrackedAudioComponents;
+
+	FDelegateHandle WorldCleanupHandle;
+
+	/** Destroy the tracked sounds registered with World, or every one of them when World is null. */
+	void DestroyTrackedSounds(const UWorld* World);
+
+	void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
+
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+
 	static UML_SoundSubsystem* Get(const UObject* WorldContextObject);
 
 	UFUNCTION(BlueprintCallable, Category="Sound|FMOD")

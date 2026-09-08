@@ -26,6 +26,15 @@ void UML_SoundPlaybackHandle::Stop()
 		AudioComponent->Stop();
 }
 
+void UML_SoundPlaybackHandle::ReleaseComponent()
+{
+	if (!AudioComponent)
+		return;
+
+	AudioComponent->OnEventStopped.RemoveAll(this);
+	AudioComponent = nullptr;
+}
+
 bool UML_SoundPlaybackHandle::IsPlaying() const
 {
 	return AudioComponent && AudioComponent->IsPlaying();
@@ -43,6 +52,84 @@ void UML_SoundPlaybackHandle::HandleEventStopped()
 
 	if (SoundSubsystem)
 		SoundSubsystem->NotifyPlaybackFinished(this);
+}
+
+void UML_SoundSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	// Tracked sounds run on audio components owned by this subsystem - which outlives every world - but
+	// registered with whichever world was current when they started. They have no owning actor and belong to
+	// no level, so UWorld::CleanupWorld never unregisters them: after a level change they stay flagged as
+	// registered while pointing at a destroyed world. USceneComponent always creates a render state, so the
+	// next global render state recreate (any scalability change, the settings Apply button included) walks
+	// into that dead world's scene and crashes. Tear them down with their world instead.
+	WorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddUObject(this, &UML_SoundSubsystem::HandleWorldCleanup);
+}
+
+void UML_SoundSubsystem::Deinitialize()
+{
+	FWorldDelegates::OnWorldCleanup.Remove(WorldCleanupHandle);
+	WorldCleanupHandle.Reset();
+
+	DestroyTrackedSounds(nullptr);
+
+	Super::Deinitialize();
+}
+
+void UML_SoundSubsystem::HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)
+{
+	DestroyTrackedSounds(World);
+}
+
+void UML_SoundSubsystem::DestroyTrackedSounds(const UWorld* World)
+{
+	// Iterate copies: releasing a handle can fire OnEventStopped, which removes it from
+	// ActivePlaybackHandles through NotifyPlaybackFinished.
+	const TArray<TObjectPtr<UML_SoundPlaybackHandle>> HandlesToCheck = ActivePlaybackHandles;
+
+	for (UML_SoundPlaybackHandle* Handle : HandlesToCheck)
+	{
+		if (!IsValid(Handle))
+		{
+			ActivePlaybackHandles.Remove(Handle);
+			continue;
+		}
+
+		// A null World means every world (subsystem shutdown). A handle whose component is already gone is
+		// dead weight either way, so it is dropped too.
+		const UFMODAudioComponent* AudioComponent = Handle->GetAudioComponent();
+		if (World && AudioComponent && AudioComponent->GetWorld() != World)
+			continue;
+
+		Handle->ReleaseComponent();
+		ActivePlaybackHandles.Remove(Handle);
+	}
+
+	// The components are destroyed from their own list, not through the handles: a tracked sound that ended
+	// or was stopped without bAutoDestroy has already dropped its handle, and this list is then the only
+	// thing left pointing at its still-registered component.
+	const TArray<TObjectPtr<UFMODAudioComponent>> ComponentsToCheck = TrackedAudioComponents;
+
+	for (UFMODAudioComponent* AudioComponent : ComponentsToCheck)
+	{
+		if (!IsValid(AudioComponent))
+		{
+			TrackedAudioComponents.Remove(AudioComponent);
+			continue;
+		}
+
+		if (World && AudioComponent->GetWorld() != World)
+			continue;
+
+		if (AudioComponent->IsPlaying())
+			AudioComponent->Stop();
+
+		// DestroyComponent unregisters first, which is the whole point: a component left registered on a
+		// world that is going away is what crashes the next global render state recreate.
+		AudioComponent->DestroyComponent();
+		TrackedAudioComponents.Remove(AudioComponent);
+	}
 }
 
 UML_SoundSubsystem* UML_SoundSubsystem::Get(const UObject* WorldContextObject)
@@ -191,6 +278,10 @@ UML_SoundPlaybackHandle* UML_SoundSubsystem::CreateTrackedSound(UFMODEvent* Soun
 #endif
 	AudioComponent->RegisterComponentWithWorld(World);
 	AudioComponent->SetWorldTransform(Location);
+
+	// Registered on World but owned by this subsystem, which outlives it: DestroyTrackedSounds is what
+	// unregisters it when that world is torn down.
+	TrackedAudioComponents.Add(AudioComponent);
 
 	UML_SoundPlaybackHandle* PlaybackHandle = NewObject<UML_SoundPlaybackHandle>(this);
 	PlaybackHandle->Initialize(this, AudioComponent, OnFinished);
