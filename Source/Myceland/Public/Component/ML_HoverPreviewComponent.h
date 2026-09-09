@@ -30,9 +30,10 @@ private:
 	UPROPERTY(Transient)
 	AML_Tile* LastCursorHoveredTile = nullptr;
 
-	// True when LastCursorHoveredTile is currently glowing as the player's own tile.
-	// Lets us refresh its glow back to a normal cursor hover once the player leaves it.
-	bool bLastCursorTileIsPlayerTile = false;
+	// The state actually pushed to LastCursorHoveredTile. The cursor tick recomputes the state every
+	// pass and only pushes it when it differs from this one, so the glow follows every input it depends
+	// on (hovered tile, player position, tile type, energy) instead of only "the hovered tile changed".
+	EML_TileHoverState LastCursorHoverState = EML_TileHoverState::None;
 
 	UPROPERTY(Transient)
 	AML_Tile* LastPathHoveredTile = nullptr;
@@ -81,6 +82,12 @@ private:
 	void TickPathHoverPreview();
 	void TickCursorHoverPreview();
 	void ClearCursorHoverPreview();
+
+	/** The glow state Tile must currently show. Single place where the hover color is decided. */
+	EML_TileHoverState ComputeHoverState(const AML_Tile* Tile) const;
+
+	/** Pushes Tile's current glow state, and remembers it. No-op while the state does not change. */
+	void ApplyCursorHoverState(AML_Tile* Tile);
 	void SetHoveredTileState(AML_Tile* HoveredTile, bool bIsReachable);
 	TArray<AML_Tile*> BuildPreviewPathFromTile(const AML_Tile* StartTile, const AML_Tile* TargetTile) const;
 
@@ -132,6 +139,11 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Hover Preview Component|Hover")
 	FOnHoveredTileChanged OnHoveredTileChanged;
+
+	/** The glow state for a tile, from the facts that decide it. Pure (no world access) so the rule
+	 *  stays in one place and can be unit-tested; ComputeHoverState() gathers the facts. */
+	static EML_TileHoverState ResolveHoverState(bool bIsInteractable, bool bIsPlayerTile, bool bCanPlant,
+	                                            bool bHasEnergy, bool bIsWalkable);
 
 	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character);
 	void NotifyMovementModeChanged(EML_PlayerMovementMode NewMode);

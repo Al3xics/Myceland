@@ -7,6 +7,7 @@
 #include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Player/ML_PlayerController.h"
 #include "Collectible/ML_Collectible.h"
+#include "Subsystem/ML_BoardActionSubsystem.h"
 #include "Subsystem/ML_CinematicSubsystem.h"
 #include "Subsystem/ML_RollBackSubsystem.h"
 #include "Subsystem/ML_SoundSubsystem.h"
@@ -77,6 +78,10 @@ void UML_WavePropagationSubsystem::CancelAllWaveTimers()
 	TM.ClearTimer(IntraWaveTimerHandle);
 	TM.ClearTimer(InterWaveTimerHandle);
 	TM.ClearTimer(TouchTimerHandle);
+
+	// Includes the visual settle timeout, and drops the gate flag with it: clearing the timer alone would
+	// leave a wave waiting on a report that nothing is scheduled to force anymore.
+	ClearPendingVisuals();
 }
 
 void UML_WavePropagationSubsystem::EndTileResolved()
@@ -87,11 +92,10 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	// is unknown (first wave before CheckWinLose resolved it), keep the old behavior.
 	AML_BoardSpawner* WaveBoard = IsValid(CurrentOriginTile) ? CurrentOriginTile->GetBoardSpawnerFromTile() : nullptr;
 	const bool bWaveOnOtherBoard = IsValid(WaveBoard) && IsValid(WinLoseSubsystem->CurrentBoardSpawner) && WaveBoard != WinLoseSubsystem->CurrentBoardSpawner;
-
-	FML_GameResult Result;
+	const bool bPlayerWasDead = WinLoseSubsystem && WinLoseSubsystem->bIsPlayerDead;
 	if (!bWaveOnOtherBoard)
 	{
-		Result = WinLoseSubsystem->CheckWinLose();
+		WinLoseSubsystem->CheckWinLose();
 
 		// If the whole action changed nothing on the board, goal connectivity can't
 		// have changed either: skip the (BFS-heavy) goal-path recompute.
@@ -99,7 +103,7 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 			WinLoseSubsystem->TriggerFindConnectedGoalCheck();
 	}
 
-	if (bPlayAvatarSurpriseVocalThisAction && TotalReactionTileCount > 0 && !WinLoseSubsystem->bIsPlayerDead)
+	if (bPlayAvatarSurpriseVocalThisAction && TotalReactionTileCount > 0 && !bPlayerWasDead)
 	{
 		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 		{
@@ -123,24 +127,24 @@ void UML_WavePropagationSubsystem::EndTileResolved()
 	TotalReactionTileCount = 0;
 	bPlayAvatarSurpriseVocalThisAction = true;
 
+	// Animations may well outlive the propagation (a collectible is still landing); no wave is left to wait
+	// on them, so drop the bindings rather than carrying them into the next turn.
+	ClearPendingVisuals();
+
 	bIsResolvingTiles = false;
 
 	if (RollBackSubsystem)
 		RollBackSubsystem->CommitTurnRecord();
 
-	if (PlayerController)
-	{
-		if (PlayerController->TransitionComponent)
-			PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
+	if (PlayerController && PlayerController->TransitionComponent)
+		PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(false);
 
-		// The win flow owns the input lock from the moment the win is detected until
-		// the win cinematic (or the Win BP event when no cinematic plays) releases it.
-		// A wave resolving on another board (e.g. hub changes after a win) must not
-		// re-enable inputs in the middle of that sequence.
-		const bool bWinOwnsInputLock = Result.Result == EML_WinLose::Win || WinLoseSubsystem->IsWinSequenceActive() || (CinematicSubsystem && CinematicSubsystem->IsCinematicPlaying());
-		if (!bWinOwnsInputLock)
-			PlayerController->EnableInput(PlayerController);
-	}
+	// The propagation is over, but the animations it spawned (collectible flight, parasite crash) can
+	// still be running and hold tokens of their own. Releasing ours only gives the input back if we were
+	// the last one, which is what closes the gap the old BP delays used to paper over. The win-sequence
+	// and cinematic lock is honoured inside the subsystem.
+	if (UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+		BoardAction->EndBoardAction(this);
 
 	// The board has reached its final state: let board-dependent UI (e.g. the gamepad plantable
 	// highlight) refresh once, rather than on every tile change during the propagation.
@@ -164,7 +168,11 @@ void UML_WavePropagationSubsystem::BeginTileResolvedInternal(AML_Tile* HitTile, 
 	if (!PlayerController || !DevSettings || !RollBackSubsystem) return;
 
 	bIsResolvingTiles = true;
-	PlayerController->DisableInput(PlayerController);
+
+	// One token for the whole turn, held until EndTileResolved. Anything that starts animating during the
+	// propagation takes its own token before this one is released, so the lock never briefly opens.
+	if (UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+		BoardAction->BeginBoardAction(this, EML_BoardActionReason::Wave, 30.f);
 	if (PlayerController->TransitionComponent)
 		PlayerController->TransitionComponent->OnBoardActivityStateChanged.Broadcast(true);
 
@@ -183,6 +191,7 @@ void UML_WavePropagationSubsystem::BeginTileResolvedInternal(AML_Tile* HitTile, 
 	PendingChangesIndex = 0;
 	bRingInProgress = false;
 	bTouchRingInProgress = false;
+	ClearPendingVisuals();
 
 	if (RollBackSubsystem)
 		RollBackSubsystem->BeginTurnRecord(HitTile);
@@ -299,6 +308,10 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
 	            ParasitesThatAteGrass.Add(Tile);
 	        }
 			Tile->bConsumedGrass = true;
+
+			// The transformation starts now and ends several seconds later (GrassToParasiteDelay, then the
+			// parasite growth animation). A wave flagged bWaitForPendingVisuals waits on it.
+			TrackPendingParasiteVisual(Tile);
 	        TWeakObjectPtr<AML_Tile> WeakTile = Tile;
 	   
 
@@ -334,31 +347,40 @@ void UML_WavePropagationSubsystem::ApplyChange(const FML_WaveChange& Change)
     // ---------------------------------------------------------
     // ANYTHING -> GRASS
     // ---------------------------------------------------------
-    else if (Change.TargetType == EML_TileType::Grass)
-    {
-        TWeakObjectPtr<AML_Tile> WeakTile = Tile;
+	    else if (Change.TargetType == EML_TileType::Grass)
+	    {
+	    	TWeakObjectPtr<AML_Tile> WeakTile = Tile;
 
-        const TSubclassOf<AML_TileBase> GrassClass =
-            TileSet->GetClassFromTileType(EML_TileType::Grass);
+	    	const TSubclassOf<AML_TileBase> GrassClass =
+				TileSet->GetClassFromTileType(EML_TileType::Grass);
 
-        FTimerHandle GrassDelayHandle;
+	    	FTimerHandle GrassDelayHandle;
 
-        GetWorld()->GetTimerManager().SetTimer(
-            GrassDelayHandle,
-            [WeakTile, GrassClass]()
-            {
-                if (WeakTile.IsValid())
-                {
-                    WeakTile->UpdateClassAtRuntime(
-                        EML_TileType::Grass,
-                        GrassClass
-                    );
-                }
-            },
-            DevSettings->GrassSpawnDelay,
-            false
-        );
-    }
+	    	GetWorld()->GetTimerManager().SetTimer(
+				GrassDelayHandle,
+				[WeakTile, GrassClass]()
+				{
+					if (WeakTile.IsValid())
+					{
+						WeakTile->UpdateClassAtRuntime(
+							EML_TileType::Grass,
+							GrassClass
+						);
+
+						if (UML_SoundSubsystem* SoundSubsystem =
+							UML_SoundSubsystem::Get(WeakTile.Get()))
+						{
+							SoundSubsystem->StartSoundAtLocationByPath(
+								MLFMODEvents::TilePlant,
+								FTransform(WeakTile->GetActorLocation())
+							);
+						}
+					}
+				},
+				DevSettings->GrassSpawnDelay,
+				false
+			);
+	    }
 
     // ---------------------------------------------------------
     // EVERYTHING ELSE
@@ -482,15 +504,26 @@ else
 			Collectible->SetSourceParasite(Change.SourceParasite);
 			Change.Neighbor->CollectibleActor = Collectible;
 
+			// Before FinishSpawning, because BeginPlay is where the pickup overlap fires: a collectible
+			// landing on the tile the player stands on was collected on its first frame, unseen.
+			Collectible->PrepareForSpawnSequence();
+
 			// Finish spawning
 			Collectible->FinishSpawning(FTransform(FRotator::ZeroRotator, Change.SpawnLocation));
 
 			if (RollBackSubsystem)
 				RollBackSubsystem->RecordSpawnedActor(Collectible, Change.DistanceFromOrigin, CurrentPriorityIndexForRecording);
 
-			if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
+			// The wave resolves faster than the grass -> parasite transformation that triggered it, so the
+			// collectible stays hidden until its own source parasite is done. Per collectible rather than
+			// per wave: the energies then cascade in the order the parasites finish. The spawn sound moved
+			// with the visual, inside BeginSpawnSequence.
+			if (IsValid(Collectible))
 			{
-				SoundSubsystem->StartSound2DByPath(MLFMODEvents::EnergySpawn);
+				// Tracked before the wait is armed: WaitForSourceParasite can start the flight synchronously
+				// when the source parasite is already grown.
+				TrackPendingCollectibleVisual(Collectible);
+				Collectible->WaitForSourceParasite(DevSettings->CollectibleSourceReadyTimeout);
 			}
 
 			bCycleHasChanges = true;
@@ -510,15 +543,15 @@ void UML_WavePropagationSubsystem::FinishRing()
 	{
 		if (UML_SoundSubsystem* SoundSubsystem = UML_SoundSubsystem::Get(this))
 		{
-			if (CurrentNatureReactionCount > 0)
+			if (CurrentNatureReactionCount > 1)
 			{
 				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainNature);
 			}
-			else if (CurrentParasiteReactionCount > 0)
+			else if (CurrentParasiteReactionCount > 1)
 			{
 				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainParasite);
 			}
-			else if (CurrentWaterReactionCount > 0)
+			else if (CurrentWaterReactionCount > 1)
 			{
 				SoundSubsystem->StartSound2DByPath(MLFMODEvents::ReactionChainWater);
 			}
@@ -530,13 +563,166 @@ void UML_WavePropagationSubsystem::FinishRing()
 
 void UML_WavePropagationSubsystem::ScheduleNextPriority()
 {
+	// CurrentWaveIndex was already advanced in ProcessNextWave, so it points at the wave about to run.
+	// A wave whose pacing already comes from the animations it waits on (the collectibles wait on their
+	// source parasite) sets DelayBeforeWave to 0 so the two delays do not stack into a visible pause.
+	float Delay = DevSettings->InterWaveDelay;
+	bool bWaitForVisuals = false;
+
+	if (DevSettings->WavesPriority.IsValidIndex(CurrentWaveIndex))
+	{
+		const FML_WavePriorityEntry& NextWave = DevSettings->WavesPriority[CurrentWaveIndex];
+
+		const float Override = NextWave.DelayBeforeWave;
+		if (Override >= 0.f)
+			Delay = Override;
+
+		bWaitForVisuals = NextWave.bWaitForPendingVisuals;
+	}
+
+	// The next wave needs a settled board (water, which would otherwise reach a parasite still growing out
+	// of the grass). Hold here until every animation the previous waves started has reported, then apply
+	// the delay on top, so the wait and the delay never overlap.
+	if (bWaitForVisuals && HasPendingVisuals())
+	{
+		bWaitingForVisualSettle = true;
+		PendingVisualSettleDelay = Delay;
+
+		if (DevSettings->WaveVisualSettleTimeout > 0.f)
+		{
+			GetWorld()->GetTimerManager().SetTimer(
+				VisualSettleTimeoutHandle,
+				this,
+				&UML_WavePropagationSubsystem::ForceReleaseVisualGate,
+				DevSettings->WaveVisualSettleTimeout,
+				false
+			);
+		}
+
+		return;
+	}
+
+	StartNextWaveTimer(Delay);
+}
+
+void UML_WavePropagationSubsystem::StartNextWaveTimer(const float Delay)
+{
+	// A rate of 0 clears a timer instead of firing it: keep it schedulable so CancelAllWaveTimers still
+	// owns the teardown.
 	GetWorld()->GetTimerManager().SetTimer(
 		InterWaveTimerHandle,
 		this,
 		&UML_WavePropagationSubsystem::ProcessNextWave,
-		DevSettings->InterWaveDelay,
+		FMath::Max(Delay, 0.001f),
 		false
 	);
+}
+
+void UML_WavePropagationSubsystem::TrackPendingParasiteVisual(AML_Tile* Tile)
+{
+	// Called while the tile is still Grass: it becomes Parasite only after GrassToParasiteDelay, and the
+	// parasite Blueprint reports through NotifyParasiteReady at the end of its growth animation.
+	if (!IsValid(Tile)) return;
+
+	Tile->OnParasiteReady.AddUniqueDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+	PendingVisuals.Add(Tile);
+}
+
+void UML_WavePropagationSubsystem::TrackPendingCollectibleVisual(AML_Collectible* Collectible)
+{
+	// A collectible collected on its spawn frame has already reported through EndPlay: nothing to wait for.
+	if (!IsValid(Collectible) || Collectible->HasSpawnAnimationFinished()) return;
+
+	Collectible->OnSpawnAnimationFinished.AddUniqueDynamic(this, &UML_WavePropagationSubsystem::HandlePendingCollectibleFinished);
+	PendingVisuals.Add(Collectible);
+}
+
+bool UML_WavePropagationSubsystem::HasPendingVisuals()
+{
+	for (auto It = PendingVisuals.CreateIterator(); It; ++It)
+	{
+		UObject* Pending = It->Get();
+
+		// Destroyed mid-animation: it will never report.
+		if (!Pending)
+		{
+			It.RemoveCurrent();
+			continue;
+		}
+
+		// A pending grass -> parasite transition that was overridden (the tile turned into something else
+		// before its timer fired) has no parasite Blueprint left to report either.
+		if (AML_Tile* Tile = Cast<AML_Tile>(Pending))
+		{
+			const EML_TileType Type = Tile->GetCurrentType();
+			if (Type != EML_TileType::Grass && !UML_TileTypeTraits::IsParasiteType(Type))
+			{
+				Tile->OnParasiteReady.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+				It.RemoveCurrent();
+			}
+		}
+	}
+
+	return PendingVisuals.Num() > 0;
+}
+
+void UML_WavePropagationSubsystem::HandlePendingParasiteReady(AML_Tile* Tile)
+{
+	if (IsValid(Tile))
+		Tile->OnParasiteReady.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+
+	PendingVisuals.Remove(TWeakObjectPtr<UObject>(Tile));
+	TryReleaseVisualGate();
+}
+
+void UML_WavePropagationSubsystem::HandlePendingCollectibleFinished(AML_Collectible* Collectible)
+{
+	if (IsValid(Collectible))
+		Collectible->OnSpawnAnimationFinished.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingCollectibleFinished);
+
+	PendingVisuals.Remove(TWeakObjectPtr<UObject>(Collectible));
+	TryReleaseVisualGate();
+}
+
+void UML_WavePropagationSubsystem::TryReleaseVisualGate()
+{
+	if (!bWaitingForVisualSettle || HasPendingVisuals()) return;
+
+	bWaitingForVisualSettle = false;
+
+	if (GetWorld())
+		GetWorld()->GetTimerManager().ClearTimer(VisualSettleTimeoutHandle);
+
+	StartNextWaveTimer(PendingVisualSettleDelay);
+}
+
+void UML_WavePropagationSubsystem::ForceReleaseVisualGate()
+{
+	// A Blueprint never reported the end of its animation. Start the wave anyway rather than leaving the
+	// board locked: the water wave still catches the tiles stuck mid grass -> parasite transition (see
+	// UML_WaveWater), so this path degrades to the pre-gate behaviour instead of losing the reaction.
+	if (!bWaitingForVisualSettle) return;
+
+	bWaitingForVisualSettle = false;
+	StartNextWaveTimer(PendingVisualSettleDelay);
+}
+
+void UML_WavePropagationSubsystem::ClearPendingVisuals()
+{
+	for (const TWeakObjectPtr<UObject>& Pending : PendingVisuals)
+	{
+		if (AML_Tile* Tile = Cast<AML_Tile>(Pending.Get()))
+			Tile->OnParasiteReady.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingParasiteReady);
+		else if (AML_Collectible* Collectible = Cast<AML_Collectible>(Pending.Get()))
+			Collectible->OnSpawnAnimationFinished.RemoveDynamic(this, &UML_WavePropagationSubsystem::HandlePendingCollectibleFinished);
+	}
+
+	PendingVisuals.Empty();
+	bWaitingForVisualSettle = false;
+	PendingVisualSettleDelay = 0.f;
+
+	if (GetWorld())
+		GetWorld()->GetTimerManager().ClearTimer(VisualSettleTimeoutHandle);
 }
 
 void UML_WavePropagationSubsystem::ProcessNextWave()
@@ -624,6 +810,12 @@ void UML_WavePropagationSubsystem::ProcessNextWave()
 void UML_WavePropagationSubsystem::AbortPropagationRuntime()
 {
 	bIsResolvingTiles = false;
+
+	// This path tears the propagation down without ever reaching EndTileResolved, so the turn token has
+	// to be released here too -- otherwise the board stays locked until the timeout fires.
+	if (UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+		BoardAction->EndBoardAction(this);
+
 	CancelAllWaveTimers();
 	ParasitesThatAteGrass.Empty();
 	PendingChanges.Empty();
@@ -738,6 +930,13 @@ void UML_WavePropagationSubsystem::RecordTileForUndo(AML_Tile* Tile, int32 Dista
 
 bool UML_WavePropagationSubsystem::CanUndo() const
 {
+	// The UMG button binds this: returning false while the board resolves greys it out instead of
+	// letting the player queue an undo on top of a running turn.
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
+
 	if (RollBackSubsystem) return RollBackSubsystem->CanUndo();
 	if (const UWorld* World = GetWorld())
 		if (const UML_RollBackSubsystem* Subsystem = World->GetSubsystem<UML_RollBackSubsystem>())
@@ -748,6 +947,10 @@ bool UML_WavePropagationSubsystem::CanUndo() const
 bool UML_WavePropagationSubsystem::UndoLastAction_Animated()
 {
 	if (!RollBackSubsystem) EnsureInitialized();
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
 	return RollBackSubsystem ? RollBackSubsystem->UndoLastAction_Animated() : false;
 }
 
@@ -784,13 +987,11 @@ void UML_WavePropagationSubsystem::NotifyMoveCompleted(
 bool UML_WavePropagationSubsystem::ResetAllActions_Animated()
 {
 	if (!RollBackSubsystem) EnsureInitialized();
+	if (const UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this))
+	{
+		if (BoardAction->IsBoardBusy()) return false;
+	}
 	return RollBackSubsystem ? RollBackSubsystem->ResetAllActions_Animated() : false;
-}
-
-bool UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Animated()
-{
-	if (!RollBackSubsystem) EnsureInitialized();
-	return RollBackSubsystem ? RollBackSubsystem->ResetAllActions_ExcludingMoves_Animated() : false;
 }
 
 void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_BoardSpawner* Board)
@@ -804,10 +1005,24 @@ void UML_WavePropagationSubsystem::ResetAllActions_ExcludingMoves_Instant(AML_Bo
 
 void UML_WavePropagationSubsystem::HandleRollbackUndoAnimating(bool bIsAnimating)
 {
+	// Undo and reset are mutually exclusive, so they can share the rollback subsystem as token owner.
+	HoldBoardForRollback(bIsAnimating, EML_BoardActionReason::Undo);
 	OnUndoAnimating.Broadcast(bIsAnimating);
 }
 
 void UML_WavePropagationSubsystem::HandleRollbackResetAnimating(bool bIsAnimating)
 {
+	HoldBoardForRollback(bIsAnimating, EML_BoardActionReason::Reset);
 	OnResetAnimating.Broadcast(bIsAnimating);
+}
+
+void UML_WavePropagationSubsystem::HoldBoardForRollback(const bool bIsAnimating, const EML_BoardActionReason Reason)
+{
+	UML_BoardActionSubsystem* BoardAction = UML_BoardActionSubsystem::Get(this);
+	if (!BoardAction || !RollBackSubsystem) return;
+
+	if (bIsAnimating)
+		BoardAction->BeginBoardAction(RollBackSubsystem, Reason, 30.f);
+	else
+		BoardAction->EndBoardAction(RollBackSubsystem);
 }

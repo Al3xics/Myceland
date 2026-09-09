@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
+#include "GameplayTagContainer.h"
 #include "Core/ML_CoreData.h"
 #include "ML_GameInstance.generated.h"
 
@@ -11,8 +12,11 @@ class UML_SaveSubsystem;
 
 /**
  * Project GameInstance. Holds the player's current ProgressionState, kept in sync with the
- * save: the value is loaded from the save on Init(), and every change made through
- * SetProgressionState() is written straight back to it.
+ * save: every change made through SetProgressionState() is written straight back to it, and
+ * the value is read back from the active slot whenever a gameplay level loads.
+ *
+ * Also the place where the save learns which level it is in: no other system watches map
+ * loads, and "Continue" needs that level to know where to drop the player back in.
  */
 UCLASS()
 class MYCELAND_API UML_GameInstance : public UGameInstance
@@ -20,8 +24,8 @@ class MYCELAND_API UML_GameInstance : public UGameInstance
 	GENERATED_BODY()
 
 public:
-	// Loads the persisted ProgressionState from the save into this GameInstance.
 	virtual void Init() override;
+	virtual void Shutdown() override;
 
 	UFUNCTION(BlueprintPure, Category="Myceland Progression")
 	EML_ProgressionState GetProgressionState() const { return ProgressionState; }
@@ -39,4 +43,21 @@ protected:
 private:
 	// Convenience accessor for this GameInstance's save subsystem (null before Init / in CDO).
 	UML_SaveSubsystem* GetSaveSubsystem() const;
+
+	// Stamps the loaded level into the active save slot and pulls the slot's progression back
+	// into this GameInstance. Skips the menu, which is not a place the player resumes into.
+	//
+	// Bound to OnWorldInitializedActors rather than PostLoadMapWithWorld on purpose: the latter
+	// fires *after* World->BeginPlay(), by which point AML_BoardSpawner and AML_NarrativeTrigger
+	// have already read the save. This one fires from InitializeActorsForPlay, just before.
+	void HandleWorldInitializedActors(const UWorld::FActorsInitializedParams& Params);
+
+	// Reverse lookup of a loaded world in the DeveloperSettings' Levels map. Invalid when the
+	// world isn't one of the configured levels (an archive or test map, say).
+	static FGameplayTag ResolveLevelTag(const UWorld* LoadedWorld);
+
+	// "Level.World1.Level2" -> "World 1 - Level 2", the label shown in the save-slot list.
+	static FString MakeLevelDisplayName(const FGameplayTag& LevelTag);
+
+	FDelegateHandle WorldInitializedActorsHandle;
 };

@@ -25,6 +25,12 @@ void AML_NatureZone::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 }
 
+void AML_NatureZone::Revive_Implementation()
+{
+	// No-op by default. The revitalization visuals (foliage growth, material reveal, etc.)
+	// are authored in the Blueprint override of this event.
+}
+
 TArray<FML_NatureInstanceReference> AML_NatureZone::GetFoliageInstancesInsideBox() const
 {
 	TArray<FML_NatureInstanceReference> Result;

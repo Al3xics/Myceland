@@ -336,6 +336,19 @@ void UML_BoardTransitionComponent::SetBoardActionState(EML_PlayerBoardActionStat
 {
 	BoardActionState       = State;
 	PendingPlantTargetTile = PlantTarget;
+
+	// Reaching here means the controller just (re)started an in-board move via StartRecordedBoardMove —
+	// either a fresh Move/Plant, or a redirect of a move already in progress (e.g. planting a tile while
+	// still walking toward a previously-requested exit border tile). That walk is no longer the exit walk
+	// started by ConfirmExitBoard, so any leftover "exit on arrival" intent must be cancelled here.
+	// Without this, HandlePathFinished (Case 1) would mistake this path's completion for having reached
+	// the exit border tile and send the player walking back off the board via navmesh — even though the
+	// player just asked to move or plant elsewhere on the board. ConfirmExitBoard itself never calls this
+	// function (it drives the exit walk directly via StartMoveAlongPath), so clearing here never disturbs
+	// a genuine exit in progress.
+	bPendingFreeMovementOnArrival = false;
+	bHasExitTargetWorld           = false;
+	PendingExitBorderTile         = nullptr;
 }
 
 void UML_BoardTransitionComponent::RequestBoardEntry(AML_Tile* TargetTile)

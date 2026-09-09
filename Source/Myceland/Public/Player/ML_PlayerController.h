@@ -17,8 +17,10 @@
 #include "ML_PlayerController.generated.h"
 
 class AML_CameraRail;
+class UML_WidgetBase;
 class UML_MycelandDeveloperSettings;
 class UEnhancedInputLocalPlayerSubsystem;
+class UEnhancedInputComponent;
 struct FInputActionValue;
 class AML_PlayerCharacter;
 class AML_BoardSpawner;
@@ -63,6 +65,21 @@ private:
 	// Cursor position saved when switching to gamepad, restored when showing the cursor again.
 	FVector2D LockedCursorPos = FVector2D::ZeroVector;
 
+	// ==================== Loading Screen ====================
+
+	// Live splash instance (created in BeginPlay via ShowLoadingScreen, removed by HideLoadingScreen).
+	UPROPERTY(Transient)
+	TObjectPtr<UML_WidgetBase> LoadingScreenInstance = nullptr;
+
+	FTimerHandle LoadingScreenTimerHandle;
+
+	// Creates the loading splash (if LoadingScreenClass is set), adds it on top of the viewport, and
+	// arms the auto-hide timer. No-op when LoadingScreenClass is unset.
+	void ShowLoadingScreen();
+
+	// Removes the loading splash from the viewport and clears the auto-hide timer. Safe to call twice.
+	void HideLoadingScreen();
+
 	// ==================== Movement - Path Tick & Callbacks ====================
 
 	void TickMoveAlongPath(float DeltaTime);
@@ -93,6 +110,22 @@ private:
 	// ==================== Input Mapping ====================
 
 	UEnhancedInputLocalPlayerSubsystem* GetEnhancedInputSubsystem() const;
+
+	// ==================== Cheats ====================
+	// Demo-only, and entirely gated on Enable Cheats in the Myceland Developer Settings: with it off
+	// nothing below is mapped or bound, so the cheat keys do not exist at all.
+
+	/** Maps the cheat toggle IMC for the whole session. Never removed - including during a cinematic,
+	 *  so the skip cheat stays reachable. */
+	void ApplyCheatToggleInputMappingContext();
+
+	void OnCheatToggle();
+	void OnCheatTeleportSlot(const FInputActionValue& Value);
+	void OnCheatLevelSlot(const FInputActionValue& Value);
+	void OnCheatWinPuzzle();
+	void OnCheatInfiniteEnergy();
+	void OnCheatExitBoard();
+	void OnCheatSkipNarrative();
 
 	// ==================== Delegates ====================
 
@@ -180,6 +213,18 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Myceland|Movement")
 	float ShortPressThreshold = 0.5f;
 
+	// ==================== Loading Screen ====================
+
+	// Splash widget shown on load (level begin) and hidden after LoadingScreenDuration seconds.
+	// Assign WB_LoadingScreen (or any UML_WidgetBase) in the controller Blueprint's Class Defaults.
+	// Leave unset to disable the splash entirely.
+	UPROPERTY(EditDefaultsOnly, Category = "Myceland|Loading Screen")
+	TSubclassOf<UML_WidgetBase> LoadingScreenClass;
+
+	// How long the splash stays up, in seconds. <= 0 keeps it up until HideLoadingScreen is called.
+	UPROPERTY(EditDefaultsOnly, Category = "Myceland|Loading Screen", meta = (ClampMin = "0.0"))
+	float LoadingScreenDuration = 10.f;
+
 public:
 	// ==================== Tile Query ====================
 
@@ -256,6 +301,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Myceland Controller|Camera")
 	void BlendToViewTarget(AActor* NewViewTarget, float BlendTime = 2.f, float BlendExp = 0.f, EViewTargetBlendFunction BlendFunc = VTBlend_Linear);
 
+	/**
+	 * Makes the camera match where the player currently stands: the board's associated camera while
+	 * inside a board, the closest camera rail otherwise. Used at possession, and after a teleport —
+	 * rails hand over through their trigger boxes, which a teleport never crosses, so without this
+	 * the player lands under whatever camera they had before.
+	 */
+	void ApplyCameraForCurrentLocation(float BlendTime = 0.f);
+
 	// ==================== Movement Control ====================
 
 	/** Called by TransitionComponent (ConfirmExitBoard, HandlePathFinished). */
@@ -274,6 +327,16 @@ public:
 
 	void NotifyGrassPlantStarted(AML_Tile* TargetTile);
 	
+	/**
+	 * Binds the cheat actions declared in the Dev Settings (nothing to wire in Blueprint).
+	 *
+	 * Called by AML_PlayerCharacter with the PAWN's input component on purpose, not with the
+	 * controller's: the loading screen, the board lock, the cinematics and the rollback all call
+	 * DisableInput on the controller, which takes its input component off the input stack. Bound
+	 * there, the cheats would be dead in exactly the situations they exist to get you out of.
+	 */
+	void BindCheatActions(UEnhancedInputComponent* EnhancedInputComponent);
+
 	void UpdateCursorVisibility(const bool bVisible);
 	void NotifyCinematicModeChanged(const bool bInCinematicMode);
 
@@ -324,6 +387,13 @@ public:
 
 	/** Stops NavMesh movement and cancels any pending board entry. Called when a cinematic interrupts navigation. */
 	void CancelPendingNavigation();
+
+	/**
+	 * Hard-stops every in-progress movement: the navmesh move, a pending board entry AND the
+	 * tile-by-tile board path. Used by the cheat teleport - without dropping the board path, the
+	 * queued movement keeps ticking and walks the player back from wherever they were teleported.
+	 */
+	void CancelAllMovementForTeleport();
 	AML_Tile* FindReachableExitBorderTile(const AML_BoardSpawner* Board, const FVector& OutsideDestination) const;
 	AML_Tile* PredictNavMeshEntryTile(const AML_BoardSpawner* Board, const FVector& Destination) const;
 	void SetForcedHoverTile(AML_Tile* Tile);

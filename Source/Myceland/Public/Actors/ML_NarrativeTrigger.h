@@ -79,8 +79,14 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UCameraComponent* CinematicCamera;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narrative")
+    // Gate the progression manager opens on triggers that only become available later.
+    // Written through SetCanPlay so the unlock survives a reload - assign it in Blueprint
+    // exactly as before, the Set node routes through the setter.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetCanPlay, Category = "Narrative")
     bool canPlay = true;
+
+    UFUNCTION(BlueprintSetter)
+    void SetCanPlay(bool bNewCanPlay);
     
     // ==================== DATA ====================
     
@@ -147,6 +153,18 @@ private:
     // Resolves the game-instance save subsystem (null if unavailable).
     UML_SaveSubsystem* GetSaveSubsystem() const;
 
-    // Stable key used to persist bHasBeenPlayed: the level-placed actor name.
+    // Name of the map this trigger lives in, PIE prefix stripped so the key is identical
+    // in the editor and in a packaged build.
+    FName GetLevelKey() const;
+
+    // Story-beat key for bHasBeenPlayed: the level-placed actor name, scoped by level so two
+    // triggers that happen to share a name across maps never share a played flag.
     FName GetTriggerSaveID() const;
+
+    // The unscoped key written before level scoping existed. Read as a fallback, never
+    // written, so saves made before the change keep their already-played triggers.
+    FName GetLegacyTriggerSaveID() const;
+
+    // Story-beat key for the canPlay unlock.
+    FName GetCanPlaySaveID() const;
 };

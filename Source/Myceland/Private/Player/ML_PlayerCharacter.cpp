@@ -4,11 +4,15 @@
 #include "Player/ML_PlayerCharacter.h"
 
 #include "Components/CapsuleComponent.h"
+#include "EnhancedInputComponent.h"
 #include "EngineUtils.h"
 #include "FMODAudioComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Player/ML_HexPathfinder.h"
 #include "Player/ML_PlayerController.h"
 #include "Save System/ML_SaveSubsystem.h"
+#include "Subsystem/ML_WinLoseSubsystem.h"
+#include "TechArt/ML_NatureZone.h"
 #include "Tiles/ML_Tile.h"
 #include "Tiles/ML_TileBase.h"
 
@@ -120,34 +124,101 @@ void AML_PlayerCharacter::ApplySavedSpawnPosition()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
+	// ---- Step 1: teleport onto the last solved board's first exit tile and sync CurrentTileOn ----
+	// Also records SpawnBoard (the board we land on): in Step 2 that board replays OnWin, while every
+	// other solved board just revives its nature zones. Stays null if no walkable spawn tile exists.
+	AML_BoardSpawner* SpawnBoard = nullptr;
 	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
 	{
 		AML_BoardSpawner* Board = *It;
 		if (!IsValid(Board)) continue;
 		if (Board->PuzzleID.GetTagName() != LastPuzzle) continue;
 
-		// Found the board — use the exit tile of its first water path as the spawn point.
-		if (Board->WaterPaths.IsEmpty())
+		// Pick the spawn tile with a walkability fallback chain, since a solved board can leave its
+		// authored first exit tile non-walkable (blocked / flooded), and standing the player there
+		// would trap them:
+		//   1. the first walkable ExitTile across all BoardExits (in order),
+		//   2. failing that, the first walkable water-path tile (Exit then Entry, in order).
+		const AML_Tile* SpawnTile = nullptr;
+
+		for (const FML_BoardExit& Exit : Board->BoardExits)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' has no WaterPaths — skipping spawn restore."), *LastPuzzle.ToString());
+			for (const TObjectPtr<AML_Tile>& ExitTile : Exit.ExitTiles)
+			{
+				if (UML_HexPathfinder::IsTileWalkable(ExitTile.Get()))
+				{
+					SpawnTile = ExitTile.Get();
+					break;
+				}
+			}
+			if (SpawnTile) break;
+		}
+
+		// Final fallback: no walkable exit tile — try the water-path tiles.
+		if (!SpawnTile)
+		{
+			for (const FML_WaterPath& WaterPath : Board->WaterPaths)
+			{
+				if (UML_HexPathfinder::IsTileWalkable(WaterPath.ExitTile.Get()))
+				{
+					SpawnTile = WaterPath.ExitTile.Get();
+					break;
+				}
+				if (UML_HexPathfinder::IsTileWalkable(WaterPath.EntryTile.Get()))
+				{
+					SpawnTile = WaterPath.EntryTile.Get();
+					break;
+				}
+			}
+		}
+
+		if (!IsValid(SpawnTile))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' has no walkable exit or water-path tile — skipping spawn restore."), *LastPuzzle.ToString());
 			break;
 		}
 
-		const AML_Tile* ExitTile = Board->WaterPaths[0].ExitTile.Get();
-		if (!IsValid(ExitTile))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[PlayerCharacter] Last solved board '%s' exit tile is invalid — skipping spawn restore."), *LastPuzzle.ToString());
-			break;
-		}
-
-		// Place the player just above the exit tile so the character controller
-		// settles onto the surface naturally.
-		float CapsuleHalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		const FVector SpawnLocation = ExitTile->GetActorLocation() + FVector(0.f, 0.f, CapsuleHalfHeight + 10.f);
+		// Place the player just above the tile so the character controller settles onto the surface.
+		const float CapsuleHalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		const FVector SpawnLocation = SpawnTile->GetActorLocation() + FVector(0.f, 0.f, CapsuleHalfHeight + 10.f);
 		TeleportTo(SpawnLocation, GetActorRotation());
 
-		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] Restored spawn to exit tile of puzzle '%s'."), *LastPuzzle.ToString());
+		// Force the tile lookup NOW (synchronously) instead of waiting for the movement-based check
+		// in Tick, so CurrentTileOn points at the tile we just landed on before any cinematic plays.
+		UpdateCurrentTile();
+		SpawnBoard = Board;
+
+		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] Restored spawn to walkable tile of puzzle '%s'."), *LastPuzzle.ToString());
 		break;
+	}
+
+	// ---- Step 2: spawn board replays OnWin; every other solved board revives its nature zones ----
+	// Every solved board revitalizes its nature zones directly through Revive() (a
+	// BlueprintNativeEvent authored in the nature-zone Blueprint). During a real win the zones are
+	// woken one by one by event tracks inside the win LevelSequence, but that cinematic is
+	// deliberately skipped on load (see UML_WinLoseSubsystem::IsReplayingWinForLoad), so the
+	// revival has to be driven from here instead.
+	//
+	// The board the player was teleported onto (SpawnBoard) ALSO re-fires its OnWin, because the
+	// rest of the win reactions only run for it: water paths spawning, the obstacle being
+	// destroyed, steles switching state, outlines hiding, and - the one that would strand the
+	// player if it were skipped - its exit grounds being enabled. If placement failed
+	// (SpawnBoard == null) no board replays OnWin and every solved board just revives.
+	UML_WinLoseSubsystem* WinLose = World->GetSubsystem<UML_WinLoseSubsystem>();
+	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
+	{
+		AML_BoardSpawner* Board = *It;
+		if (!IsValid(Board) || !Board->PuzzleID.IsValid()) continue;
+		if (!SaveSys->IsPuzzleSolved(Board->PuzzleID.GetTagName())) continue;
+
+		if (Board == SpawnBoard && WinLose)
+			WinLose->ReplayOnWinForBoard(Board);
+
+		for (AActor* ZoneActor : Board->GetAssociatedNatureZones())
+		{
+			if (AML_NatureZone* Zone = Cast<AML_NatureZone>(ZoneActor))
+				Zone->Revive();
+		}
 	}
 }
 
@@ -168,4 +239,12 @@ void AML_PlayerCharacter::Tick(float DeltaTime)
 void AML_PlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	// Demo cheat mode, and a no-op unless Enable Cheats is ticked in the Myceland Developer Settings.
+	// Bound on the PAWN's input component rather than the controller's: the loading screen, the board
+	// lock, the cinematics and the rollback all call DisableInput on the controller, which drops its
+	// input component from the input stack. Bound there, the cheats would go dead in exactly the
+	// situations they exist to get you out of - a cinematic to skip, a board that stays locked.
+	if (AML_PlayerController* MycelandPlayerController = Cast<AML_PlayerController>(GetController()))
+		MycelandPlayerController->BindCheatActions(Cast<UEnhancedInputComponent>(PlayerInputComponent));
 }

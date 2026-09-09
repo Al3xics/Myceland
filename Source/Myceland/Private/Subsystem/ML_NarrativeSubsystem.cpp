@@ -68,7 +68,7 @@ void UML_NarrativeSubsystem::CleanupCurrentSequence()
 	bPlayerMovementFinished = false;
 }
 
-void UML_NarrativeSubsystem::PlayNextLine()
+void UML_NarrativeSubsystem::PlayNextLine(const bool bIgnorePreDelay)
 {
 	bCurrentLineStarted = false;
 
@@ -89,7 +89,7 @@ void UML_NarrativeSubsystem::PlayNextLine()
     }
 
     const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
-    if (Line.PreDelay > 0.f)
+    if (!bIgnorePreDelay && Line.PreDelay > 0.f)
     {
         GetWorld()->GetTimerManager().SetTimer(
             DialogueTimerHandle,
@@ -128,8 +128,8 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 
 	if (!Line.Sound)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("No sound found for line %d in sequence %s"), CurrentLineIndex, *CurrentSequence->GetName());
-		OnFMODEventStopped();
+		UE_LOG(LogTemp, Verbose, TEXT("No sound found for line %d in sequence %s, timing it from the subtitle length"), CurrentLineIndex, *CurrentSequence->GetName());
+		ScheduleSilentLineEnd(Line);
 		return;
 	}
 
@@ -137,7 +137,7 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 	if (!AudioComp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Speaker for line %d has no audio component"), CurrentLineIndex);
-		OnFMODEventStopped();
+		ScheduleSilentLineEnd(Line);
 		return;
 	}
 
@@ -154,8 +154,33 @@ void UML_NarrativeSubsystem::StartLine(const FDialogueLine& Line)
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("Could not find SoundSubsystem for line %d"), CurrentLineIndex);
-		OnFMODEventStopped();
+		ScheduleSilentLineEnd(Line);
 	}
+}
+
+// A line with an FMOD event is timed by that event: OnEventStopped drives the end of the line.
+// Without a playable sound there is nothing to wait for, so calling OnFMODEventStopped() straight
+// away would broadcast OnDialogueLineStart and OnDialogueLineEnd in the same frame and the subtitle
+// would never be readable (it would only last PostDelay). Give the line a reading duration instead.
+void UML_NarrativeSubsystem::ScheduleSilentLineEnd(const FDialogueLine& Line)
+{
+	const UML_MycelandDeveloperSettings* DevSettings = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings();
+	const float ReadingDuration = DevSettings ? DevSettings->GetSubtitleDuration(Line.SubtitleText) : 0.f;
+
+	// DialogueTimerHandle is free here (the PreDelay timer, if any, has just fired) and both
+	// SkipCurrentLine and CleanupCurrentSequence clear it, so skipping still cuts the line short.
+	if (ReadingDuration > 0.f)
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			DialogueTimerHandle,
+			this,
+			&UML_NarrativeSubsystem::OnFMODEventStopped,
+			ReadingDuration,
+			false
+		);
+	}
+	else
+		OnFMODEventStopped();
 }
 
 void UML_NarrativeSubsystem::OnLineFinished()
@@ -195,6 +220,14 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 
 	GetWorld()->GetTimerManager().ClearTimer(DialogueTimerHandle);
 
+	// Still waiting on the PreDelay: the line has not been shown yet, so reveal it now instead of
+	// discarding it. A skip must never throw away a line the player never got to read.
+	if (!bCurrentLineStarted && CurrentLineIndex < CurrentSequence->DialogueLines.Num())
+	{
+		StartLine(CurrentSequence->DialogueLines[CurrentLineIndex]);
+		return true;
+	}
+
 	if (bCurrentLineStarted && CurrentLineIndex < CurrentSequence->DialogueLines.Num())
 	{
 		const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
@@ -217,7 +250,9 @@ bool UML_NarrativeSubsystem::SkipCurrentLine()
 	}
 
 	CurrentLineIndex++;
-	PlayNextLine();
+	// Show the next line right away: honouring its PreDelay would leave the screen blank and make
+	// the skip look like it did nothing, which is what pushes players into spamming the key.
+	PlayNextLine(true);
 	return true;
 }
 
@@ -391,10 +426,16 @@ void UML_NarrativeSubsystem::OnFMODEventStopped()
 
 	const FDialogueLine& Line = CurrentSequence->DialogueLines[CurrentLineIndex];
 
-	// Unbind le callback
-	if (const IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
+	// Unbind the callback and stop the talking animation here rather than in OnLineFinished:
+	// the line has been spoken, and the PostDelay that follows is a silence, so the speaker must
+	// not keep mouthing through it. The subtitle stays up until OnLineFinished ends the line.
+	if (IML_DialogueSpeaker* Speaker = GetSpeaker(Line.SpeakerTag))
+	{
 		if (UFMODAudioComponent* AudioComp = Speaker->GetAudioComponent())
 			AudioComp->OnEventStopped.RemoveAll(this);
+
+		Speaker->SetIsTalking(false);
+	}
 
 	// If PostDelay, then wait
 	if (Line.PostDelay > 0.f)

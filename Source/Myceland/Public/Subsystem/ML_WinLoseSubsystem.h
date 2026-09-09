@@ -29,6 +29,26 @@ class MYCELAND_API UML_WinLoseSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Myceland|Win Lose")
+    void ForceBoardWin(AML_BoardSpawner* Board);
+
+	// Re-fires ONLY the OnWin event for an already-solved board — used on load to replay every normal
+	// win reaction (nature-zone revitalization, ambience, win propagation, BP progression, ...) through
+	// the exact same listeners a real win uses. Sets CurrentBoardSpawner so listeners key off Board,
+	// then broadcasts OnWin. Deliberately does NOT run the rest of the win sequence: no victory sound,
+	// no ClearWinPath, and no OnWinPathSettled — so AML_BoardSpawner::HandlePuzzleWon (bound to
+	// OnWinPathSettled) never re-saves or re-appends the solve order.
+	UFUNCTION(BlueprintCallable, Category="Myceland|Win Lose")
+	void ReplayOnWinForBoard(AML_BoardSpawner* Board);
+
+	// True only while ReplayOnWinForBoard is broadcasting, i.e. inside a OnWin that is restoring a
+	// save rather than reacting to an actual solve. Listeners that rebuild state (water paths, exit
+	// grounds, steles, progression) should ignore it and run as usual; listeners that are a
+	// *reaction* to winning - the win cinematic, the victory animation - should branch on it and
+	// skip. Read it BEFORE any Delay: it is false again as soon as the broadcast returns.
+	UFUNCTION(BlueprintPure, Category="Myceland WinLose")
+	bool IsReplayingWinForLoad() const { return bIsReplayingWinForLoad; }
+
 	UPROPERTY(BlueprintAssignable, Category = "Myceland WinLose")
 	FOnWin OnWin;
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
@@ -55,6 +75,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	FML_GameResult CheckWinLose();
+
+	// DEBUG: Force-wins Board without requiring it to actually be solved. Runs the exact same
+	// win pipeline as a real solve (OnWin → link glow → OnWinPathSettled → save + win cinematic),
+	// only skipping the goal-connection check. Body compiles out in shipping. Fired by the board's
+	// "Debug Auto Win" button (AML_BoardSpawner::DebugAutoWin).
+	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose|Debug")
+	void ForceWinBoard(AML_BoardSpawner* Board);
 
 	UFUNCTION(BlueprintCallable, Category = "Myceland WinLose")
 	bool CheckPlayerKilled(AML_Tile* CurrentTileOn);
@@ -154,6 +181,15 @@ private:
 	 */
 	void FireWinSequence();
 
+	/**
+	 * Kicks off the win sequence for the already-set CurrentBoardSpawner: sets the pending flag,
+	 * runs the connected-goal link animation, and schedules FireWinSequence (either via the drain
+	 * timer or a next-tick fallback when there's nothing to animate). Assumes the caller has already
+	 * set CurrentBoardSpawner and marked it solved. Shared by CheckWinLose (real win) and
+	 * ForceWinBoard (debug win) so both take the identical path.
+	 */
+	void KickOffWinSequence();
+
 	UPROPERTY()
 	TSet<AML_Tile*> PreviousConnectedPathTiles;
 
@@ -176,6 +212,9 @@ private:
 
 	int32 QueueReadIndex = 0;
 	bool bPendingClearWinPath = false;
+
+	// Set for the duration of ReplayOnWinForBoard's broadcast only. See IsReplayingWinForLoad.
+	bool bIsReplayingWinForLoad = false;
 
 	static const FIntPoint HexDirs[6];
 

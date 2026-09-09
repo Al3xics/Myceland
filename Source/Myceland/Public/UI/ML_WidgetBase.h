@@ -7,6 +7,8 @@
 #include "Core/ML_CoreData.h"
 #include "ML_WidgetBase.generated.h"
 
+class UWidgetAnimation;
+
 UCLASS()
 class MYCELAND_API UML_WidgetBase : public UUserWidget
 {
@@ -20,6 +22,13 @@ public:
 	// Set to false on HUD widgets where gamepad buttons are bound to gameplay actions.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Myceland UI")
 	bool bReceivesGamepadFocus = true;
+
+	// Optional per-page entry animation, played by OnActivated. Any widget Blueprint deriving from
+	// this class that contains a WidgetAnimation named exactly "EnterAnim" gets it bound here
+	// automatically; pages without one keep a null pointer and activate with no animation.
+	// Must stay Transient — that is a requirement of the BindWidgetAnim binding.
+	UPROPERTY(Transient, BlueprintReadOnly, Category="Myceland UI", meta=(BindWidgetAnimOptional))
+	TObjectPtr<UWidgetAnimation> EnterAnim;
 
 	// Returns the widget that should receive keyboard/gamepad focus when this widget activates.
 	// Override in Blueprint to return your first interactive button. IMPORTANT: return an

@@ -9,12 +9,14 @@
 #include "EngineUtils.h"
 #include "Actors/ML_CameraRail.h"
 #include "Actors/ML_WaterNavPath.h"
+#include "Developer Settings/ML_MycelandDeveloperSettings.h"
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Player/ML_PlayerController.h"
 #include "PuzzleGeneration/ML_PuzzleSolver.h"
 #include "Save System/ML_SaveSubsystem.h"
+#include "Subsystem/ML_CinematicSubsystem.h"
 #include "Subsystem/ML_WinLoseSubsystem.h"
 
 
@@ -50,6 +52,103 @@ void AML_BoardSpawner::SetBoardTransitionEnabled(bool bEnabled)
 	if (!bBoardTransitionEnabled)
 		if (AML_PlayerController* PC = Cast<AML_PlayerController>(GetWorld()->GetFirstPlayerController()))
 			PC->NotifyBoardTransitionDisabled(this);
+}
+
+// ==================== Board Locks (Required Puzzles) ====================
+
+// Solved state of a board, read from the save when it has an ID — authoritative and independent of
+// the order boards run BeginPlay in — and falling back to its runtime flag otherwise.
+static bool IsBoardSolvedNow(const AML_BoardSpawner* Board, const UML_SaveSubsystem* SaveSys)
+{
+	if (!IsValid(Board))
+		return false;
+
+	if (SaveSys && Board->PuzzleID.IsValid())
+		return SaveSys->IsPuzzleSolved(Board->PuzzleID.GetTagName());
+
+	return Board->bIsPuzzleSolved;
+}
+
+EML_BoardLockAction AML_BoardSpawner::ResolveLockAction(bool bPrerequisitesSolved, bool bLockedByRule, bool bIsSolved)
+{
+	// Still waiting on a prerequisite: lock it, unless the rule already did.
+	if (!bPrerequisitesSolved)
+		return bLockedByRule ? EML_BoardLockAction::None : EML_BoardLockAction::Lock;
+
+	// Open, and the rule is holding nothing: leave the board's switches alone.
+	if (!bLockedByRule)
+		return EML_BoardLockAction::None;
+
+	// The prerequisites are met, so hand the switches back — unless the board was solved while it was
+	// locked (a cheat win, or a save restored underneath): a solved board stays off like any other.
+	return bIsSolved ? EML_BoardLockAction::Release : EML_BoardLockAction::Unlock;
+}
+
+bool AML_BoardSpawner::ArePrerequisitesSolved() const
+{
+	const UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
+
+	for (const TObjectPtr<AML_BoardSpawner>& Required : RequiredPuzzles)
+	{
+		// An empty slot (or a board pointing at itself) is an authoring mistake, not a lock — skipping it
+		// keeps the board playable instead of stranding it behind a prerequisite that can never be solved.
+		if (!IsValid(Required) || Required == this)
+			continue;
+
+		if (!IsBoardSolvedNow(Required, SaveSys))
+			return false;
+	}
+
+	return true;
+}
+
+void AML_BoardSpawner::RefreshLockState()
+{
+	// Opt-in: a board with no Required Puzzles keeps whatever its switches are set to. That is what
+	// makes this safe for the hub and for every board authored before the rule existed — the rule can
+	// only ever take back what it switched off itself.
+	if (RequiredPuzzles.IsEmpty())
+		return;
+
+	// A disabled rule reads as "every prerequisite is solved", so turning the setting off in Project
+	// Settings gives their switches back to the boards it had locked instead of stranding them.
+	const bool bRuleEnabled = UML_MycelandDeveloperSettings::GetMycelandDeveloperSettings()->bLockUnreachedPuzzleBoards;
+	const bool bPrerequisitesSolved = !bRuleEnabled || ArePrerequisitesSolved();
+
+	switch (ResolveLockAction(bPrerequisitesSolved, bLockedByPrerequisites, IsBoardSolvedNow(this, GetSaveSubsystem())))
+	{
+	case EML_BoardLockAction::Lock:
+		bLockedByPrerequisites = true;
+		SetGlowEnabled(false);
+		SetBoardTransitionEnabled(false);
+		break;
+
+	case EML_BoardLockAction::Unlock:
+		bLockedByPrerequisites = false;
+		SetGlowEnabled(true);
+		SetBoardTransitionEnabled(true);
+		break;
+
+	case EML_BoardLockAction::Release:
+		bLockedByPrerequisites = false;
+		break;
+
+	case EML_BoardLockAction::None:
+		break;
+	}
+}
+
+void AML_BoardSpawner::RefreshAllBoardLockStates(UWorld* World)
+{
+	if (!World) return;
+
+	// Any board can be listed as a prerequisite of any other, so a solve/reset is re-evaluated by all
+	// of them rather than by a chain the boards would have to know about.
+	for (TActorIterator<AML_BoardSpawner> It(World); It; ++It)
+	{
+		if (AML_BoardSpawner* Board = *It; IsValid(Board))
+			Board->RefreshLockState();
+	}
 }
 
 // ==================== Myceland Board Exits (gamepad) ====================
@@ -114,6 +213,10 @@ void AML_BoardSpawner::BeginPlay()
 	// Never spawn new ones — the designer may have intentionally deleted some tiles.
 	UpdateCurrentGrid(false);
 
+	// Before the save block below, which returns early for a board without a PuzzleID: the lock reads the
+	// save for its PREREQUISITES, so it applies to any board the designer gated, ID or not.
+	RefreshLockState();
+
 #if !UE_BUILD_SHIPPING
 	if (PuzzleID.IsValid())
 	{
@@ -130,22 +233,43 @@ void AML_BoardSpawner::BeginPlay()
 #endif
 
 	// ---- Save / Load integration ----
-	if (!PuzzleID.IsValid()) return;
+	if (!PuzzleID.IsValid())
+	{
+#if !UE_BUILD_SHIPPING
+		// Loud on purpose: a board without an ID silently opts out of the whole save path — it is never
+		// marked solved, so it never reloads as solved and never opens the boards that list it in their
+		// Required Puzzles. A level re-saved from a stale editor state has already dropped these once,
+		// and the only symptom was a puzzle that would not open two playthroughs later.
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Save] Board '%s' has no PuzzleID — it will never be saved nor count as solved, and any "
+			     "board that requires it stays locked. Set its Puzzle ID in the Details panel (ML- Hex Grid)."),
+			*GetName());
+#endif
+		return;
+	}
 
 	UML_SaveSubsystem* SaveSys = GetSaveSubsystem();
 	if (!SaveSys) return;
 
-	// Capture the authored tile layout and store it the first time this puzzle is seen.
-	const TArray<FML_TileSaveEntry> Snapshot = SnapshotGrid();
-	SaveSys->EnsureInitialGridSaved(PuzzleID.GetTagName(), Snapshot);
+	// Look up the saved record once (pointer into the save object — no copy of the grids).
+	const FName PuzzleName = PuzzleID.GetTagName();
+	const FML_PuzzleSaveRecord* Record = SaveSys->FindPuzzleRecord(PuzzleName);
+
+	// First time this puzzle is ever seen: capture the authored tile layout as its initial grid.
+	// Only snapshot when there's no record yet — EnsureInitialGridSaved never overwrites an
+	// existing one, so building the snapshot on every subsequent load was wasted work.
+	if (!Record)
+	{
+		SaveSys->EnsureInitialGridSaved(PuzzleName, SnapshotGrid());
+		Record = SaveSys->FindPuzzleRecord(PuzzleName);
+	}
 
 	// If this puzzle was already solved, restore the solved grid so the player sees it.
 	// Subclasses that own their own restore (e.g. the hub) opt out via ShouldAutoRestoreSolvedGrid().
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
-	if (ShouldAutoRestoreSolvedGrid() && Record.bIsSolved && Record.SolvedGrid.Num() > 0)
+	if (ShouldAutoRestoreSolvedGrid() && Record && Record->bIsSolved && Record->SolvedGrid.Num() > 0)
 	{
 		int32 Applied = 0;
-		for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)
+		for (const FML_TileSaveEntry& Entry : Record->SolvedGrid)
 		{
 			if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
 			{
@@ -184,8 +308,15 @@ void AML_BoardSpawner::BeginPlay()
 			}
 		});
 
+		// NOTE: the win cinematic is NOT replayed here. Playing it in BeginPlay raced the player
+		// teleport (both deferred one tick), so the fast-forwarded sequence could finish — firing
+		// OnCinematicFinished, which BP_ProgressionManager handles by reading the player's
+		// CurrentTileOn — before the player was ever placed, giving "Accessed None ... CurrentTileOn".
+		// The replay is now driven from AML_PlayerCharacter::ApplySavedSpawnPosition, AFTER the
+		// player is teleported onto its board and CurrentTileOn is updated. See PlayAssociatedWinCinematic.
+
 		UE_LOG(LogTemp, Log, TEXT("[Save] Puzzle '%s' — solved state loaded (%d/%d tiles restored)."),
-			*PuzzleID.ToString(), Applied, Record.SolvedGrid.Num());
+			*PuzzleID.ToString(), Applied, Record->SolvedGrid.Num());
 	}
 	else
 	{
@@ -763,6 +894,47 @@ void AML_BoardSpawner::HandlePuzzleWon()
 	if (!SaveSys) return;
 
 	SaveSys->MarkPuzzleSolved(PuzzleID.GetTagName(), SnapshotGrid(), GetLevelKey());
+
+	// This board is only now recorded as solved, so run the pass from here rather than from each board's
+	// own win handler: every board sees the new save state, whatever order they were bound in.
+	RefreshAllBoardLockStates(GetWorld());
+}
+
+void AML_BoardSpawner::DebugAutoWin()
+{
+#if WITH_EDITOR
+	UWorld* World = GetWorld();
+	if (!World || !World->IsGameWorld())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Debug] Debug Auto Win only works during Play (PIE)."));
+		return;
+	}
+
+	if (UML_WinLoseSubsystem* WinLose = World->GetSubsystem<UML_WinLoseSubsystem>())
+		WinLose->ForceWinBoard(this);
+#endif
+}
+
+void AML_BoardSpawner::PlayAssociatedWinCinematic() const
+{
+	if (!AssociatedWinCinematic) return;
+
+	if (UML_CinematicSubsystem* Cinematic = GetWorld()->GetSubsystem<UML_CinematicSubsystem>())
+	{
+		// On load we don't want the player to sit through the full win cinematic — fast-forward
+		// it hard so it resolves near-instantly while still firing all its Sequencer events.
+		// bQueueIfBusy: several already-solved boards each request this on the same load tick,
+		// and only one cinematic can play at a time, so they queue and drain one after another.
+		// bRecenterCameraWhenDone: once the whole queue finishes, snap the camera back onto the
+		// player's board camera (the fast-forwarded cinematics leave it parked elsewhere). Only the
+		// on-load path sets this, so a normal win cinematic finishing in-game never moves the camera.
+		constexpr float FastForwardRate = 50.f;
+		Cinematic->PlayCinematic(AssociatedWinCinematic,
+			/*BlendCamera=*/nullptr, /*BlendTime=*/0.f, /*ReturnBlendTime=*/0.f,
+			/*bWaitForBlendToFinish=*/true, /*PlayerController=*/nullptr,
+			/*PlayRate=*/FastForwardRate, /*bQueueIfBusy=*/true,
+			/*bRecenterCameraWhenDone=*/true);
+	}
 }
 
 void AML_BoardSpawner::RestoreToInitialState()
@@ -772,10 +944,10 @@ void AML_BoardSpawner::RestoreToInitialState()
 
 	// InitialGrid is preserved by ResetPuzzle (only bIsSolved and SolvedGrid are cleared),
 	// so it is always safe to read here whether called before or after the save cascade.
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
-	if (Record.InitialGrid.IsEmpty()) return;
+	const FML_PuzzleSaveRecord* Record = SaveSys->FindPuzzleRecord(PuzzleID.GetTagName());
+	if (!Record || Record->InitialGrid.IsEmpty()) return;
 
-	for (const FML_TileSaveEntry& Entry : Record.InitialGrid)
+	for (const FML_TileSaveEntry& Entry : Record->InitialGrid)
 	{
 		if (AML_Tile* Tile = GridMap.FindRef(Entry.Axial))
 		{
@@ -831,6 +1003,10 @@ void AML_BoardSpawner::ReplayPuzzle()
 		if (ResetIDs.Contains(Board->PuzzleID.GetTagName()))
 			Board->RestoreToInitialState();
 	}
+
+	// The cascade just un-solved this puzzle and everything after it, so boards gated on any of them
+	// close back — otherwise a reset would leave the rest of the level open behind it.
+	RefreshAllBoardLockStates(World);
 }
 
 void AML_BoardSpawner::AnalyzeCurrentPuzzle()

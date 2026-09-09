@@ -23,9 +23,8 @@ namespace ML_GameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_MainMenu, "UI.Widget.MainMenu");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Settings, "UI.Widget.Settings");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Credits, "UI.Widget.Credits");
+	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_SaveSlots, "UI.Widget.SaveSlots");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_InGameHUD, "UI.Widget.InGameHUD");
 	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_PauseMenu, "UI.Widget.PauseMenu");
-	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Win, "UI.Widget.Win");
-	UE_DEFINE_GAMEPLAY_TAG(UI_Widget_Lose, "UI.Widget.Lose");
 }
 

@@ -186,7 +186,8 @@ protected:
 
 public:
 	AML_HubBoardSpawner();
-
+UFUNCTION(BlueprintCallable, Category="Myceland Hub|Debug")
+void ForceWin();
 	// ==================== Myceland Hub ====================
 
 	UPROPERTY(EditInstanceOnly, Category="Myceland Hub")

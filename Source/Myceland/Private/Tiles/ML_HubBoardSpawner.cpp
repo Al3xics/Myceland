@@ -60,6 +60,13 @@ void AML_HubBoardSpawner::BeginPlay()
 	{
 		if (PuzzleID.IsValid() && SaveSys->IsPuzzleSolved(PuzzleID.GetTagName()))
 		{
+			// Re-establish the hub's solved runtime flag on load. The base BeginPlay would normally
+			// do this in its auto-restore branch, but the hub opts out (ShouldAutoRestoreSolvedGrid
+			// == false), so it never ran for the hub. Setting it here makes the hub restore like any
+			// other solved board — including having its nature zones revived in
+			// AML_PlayerCharacter::ApplySavedSpawnPosition, which gates on bIsPuzzleSolved.
+			bIsPuzzleSolved = true;
+
 			TArray<AActor*> PathsToSpawn = GetAssociatedWaterPaths();
 			GetWorld()->GetTimerManager().SetTimerForNextTick([PathsToSpawn]()
 			{
@@ -303,12 +310,26 @@ void AML_HubBoardSpawner::FinalizeTileChanges(int32 EntryIndex)
 	const bool bFullyRevitalized = PuzzleEntries.Num() > 0 && AppliedEntryIndices.Num() == PuzzleEntries.Num();
 
 	// The tiles (and any wave propagation they triggered) have now settled — this is the
-	// definitive change we persist. Marking the hub solved only happens once every entry
-	// is placed, so the hub becomes the respawn anchor only when fully revitalized.
+	// definitive change we persist. Marking the hub solved in the save only happens once
+	// every entry is placed, so the hub becomes the respawn anchor only when fully
+	// revitalized. On a later reload this alone is enough for BeginPlay's solved-restore
+	// block to re-derive bIsPuzzleSolved from the save record and revive nature zones.
 	PersistHubGrid(/*bMarkSolved=*/bFullyRevitalized);
 
 	if (bFullyRevitalized)
+	{
+		// Deliberately NOT setting bIsPuzzleSolved=true here: that flag is what
+		// ForceBoardWin() checks to avoid firing the win sequence twice, and the hub's
+		// *official* win (ForceWin(), called once the player actually collects the final
+		// energy / the bloom VFX reaches WinningTile) can happen well after all entries are
+		// placed. Setting it early here raced ForceWin() and reliably won in packaged builds
+		// (bloom/VFX assets take real time to load/spawn on first use there, unlike in the
+		// editor where they're already resident), silently blocking ForceBoardWin() from ever
+		// running FireWinSequence()/OnWin for the hub. It isn't needed for the on-load restore
+		// either — PersistHubGrid above already marks the hub solved in the save, and that's
+		// what BeginPlay's solved-restore block actually checks on reload.
 		OnHubAllTilesPlaced.Broadcast();
+	}
 
 	if (!IsValid(WinLoseSubsystem)) return;
 	WinLoseSubsystem->TriggerConnectedGoalAnimationForBoard(this);
@@ -395,11 +416,11 @@ bool AML_HubBoardSpawner::RestoreSavedHubGrid()
 	UML_BiomeTileSet* Biome = GetBiomeTileSet();
 	if (!SaveSys || !Biome) return false;
 
-	const FML_PuzzleSaveRecord Record = SaveSys->GetPuzzleRecord(PuzzleID.GetTagName());
-	if (Record.SolvedGrid.Num() == 0) return false;
+	const FML_PuzzleSaveRecord* Record = SaveSys->FindPuzzleRecord(PuzzleID.GetTagName());
+	if (!Record || Record->SolvedGrid.Num() == 0) return false;
 
 	const TMap<FIntPoint, AML_Tile*>& Grid = GetGridMapRef();
-	for (const FML_TileSaveEntry& Entry : Record.SolvedGrid)
+	for (const FML_TileSaveEntry& Entry : Record->SolvedGrid)
 	{
 		if (AML_Tile* Tile = Grid.FindRef(Entry.Axial))
 			Tile->UpdateClassAtRuntime_Silent(Entry.TileType, Biome->GetClassFromTileType(Entry.TileType));
@@ -492,4 +513,15 @@ int32 AML_HubBoardSpawner::FindEntryIndexForBoard(const AML_BoardSpawner* Board)
 	}
 
 	return INDEX_NONE;
+}
+void AML_HubBoardSpawner::ForceWin() // called in BP HubSpawner
+{
+	if (!GetWorld())
+		return;
+
+	UML_WinLoseSubsystem* WinLose = GetWorld()->GetSubsystem<UML_WinLoseSubsystem>();
+	if (!WinLose)
+		return;
+
+	WinLose->ForceBoardWin(this);
 }

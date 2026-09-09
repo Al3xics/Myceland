@@ -7,9 +7,12 @@
 #include "ML_Collectible.generated.h"
 
 class AML_Tile;
+class AML_Collectible;
 class AML_PlayerCharacter;
 class AML_PlayerController;
 class USphereComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCollectibleSpawnAnimationFinished, AML_Collectible*, Collectible);
 
 UCLASS()
 class MYCELAND_API AML_Collectible : public AActor
@@ -24,8 +27,25 @@ private:
 	UPROPERTY()
 	AML_Tile* SourceParasite = nullptr;
 
+	bool bSpawnSequenceStarted = false;
+	bool bHiddenUntilSpawnSequence = false;
+	bool bSpawnAnimationFinished = false;
+	FTimerHandle SpawnSequenceFallbackTimer;
+	FTimerHandle SpawnAnimationFallbackTimer;
+
+	UFUNCTION()
+	void HandleSourceParasiteReady(AML_Tile* Tile);
+
+	void StopWaitingForSourceParasite();
+
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	// Implemented in the collectible Blueprint: the flight from the source parasite to this tile.
+	// Never called on the rollback spawn path, where the collectible is simply restored in place.
+	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Collectible")
+	void StartSpawnAnimation();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Myceland Tile")
 	USceneComponent* SceneRoot;
@@ -59,6 +79,40 @@ public:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Myceland Collectible")
 	void BeforeDestroyCollectible(const AML_Tile* Tile);
+
+	// Call between SpawnActorDeferred and FinishSpawning. A collectible spawning on the tile the player
+	// already stands on used to overlap him during BeginPlay and be collected on its very first frame,
+	// before it was ever drawn: it is hidden and non-collectible until its flight lands.
+	void PrepareForSpawnSequence();
+
+	// The collectible wave resolves faster than the grass -> parasite transformation it reacts to, so the
+	// actor is spawned now but only shown once its own source parasite reports being done. Each collectible
+	// waits on its own parasite, which is what makes the energies cascade with the propagation instead of
+	// appearing in one batch. TimeoutSeconds is a safety net: if the parasite Blueprint never reports, the
+	// collectible starts anyway rather than staying invisible forever.
+	void WaitForSourceParasite(float TimeoutSeconds);
+
+	// Shows the collectible and runs StartSpawnAnimation. Idempotent.
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
+	void BeginSpawnSequence();
+
+	UFUNCTION(BlueprintPure, Category="Myceland Collectible")
+	bool HasSpawnSequenceStarted() const { return bSpawnSequenceStarted; }
+
+	// Broadcast once the spawn flight is over, or when the collectible dies before finishing it. The wave
+	// propagation waits on this before starting a wave flagged bWaitForPendingVisuals, so the water no
+	// longer arrives while the energies are still flying.
+	UPROPERTY(BlueprintAssignable, Category="Myceland Collectible")
+	FOnCollectibleSpawnAnimationFinished OnSpawnAnimationFinished;
+
+	// Called by the collectible Blueprint at the end of the spawn flight, the counterpart of
+	// AML_Tile::NotifyParasiteReady. Idempotent, so it can be wired on several branches of the timeline
+	// without having to order them.
+	UFUNCTION(BlueprintCallable, Category="Myceland Collectible")
+	void NotifySpawnAnimationFinished();
+
+	UFUNCTION(BlueprintPure, Category="Myceland Collectible")
+	bool HasSpawnAnimationFinished() const { return bSpawnAnimationFinished; }
 
 	void InitOwningAxial(const FIntPoint& InAxial) { OwningAxial = InAxial; }
 	const FIntPoint& GetOwningAxial() const { return OwningAxial; }

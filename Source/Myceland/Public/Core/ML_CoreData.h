@@ -31,7 +31,11 @@ UENUM(BlueprintType)
 enum class EInputMappingType : uint8
 {
 	Cinematic,
-	Teleport
+	Teleport,
+	// Demo cheat mode (UML_CheatSubsystem): the toggle IMC stays mapped for the whole session,
+	// the cheat IMC is only mapped while the mode is active.
+	CheatToggle,
+	Cheat
 };
 
 UENUM(BlueprintType)
@@ -67,6 +71,22 @@ enum class EML_TileType : uint8
 	WaterPath,
 	Obstacle,
 	Tree
+};
+
+/**
+ * What the cursor / selection glow must show on a tile.
+ * Single source of truth for the hover color: the hover preview component computes this state and
+ * pushes it to the tile, the Blueprint only maps a state to a color (see AML_Tile::SetCursorHoverState).
+ * Ordered by priority, from "nothing" to "the player stands here".
+ */
+UENUM(BlueprintType)
+enum class EML_TileHoverState : uint8
+{
+	None      UMETA(DisplayName="None (no glow)"),
+	Blocked   UMETA(DisplayName="Blocked (not walkable)"),
+	Walkable  UMETA(DisplayName="Walkable (not plantable)"),
+	Plantable UMETA(DisplayName="Plantable (and energy available)"),
+	Player    UMETA(DisplayName="Player tile")
 };
 
 UENUM(BlueprintType)
@@ -269,6 +289,12 @@ struct FML_WavePriorityEntry
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="If true and this wave has no changes, the propagation will stop entirely. If false, continues to next wave."))
 	bool bCanStopHereIfNoChanges = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="Delay before this wave starts, overriding InterWaveDelay. Negative keeps InterWaveDelay. Use 0 for a wave that is already paced by the animations it waits on, so the two delays do not stack."))
+	float DelayBeforeWave = -1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave", meta=(Tooltip="Wait for the visuals the previous waves started (grass -> parasite transformations, collectible flights) to report being finished before starting this wave. DelayBeforeWave then applies once they settled, instead of running in parallel with them."))
+	bool bWaitForPendingVisuals = false;
 };
 
 USTRUCT(BlueprintType)

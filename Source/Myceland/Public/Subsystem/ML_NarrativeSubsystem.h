@@ -49,8 +49,11 @@ private:
 	bool bPlayerMovementFinished = false;
 
 	AML_PlayerController* GetPlayerController() const;
-	void PlayNextLine();
+	// bIgnorePreDelay starts the next line right away: used by the skip, where waiting out
+	// the PreDelay would leave the screen blank and make the key press feel ignored.
+	void PlayNextLine(bool bIgnorePreDelay = false);
 	void StartLine(const FDialogueLine& Line);
+	void ScheduleSilentLineEnd(const FDialogueLine& Line);
 	void OnLineFinished();
 	void CleanupCurrentSequence();
 	void SetupCinematicMode();
@@ -97,6 +100,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	UML_NarrativeSequence* GetCurrentSequence() const { return CurrentSequence; }
+
+	// The trigger that started the running sequence, or null when none is playing. Lets a
+	// trigger tell its own sequence end apart from another trigger's when both reuse the
+	// same UML_NarrativeSequence asset. Still valid while OnSequenceEnd is broadcast.
+	UFUNCTION(BlueprintPure, Category="Narrative")
+	AML_NarrativeTrigger* GetCurrentTrigger() const { return CurrentNarrativeTrigger; }
 
 	UFUNCTION(BlueprintPure, Category="Narrative")
 	int32 GetCurrentLineIndex() const { return CurrentLineIndex; }

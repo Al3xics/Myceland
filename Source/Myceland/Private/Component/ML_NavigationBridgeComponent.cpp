@@ -6,6 +6,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
+#include "Navigation/PathFollowingComponent.h"
 #include "Player/ML_HexPathfinder.h"
 #include "Player/ML_PlayerCharacter.h"
 #include "Player/ML_PlayerController.h"
@@ -36,8 +37,24 @@ void UML_NavigationBridgeComponent::StopNavMeshMovement()
 	if (!bIsUsingNavMeshMovement)
 		return;
 
-	if (IsValid(PlayerCharacter))
+	// Cancel the active AI move request (created by SimpleMoveToLocation in StartNavMeshMovement)
+	// through the PathFollowingComponent itself, rather than only calling StopMovementImmediately
+	// on the CharacterMovementComponent. StopMovementImmediately snaps velocity to zero instantly,
+	// which made the AnimBP's locomotion blend (driven by Velocity.Size()) flash to Idle for a frame
+	// every time a new click redirected movement while the character was already walking. AbortMove
+	// lets the character brake at its normal deceleration instead, and it also makes sure the
+	// PathFollowingComponent stops issuing move requests toward the old destination — previously it
+	// kept ticking toward the stale goal for a frame or two, fighting the new input/path request.
+	if (UPathFollowingComponent* PFollowComp = FindPathFollowingComponent())
 	{
+		// No explicit status check: AbortMove is a safe no-op when there's no active request.
+		// AbortFlags has no default in this engine version, so it must be passed explicitly.
+		PFollowComp->AbortMove(*OwningController, FPathFollowingResultFlags::UserAbort);
+	}
+	else if (IsValid(PlayerCharacter))
+	{
+		// Defensive fallback: should not normally happen since StartNavMeshMovement always creates
+		// one via SimpleMoveToLocation, but avoids leaving the character mid-slide if it's ever missing.
 		if (UCharacterMovementComponent* MovementComponent = PlayerCharacter->GetCharacterMovement())
 		{
 			MovementComponent->StopMovementImmediately();
@@ -46,6 +63,11 @@ void UML_NavigationBridgeComponent::StopNavMeshMovement()
 
 	bIsUsingNavMeshMovement = false;
 	bHasFreeMovementTarget = false;
+}
+
+UPathFollowingComponent* UML_NavigationBridgeComponent::FindPathFollowingComponent() const
+{
+	return IsValid(OwningController) ? OwningController->FindComponentByClass<UPathFollowingComponent>() : nullptr;
 }
 
 bool UML_NavigationBridgeComponent::TickNavMeshMovement(float DeltaTime)

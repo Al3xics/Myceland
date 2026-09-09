@@ -13,6 +13,25 @@ class MYCELAND_API UML_GameSave : public USaveGame
 	GENERATED_BODY()
 
 public:
+	// ==================== Slot metadata ====================
+	// Filled by the save subsystem, never by gameplay. Read back without loading the whole
+	// session so the save-slot list can show a meaningful row per slot.
+
+	// Label shown in the save-slot list. Refreshed from the current level on every level load,
+	// or replaced by the label passed to ExportActiveSlotAsDemo for a packaged demo save.
+	UPROPERTY(SaveGame)
+	FString DisplayName;
+
+	// Wall-clock time of the last write. Sorts the slot list newest-first.
+	UPROPERTY(SaveGame)
+	FDateTime LastSaveTime;
+
+	// Level the player was in when this slot was last written; "Continue" reopens it through
+	// UML_UIManagerSubsystem::OpenLevelByTag. Stored as the tag's FName rather than an
+	// FGameplayTag so it round-trips through the SaveGame archive as plain data.
+	UPROPERTY(SaveGame)
+	FName CurrentLevelTagName;
+
 	// General game settings (brightness, volume, resolution, …)
 	UPROPERTY(SaveGame)
 	FML_GameSaveData Settings;
@@ -44,9 +63,15 @@ public:
 	UPROPERTY(SaveGame)
 	FName LastSolvedPuzzleID;
 
-	// Narrative triggers that have already played, keyed by their level-placed actor
-	// name. Restored into AML_NarrativeTrigger::bHasBeenPlayed on BeginPlay so a
-	// play-once cinematic never replays after loading a save.
+	// Every play-once story beat this playthrough has already seen, keyed by an FName:
+	// narrative triggers ("Trigger.<Level>.<Actor>"), their unlock flag ("....CanPlay"),
+	// and Blueprint-driven one-shot cinematics ("Cine.W1L0.Start"). Read and written
+	// through UML_SaveSubsystem's story-beat API, so a new play-once moment needs a new
+	// key here, not a new save field.
+	//
+	// The field keeps its original name on purpose: renaming a SaveGame property makes
+	// existing .sav files - the packaged demo saves included - silently deserialize it
+	// as empty, which would replay everything once for every current save.
 	UPROPERTY(SaveGame)
 	TSet<FName> PlayedNarrativeTriggers;
 };

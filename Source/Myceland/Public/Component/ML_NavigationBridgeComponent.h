@@ -11,6 +11,7 @@ class AML_PlayerCharacter;
 class AML_PlayerController;
 class AML_Tile;
 class UNavigationPath;
+class UPathFollowingComponent;
 
 UCLASS(ClassGroup=(Myceland), meta=(BlueprintSpawnableComponent))
 class MYCELAND_API UML_NavigationBridgeComponent : public UActorComponent
@@ -32,6 +33,11 @@ private:
 	float NavMeshAcceptanceRadius = 50.f;
 
 	bool IsCompleteNavMeshPath(const UNavigationPath* Path, const FVector& Destination) const;
+
+	// The UPathFollowingComponent created (or reused) by UAIBlueprintHelperLibrary::SimpleMoveToLocation
+	// on OwningController. Used by StopNavMeshMovement to cancel the active move request properly
+	// instead of only zeroing the CharacterMovementComponent's velocity.
+	UPathFollowingComponent* FindPathFollowingComponent() const;
 
 public:
 	void Initialize(AML_PlayerController* Controller, AML_PlayerCharacter* Character, float InNavMeshAcceptanceRadius);

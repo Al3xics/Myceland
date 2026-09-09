@@ -50,25 +50,20 @@ void UML_HoverPreviewComponent::NotifyMovementModeChanged(EML_PlayerMovementMode
 
 void UML_HoverPreviewComponent::NotifyPlayerTileChanged()
 {
-	if (IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
-		(ForcedHoverTile == PlayerCharacter->CurrentTileOn ||
-		 LastCursorHoveredTile == PlayerCharacter->CurrentTileOn))
-	{
-		// Player just arrived on the highlighted tile → clear its glow immediately.
-		ClearCursorHoverPreview();
-	}
-	else if (bLastCursorTileIsPlayerTile && IsValid(LastCursorHoveredTile) && bCurrentHoveredTileReachable)
-	{
-		// Player left the tile the cursor is still hovering → refresh it from the
-		// special player-tile glow back to a normal cursor hover.
-		LastCursorHoveredTile->GlowCursorHovered(false, true);
-		bLastCursorTileIsPlayerTile = false;
-	}
+	// The cursor glow depends on the player's tile (its own tile reads as EML_TileHoverState::Player),
+	// so a tile change makes the currently shown state stale. TickCursorHoverPreview recomputes it and
+	// only pushes what actually changed, so no special case is needed here for "the player left / arrived
+	// on the hovered tile" - running it right away just avoids waiting for the next timer tick.
 
 	// Force the preview path update from the new position.
 	LastPathHoveredTile = nullptr;
 	if (HoverPreviewTimerHandle.IsValid())
+	{
 		TickPathHoverPreview();
+		// After the path pass, same order as UpdateHoverPreview().
+		if (bShowPreviews)
+			TickCursorHoverPreview();
+	}
 
 	// The board visuals depend on the player's tile — recompute selection + plantables around it.
 	RefreshGamepadBoardVisuals();
@@ -183,15 +178,71 @@ AML_Tile* UML_HoverPreviewComponent::ResolveHoveredTile() const
 	return Tile;
 }
 
+EML_TileHoverState UML_HoverPreviewComponent::ResolveHoverState(bool bIsInteractable, bool bIsPlayerTile,
+                                                                bool bCanPlant, bool bHasEnergy, bool bIsWalkable)
+{
+	// A non-interactable tile (the obstacle ring framing a board) reads as empty space: no glow at all.
+	if (!bIsInteractable)
+		return EML_TileHoverState::None;
+
+	// The player's own tile wins over everything else: it says "you are here", even when it is plantable.
+	if (bIsPlayerTile)
+		return EML_TileHoverState::Player;
+
+	// A plantable tile only advertises itself while the plant can actually happen (energy left).
+	if (bCanPlant && bHasEnergy)
+		return EML_TileHoverState::Plantable;
+
+	return bIsWalkable ? EML_TileHoverState::Walkable : EML_TileHoverState::Blocked;
+}
+
+EML_TileHoverState UML_HoverPreviewComponent::ComputeHoverState(const AML_Tile* Tile) const
+{
+	if (!IsValid(Tile))
+		return EML_TileHoverState::None;
+
+	const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
+	                           Tile == PlayerCharacter->CurrentTileOn;
+	const bool bCanPlant     = UML_TileTypeTraits::CanPlayerPlant(Tile->GetCurrentType());
+	const bool bHasEnergy    = IsValid(OwningController) && OwningController->HasEnergy();
+	const bool bIsWalkable   = UML_HexPathfinder::IsTileWalkable(Tile);
+
+	return ResolveHoverState(Tile->IsInteractable(), bIsPlayerTile, bCanPlant, bHasEnergy, bIsWalkable);
+}
+
+void UML_HoverPreviewComponent::ApplyCursorHoverState(AML_Tile* Tile)
+{
+	if (!IsValid(Tile))
+		return;
+
+	const EML_TileHoverState NewState = ComputeHoverState(Tile);
+
+	// Nothing visible changed: do not re-push, so the hover VFX is never restarted on a still cursor.
+	if (Tile == LastCursorHoveredTile && NewState == LastCursorHoverState)
+		return;
+
+	// The hover VFX samples its color when it spawns, so pushing a new state onto a tile that is already
+	// glowing would leave the old color on screen. Push None first: the Blueprint destroys the VFX, and the
+	// state right after spawns it again with the right color. Only happens when the state actually changes.
+	if (Tile == LastCursorHoveredTile && LastCursorHoverState != EML_TileHoverState::None &&
+	    NewState != EML_TileHoverState::None)
+	{
+		Tile->SetCursorHoverState(EML_TileHoverState::None);
+	}
+
+	Tile->SetCursorHoverState(NewState);
+
+	// A tile pushed to None is not glowing anymore, so it is not the one to clean up next time.
+	LastCursorHoveredTile = (NewState == EML_TileHoverState::None) ? nullptr : Tile;
+	LastCursorHoverState  = NewState;
+}
+
 void UML_HoverPreviewComponent::TickCursorHoverPreview()
 {
 	if (!IsValid(OwningController))
 		return;
 
 	AML_Tile* CursorHoveredTile = ResolveHoveredTile();
-
-	if (CursorHoveredTile == LastCursorHoveredTile)
-		return;
 
 	if (!IsValid(CursorHoveredTile))
 	{
@@ -200,6 +251,8 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 	}
 
 	// Per-board glow switch: if the hovered tile's board has glow disabled, treat it as no hover.
+	// Re-tested every pass (and not only when the hovered tile changes) so toggling a board's glow off
+	// while it is hovered clears the glow on its own.
 	const AML_BoardSpawner* CursorBoard = CursorHoveredTile->GetBoardSpawnerFromTile();
 	if (IsValid(CursorBoard) && !CursorBoard->IsGlowEnabled())
 	{
@@ -207,28 +260,22 @@ void UML_HoverPreviewComponent::TickCursorHoverPreview()
 		return;
 	}
 
-	if (IsValid(LastCursorHoveredTile))
-		LastCursorHoveredTile->StopGlowingCursorUnhovered();
+	// Moved to another tile: put the previous one back to None before lighting the new one.
+	if (LastCursorHoveredTile != CursorHoveredTile && IsValid(LastCursorHoveredTile))
+		LastCursorHoveredTile->SetCursorHoverState(EML_TileHoverState::None);
 
-	// Non-walkable tiles still glow on hover, just with a different (blocked) color driven by bIsWalkable.
-	// The path glow is handled separately in TickPathHoverPreview and only triggers on reachable tiles.
-	const bool bIsWalkable = UML_HexPathfinder::IsTileWalkable(CursorHoveredTile);
-	const bool bIsPlayerTile = IsValid(PlayerCharacter) && IsValid(PlayerCharacter->CurrentTileOn) &&
-	                           CursorHoveredTile == PlayerCharacter->CurrentTileOn;
-	CursorHoveredTile->GlowCursorHovered(bIsPlayerTile, bIsWalkable);
-	bLastCursorTileIsPlayerTile = bIsPlayerTile;
-
-	LastCursorHoveredTile = CursorHoveredTile;
+	// Same tile as last pass or not, the state is recomputed: the glow follows the player moving in or
+	// out of it, its type changing under the cursor, or the energy running out.
+	ApplyCursorHoverState(CursorHoveredTile);
 }
 
 void UML_HoverPreviewComponent::ClearCursorHoverPreview()
 {
 	if (IsValid(LastCursorHoveredTile))
-	{
-		LastCursorHoveredTile->StopGlowingCursorUnhovered();
-		LastCursorHoveredTile = nullptr;
-	}
-	bLastCursorTileIsPlayerTile = false;
+		LastCursorHoveredTile->SetCursorHoverState(EML_TileHoverState::None);
+
+	LastCursorHoveredTile = nullptr;
+	LastCursorHoverState  = EML_TileHoverState::None;
 }
 
 void UML_HoverPreviewComponent::ClearActiveGlow()
@@ -383,7 +430,7 @@ void UML_HoverPreviewComponent::RefreshPlantableHighlight()
 
 	for (AML_Tile* Neighbor : Neighbors)
 	{
-		// Skip the currently-selected tile: it already shows the cursor glow (GlowCursorHovered),
+		// Skip the currently-selected tile: it already shows the cursor glow (SetCursorHoverState),
 		// and both glows write the same tile color, so they would otherwise fight over it.
 		if (Neighbor == ForcedHoverTile) continue;
 
@@ -464,10 +511,11 @@ void UML_HoverPreviewComponent::TickPathHoverPreview()
     // Same tile as before → no update needed unless it became non-walkable.
     if (HoveredTile == LastPathHoveredTile)
     {
+        // Only the path is dropped here: the tile is still hovered, and TickCursorHoverPreview turns its
+        // glow to Blocked on its own. Clearing the cursor glow from the path pass would fight it.
         if (IsValid(HoveredTile) && bCurrentHoveredTileReachable && !UML_HexPathfinder::IsTileWalkable(HoveredTile))
         {
             ClearPathHoverPreview();
-            ClearCursorHoverPreview();
         }
         return;
     }

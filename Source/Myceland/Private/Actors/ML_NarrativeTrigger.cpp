@@ -52,7 +52,15 @@ void AML_NarrativeTrigger::BeginPlay()
     // Restore the played state from the save file so a play-once trigger that
     // already fired in a previous session does not play again after loading.
     if (const UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
-        bHasBeenPlayed = SaveSys->IsNarrativeTriggerPlayed(GetTriggerSaveID());
+    {
+        bHasBeenPlayed = SaveSys->HasStoryBeatPlayed(GetTriggerSaveID())
+                      || SaveSys->HasStoryBeatPlayed(GetLegacyTriggerSaveID());
+
+        // Only ever restores the unlock: nothing re-locks a trigger at runtime, so a missing
+        // flag has to leave the actor's authored default alone rather than force it false.
+        if (SaveSys->HasStoryBeatPlayed(GetCanPlaySaveID()))
+            canPlay = true;
+    }
 
     // Bind overlap event
     if (TriggerBox)
@@ -95,11 +103,10 @@ void AML_NarrativeTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overlapped
     // Play the sequence
     if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
     {
+        // In-memory only: stops the overlap re-firing while the sequence runs. The save is
+        // written when the sequence ends (HandleSequenceEnd), so quitting mid-narration
+        // leaves it unseen and it plays again next session.
         bHasBeenPlayed = true;
-
-        // Persist the played state so it survives a reload.
-        if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
-            SaveSys->SetNarrativeTriggerPlayed(GetTriggerSaveID());
 
         OnSequenceStarted(NarrativeSequence);
         SubSys->PlaySequence(NarrativeSequence, this);
@@ -108,7 +115,8 @@ void AML_NarrativeTrigger::OnTriggerBeginOverlap(UPrimitiveComponent* Overlapped
 
 void AML_NarrativeTrigger::PlaySequence()
 {
-    // Play the sequence
+    // Same deal as the overlap path: flagged in memory now, saved on end. This used to set the
+    // flag without ever persisting it, so a Blueprint-driven narration replayed on every load.
     if (UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this))
     {
         bHasBeenPlayed = true;
@@ -127,9 +135,21 @@ void AML_NarrativeTrigger::HandleSequenceStart(UML_NarrativeSequence* Sequence)
 
 void AML_NarrativeTrigger::HandleSequenceEnd(UML_NarrativeSequence* Sequence)
 {
-    // Only handle if this is OUR sequence
-    if (Sequence == NarrativeSequence)
-        OnSequenceEnded(Sequence);
+    // Compare the running trigger rather than the sequence asset: two triggers can share the
+    // same UML_NarrativeSequence, and only the one that started it should react.
+    const UML_NarrativeSubsystem* SubSys = UML_NarrativeSubsystem::Get(this);
+    if (!SubSys || SubSys->GetCurrentTrigger() != this) return;
+
+    // Written here rather than at the start so a session quit mid-narration replays it.
+    // A skip lands here too (StopSequence broadcasts through CleanupCurrentSequence), so
+    // skipping counts as seen and will not replay.
+    if (bPlayOnce)
+    {
+        if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
+            SaveSys->MarkStoryBeatPlayed(GetTriggerSaveID());
+    }
+
+    OnSequenceEnded(Sequence);
 }
 
 void AML_NarrativeTrigger::OnSequenceStarted_Implementation(UML_NarrativeSequence* Sequence)
@@ -144,9 +164,25 @@ void AML_NarrativeTrigger::ResetTrigger()
 {
     bHasBeenPlayed = false;
 
-    // Clear the persisted flag so the trigger can play again after a reset.
+    // Clear the persisted flag so the trigger can play again after a reset. The legacy key
+    // goes too, otherwise BeginPlay's fallback would restore the played state from it.
     if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
-        SaveSys->ClearNarrativeTriggerPlayed(GetTriggerSaveID());
+    {
+        SaveSys->ClearStoryBeatPlayed(GetTriggerSaveID());
+        SaveSys->ClearStoryBeatPlayed(GetLegacyTriggerSaveID());
+    }
+}
+
+void AML_NarrativeTrigger::SetCanPlay(const bool bNewCanPlay)
+{
+    canPlay = bNewCanPlay;
+
+    // Only the unlock is persisted - see the restore in BeginPlay.
+    if (canPlay)
+    {
+        if (UML_SaveSubsystem* SaveSys = GetSaveSubsystem())
+            SaveSys->MarkStoryBeatPlayed(GetCanPlaySaveID());
+    }
 }
 
 UML_SaveSubsystem* AML_NarrativeTrigger::GetSaveSubsystem() const
@@ -155,11 +191,35 @@ UML_SaveSubsystem* AML_NarrativeTrigger::GetSaveSubsystem() const
     return GI ? GI->GetSubsystem<UML_SaveSubsystem>() : nullptr;
 }
 
+FName AML_NarrativeTrigger::GetLevelKey() const
+{
+    const UWorld* World = GetWorld();
+    if (!World) return NAME_None;
+
+    // Strip the "UEDPIE_N_" prefix Unreal prepends in PIE so the key is identical whether the
+    // trigger fires in the editor or in a packaged build.
+    FString MapName = World->GetMapName();
+    MapName.RemoveFromStart(World->StreamingLevelsPrefix);
+    return FName(*MapName);
+}
+
 FName AML_NarrativeTrigger::GetTriggerSaveID() const
 {
-    // Level-placed actors keep a stable FName across sessions, which makes it a
-    // reliable per-trigger save key without any extra editor setup.
+    // Level-placed actors keep a stable FName across sessions, which makes it a reliable
+    // per-trigger save key without any extra editor setup - but only within one map, since
+    // auto-generated names like BP_NarrativeTrigger_C_0 repeat across levels. Hence the scope.
+    return FName(*FString::Printf(TEXT("Trigger.%s.%s"),
+        *GetLevelKey().ToString(), *GetFName().ToString()));
+}
+
+FName AML_NarrativeTrigger::GetLegacyTriggerSaveID() const
+{
     return GetFName();
+}
+
+FName AML_NarrativeTrigger::GetCanPlaySaveID() const
+{
+    return FName(*FString::Printf(TEXT("%s.CanPlay"), *GetTriggerSaveID().ToString()));
 }
 
 void AML_NarrativeTrigger::Tick(const float DeltaTime)

@@ -50,7 +50,7 @@ private:
 	static inline const FIntPoint DefaultResolutionPx = FIntPoint(1920, 1080);
 	static constexpr int32 DefaultResolutionValue = 2;
 	static constexpr float DefaultResolutionScale = 70.0f;
-	static constexpr EWindowMode::Type DefaultWindowMode = EWindowMode::Windowed;
+	static constexpr EWindowMode::Type DefaultWindowMode = EWindowMode::Fullscreen;
 	static constexpr bool DefaultVSync = false;
 	static constexpr int32 DefaultFrameLimit = 1;
 	static constexpr float DefaultFrameRateLimit = 60.0f;
@@ -133,15 +133,13 @@ private:
 	UPROPERTY(Config)
 	float SubtitlesSize = DefaultSubtitlesSize;
 
-	UPROPERTY(Config)
-	EMLColorblindMode ColorblindMode = DefaultColorblindMode;
-
 
 
 	// ==================== Internal Helpers ====================
 
 	UWorld* GetWorld() const;
 	FIntPoint GetClosestValidResolution(FIntPoint DesiredResolution) const;
+	FIntPoint GetNativeDefaultResolution() const;
 
 	void LoadResolution();
 	void LoadFrameLimit();
@@ -291,17 +289,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
 	void SetSubtitlesSize(float Size);
 
-	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
-	void SetColorblindMode(EMLColorblindMode Mode);
-
 	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
 	bool GetSubtitles() const { return bSubtitles; }
 
 	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
 	float GetSubtitlesSize() const { return SubtitlesSize; }
-
-	UFUNCTION(BlueprintPure, Category = "Settings|Accessibility")
-	EMLColorblindMode GetColorblindMode() const { return ColorblindMode; }
 
 
 

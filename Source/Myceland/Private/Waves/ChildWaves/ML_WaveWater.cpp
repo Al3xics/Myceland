@@ -58,6 +58,11 @@ void UML_WaveWater::ComputeWave(AML_Tile* OriginTile, TArray<FML_WaveChange>& Ou
 			// Water eats:
             // 1. A real parasite
             // 2. Grass that is currently in the delayed Grass -> Parasite transition
+            //
+            // Case 2 is now a safety net rather than the normal path: this wave is flagged
+            // bWaitForPendingVisuals, so the transitions have reported being over before it even computes.
+            // It still matters when the settle timeout fires (a parasite Blueprint that never reports):
+            // without it the water would pass straight through a parasite that is mid-birth and let it live.
             const bool bIsParasite =
                 UML_TileTypeTraits::CanWaterPropagateTo(Neighbor->GetCurrentType());
             

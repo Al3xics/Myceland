@@ -22,6 +22,7 @@ class UNavModifierComponent;
 enum class EML_TileType : uint8;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileChangedNative, AML_Tile*, Tile);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTileParasiteReady, AML_Tile*, Tile);
 
 UCLASS(Blueprintable)
 class MYCELAND_API AML_Tile : public AActor
@@ -61,6 +62,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bHasCollectible = false;
+
+	// Reset on every type change: it describes the child actor currently on the tile, not the tile itself.
+	bool bParasiteReady = false;
 	
 	UPROPERTY(VisibleAnywhere, Category="Myceland Tile")
 	bool bIsBorderTile = false;
@@ -152,13 +156,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Myceland Tile|Getter & Setter")
 	AML_BoardSpawner* GetBoardSpawnerFromTile() const { return Cast<AML_BoardSpawner>(GetOwner()); }
 
-	// bIsWalkable is false when hovering a non-walkable tile type (water, obstacle, parasite, tree).
-	// The Blueprint uses it to pick a different "blocked" glow color.
+	// Single entry point for the cursor / selection glow: the state fully describes what must be shown,
+	// so the Blueprint only maps a state to a color. It must be TOTAL: every state, None included (which
+	// hides the glow), has to leave the tile in a consistent visual state, because the same tile can be
+	// pushed a new state without ever being "unhovered" first (the player leaves it, its type changes,
+	// the energy runs out). Nothing else may write the hover color or destroy the hover VFX:
+	// UML_HoverPreviewComponent owns that visual and only pushes it when the state actually changes.
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void GlowCursorHovered(bool bIsPlayerTile, bool bIsWalkable);
-
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
-	void StopGlowingCursorUnhovered();
+	void SetCursorHoverState(EML_TileHoverState State);
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void GlowPathWalk();
@@ -167,7 +172,7 @@ public:
 	void StopGlowingPathWalk();
 
 	// Gamepad: glow used to advertise a tile the player can plant on (a plantable neighbor around
-	// the player). Distinct from GlowCursorHovered, which marks the single currently-selected tile.
+	// the player). Distinct from SetCursorHoverState, which marks the single currently-selected tile.
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Myceland Tile|Feedback")
 	void GlowPlantableAvailable();
 
@@ -200,4 +205,18 @@ public:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AML_Collectible> CollectibleActor;
+
+	// A tile only *becomes* Parasite after GrassToParasiteDelay, and the parasite Blueprint then plays its
+	// growth animation on top of that. Anything that must appear to come out of a finished parasite (the
+	// collectible flight) waits on this instead of guessing a duration.
+	UPROPERTY(BlueprintAssignable, Category="Myceland Tile|Parasite")
+	FOnTileParasiteReady OnParasiteReady;
+
+	UFUNCTION(BlueprintPure, Category="Myceland Tile|Parasite")
+	bool IsParasiteReady() const { return bParasiteReady; }
+
+	// Called by the parasite Blueprint at the end of its transformation animation. Idempotent, so it can be
+	// wired on several timelines without ordering the branches.
+	UFUNCTION(BlueprintCallable, Category="Myceland Tile|Parasite")
+	void NotifyParasiteReady();
 };
